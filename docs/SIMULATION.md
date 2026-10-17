@@ -1,19 +1,23 @@
-# A3/A4 simulation and exercise handoff
+# A3/A4/A5 simulation, exercise, and ghost handoff
 
 The development-only `/dev/hand-tracking?debug=1` route combines A1/A2 tracking and
-calibration with two kinematic 3D instruments and the A4 Needle Passing exercise
-state machine. Start the camera, calibrate, approach
+calibration with two kinematic 3D instruments, the A4 Needle Passing exercise
+state machine, and the A5 translucent ghost motion renderer. Start the camera, calibrate, approach
 the needle’s pickup circle with an **open** colored tip ring, wait for the circle
 to turn green and the “tip aligned” prompt, then pinch. Guide the held needle
 through Entry Ring 1, rotate your wrist through Apex Ring 2, exit through Ring 3,
-move into the upper-right release ring, and open to release. **Reset scene** restores the needle and exercise progress without restarting camera/calibration.
+move into the upper-right release ring, and open to release. **Reset scene** restores the needle, exercise progress, and ghost playback without restarting camera/calibration.
 The route remains 404 in production.
 
 The background grid is a visual guide; the needle has the only large pickup
 circle, while the three mounted target rings (`ring-1`, `ring-2`, `ring-3`), the
 corridor guide arc, the release ring, and the lower `tissue-wall` danger bar drive
-A4's 8-segment exercise progression. Translucent ghost rendering (`A5`) and product-route
-integration (`S1`) belong to subsequent tasks. This is an educational motion-control
+A4's 8-segment exercise progression. In `Learn` mode (and in `Practice` mode when toggled
+on or auto-triggered), A5 renders translucent reference instruments, a ghost needle,
+and reference tool-tip path trails (`0.5x`/`1x` speed, `progress-coupled`/`continuous` sync,
+and runtime switching between the canonical synthetic reference and the workspace-fitted
+JIGSAWS `Needle_Passing_E005` expert trial). Product-route integration (`S1`) and dual
+user-versus-expert post-attempt replay (`A6`) belong to subsequent tasks. This is an educational motion-control
 prototype; task-object physics and anatomical fidelity are not claimed.
 
 ## Interfaces and ownership
@@ -71,6 +75,28 @@ modifying shared contracts:
   - `assessment`: starts in `active` (`approach`) and strictly enforces `ghostVisible: false`, `canToggleGhost: false`, `ghostAutoTriggered: false`, `showPathGuide: false`, `highlightCurrentTarget: false`, `voiceCoachingLevel: "none"`, `showLiveCoaching: false`.
 - **Recorded motion output (`getRecordedMotion()`):**
   - Appends one validated `MotionFrame` per accepted `sourceTMs` during the active attempt plus the terminal `complete` frame, directly consumable by Person B's `evaluateAttempt(recorded, reference)` (`src/lib/evaluation/evaluate.ts`).
+
+## A5 ghost motion renderer and reference workspace fitting
+
+`GhostPlaybackController` (`src/lib/exercise/ghost-playback.ts`),
+`ghost-reference.ts` (`src/lib/exercise/ghost-reference.ts`), and
+`GhostLayer` (`src/components/scene/ghost-layer.tsx`) consume B2/B4 `ReferenceMotion`
+JSON and A4's `ExerciseSnapshot` without modifying shared contracts or committed
+reference files:
+
+- **Grip-to-tip geometry alignment (`resolveGhostToolPose`):**
+  - `reference_builder.py` sets `ToolState.position` equal to `ToolState.tipPosition`, whereas `Instrument` meshes place their origin at the grip and jaw tips at local `TIP_OFFSET = (0, 0.35, 0)`. `resolveGhostToolPose` normalizes `tool.rotation` and computes `gripPosition = tipPosition - applyQuaternion(TIP_OFFSET, rotation)` so the translucent ghost instrument tips always sit on `tipPosition` and match the reference path trail.
+- **Sub-frame 30 Hz interpolation & playback speeds:**
+  - `sampleReferenceAtTime`, `sampleReferenceAtProgress`, and `sampleReferenceInSegment` locate bracketing 30 Hz frames and interpolate positions linearly (`lerpVec3`) and rotations via shortest-path quaternion `slerpQuat` (`dot < 0` sign flip + unit normalization) at display refresh rate (`useFrame`), eliminating 30 Hz stepping.
+  - Supports `0.5x` and `1x` playback speeds (`setSpeed(0.5 | 1)`).
+- **Synchronization modes (`progress-coupled` vs `continuous`):**
+  - `demonstration` phase (`Learn` mode): plays across `[0, 1]` scaled by `speed`.
+  - `progress-coupled` mode (default during active `Learn`/`Practice` attempts): binds the ghost to the user's `segmentId` and `segmentProgress` with a `12%` lead offset (`leadOffset = 0.12`). If the user stalls for `>= 600 ms`, the ghost smoothly micro-loops the local segment window (`activeBehavior: "stall-loop"`) so it demonstrates the immediate next motion without racing ahead.
+  - `continuous` mode: loops the full reference trajectory at `0.5x` or `1x` speed.
+  - Strict mode-hook gate: whenever `exerciseSnapshot.modeHooks.ghostVisible` is `false` (always `false` in `Assessment` mode, and `false` by default in `Practice` mode until manually toggled or auto-triggered), `GhostLayer` and ghost playback controls are strictly hidden.
+- **7-frame display smoothing & JIGSAWS expert workspace fitting:**
+  - Defaults to `needle-passing-reference-v1.json` (preloaded synchronously so unit tests and initial frames require no network wait).
+  - Supports runtime switching to `/references/needle-passing/needle-passing-jigsaws-expert-v1.json` (`Needle_Passing_E005`, 3,233 frames). `prepareGhostReference` maps JIGSAWS gesture spans (`G1..G11`) onto the 8 `NeedlePassingSegment` phases, fits raw metre tool-tip coordinates into `DEFAULT_WORKSPACE_BOUNDS` (`x ∈ [-0.26, 0.26]`, `y ∈ [0.14, 0.36]`, `z ∈ [-0.05, 0.08]`, above `tissue-wall`), applies 7-frame centered display smoothing, and displays the required Gao et al. (2014) attribution in the UI.
 
 ## Geometry and interaction
 

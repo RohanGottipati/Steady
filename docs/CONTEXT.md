@@ -1,9 +1,9 @@
 # Project Context
 
-Last updated: 2026-10-17 17:45 UTC
-Updated by: B5 complete 20-metric evaluator (branch b5, merged latest main incl. A4 PR #7)
-Current branch: b5
-Current milestone: M0–M3 implemented in dev preview; M1/M2/M3 physical acceptance pending
+Last updated: 2026-10-17 18:35 UTC
+Updated by: Person A — Task A5 (Ghost renderer, sub-frame 30 Hz interpolation, 0.5x/1x speed, progress-coupled sync, 1-Hand Mode, and JIGSAWS workspace fitting; rebased on main after B5 PR #8)
+Current branch: person-a/a5-ghost-renderer
+Current milestone: M0–M4 implemented in dev preview; M1/M2/M3 physical acceptance pending
 Demo-critical status: YELLOW
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -83,7 +83,19 @@ truth for the current project state — it records what exists and where it is.
   `ring-3`), release ring, `tissue-wall` danger zone, early-release and out-of-order
   guardrails, `Learn` / `Practice` / `Assessment` mode behavior hooks (Assessment
   hides ghost/path/coaching hooks), and canonical `MotionFrame` recording verified
-  against B3's `evaluateAttempt`. Ghosts (`A5`) and `/train/[skillId]` integration (`S1`) remain next.
+  against B3/B5's `evaluateAttempt`.
+- A5 implementation available in the development preview (`src/lib/exercise/ghost-reference.ts`,
+  `src/lib/exercise/ghost-playback.ts`, `src/components/scene/ghost-layer.tsx`,
+  `src/components/scene/training-scene.tsx`, `src/components/training/3d-training-preview.tsx`):
+  single-instrument translucent ghost and needle playback, glowing 3D guide tube and
+  tool-tip path trail visiting all 5 scene checkpoints (`Needle -> Ring 1 -> Ring 2 -> Ring 3 -> Release Ring`),
+  sub-frame `lerp`/`slerp` interpolation over 30 Hz `ReferenceMotion` data without
+  stepping, `0.5x` and `1x` speed controls, `demonstration` / `progress-coupled`
+  (12% lead + step-sweep stall loop) / `continuous` sync modes, 7-frame centered
+  display smoothing, **1-Hand Quick Start / 1-Hand Mode** (`singleHand`), and runtime
+  workspace fitting + gesture-to-segment mapping for B4's JIGSAWS `Needle_Passing_E005`
+  expert trial (`needle-passing-jigsaws-expert-v1.json`) with Gao et al. (2014)
+  attribution. `/train/[skillId]` integration (`S1`) and 3D replay (`A6`) remain next.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -124,7 +136,16 @@ truth for the current project state — it records what exists and where it is.
   `overallProgress`, `activeTargetId`, `completedTargetIds`, `corridorDeviation`,
   `orientationErrorDeg`, `rotationDeltaDeg`, `inDangerZone`, `dangerZoneCount`,
   `needleDropped`, `modeHooks`, `readyForEvaluation`, `readyForReplay`) and
-  `getRecordedMotion(): RecordedMotion` (validated `MotionFrame[]` compatible with B3).
+  `getRecordedMotion(): RecordedMotion` (validated `MotionFrame[]` compatible with B3/B5).
+- A5 ghost motion subsystem (`src/lib/exercise/ghost-reference.ts`,
+  `src/lib/exercise/ghost-playback.ts`, `src/components/scene/ghost-layer.tsx`)
+  consumes `ReferenceMotion` and `ExerciseSnapshot` at display refresh rate in
+  `useFrame`. Resolves grip poses via `tipPosition - applyQuaternion(TIP_OFFSET, rotation)`
+  so translucent jaw tips match `tipPosition` on the trail; exposes `GhostSnapshot`
+  (`visible`, `showTrail`, `activeSide`, `actionLabel`, `referenceId`, `referenceSourceId`,
+  `attribution`, `speed`, `syncMode`, `activeBehavior`, `tMs`, `normalizedProgress`,
+  `segmentId`, `segmentProgress`, `stalled`, `leftTool`, `rightTool`, `leftPose`,
+  `rightPose`, `needlePose`, `needleHeldBy`).
 
 ## 4. Current Task Ownership
 Person A - Realtime Vision and 3D Simulation:
@@ -137,7 +158,11 @@ Person A - Realtime Vision and 3D Simulation:
   existing-camera integration, interaction/display tests and simulation handoff.
 - A4 implemented: Needle Passing 8-segment state machine, 3D target rings/corridor/danger
   zone, Learn/Practice/Assessment mode behavior hooks, and `MotionFrame` recording.
-  A5 ghost renderer next; A1/A2/M2/M3 physical performance acceptance remains pending.
+- A5 implemented: translucent ghost renderer, tool-tip path trail/tube, sub-frame 30 Hz
+  `lerp`/`slerp` interpolation, `0.5x`/`1x` speeds, `demonstration`/`progress-coupled`/`continuous`
+  sync modes, 1-Hand Quick Start / 1-Hand Mode, 7-frame display smoothing, and runtime
+  JIGSAWS expert workspace fitting. Joint `S1` (`/train/[skillId]` integration) and `A6`
+  (3D replay renderer) are next; A1/A2/M2/M3 physical performance acceptance remains pending.
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4), B4 external data conversion (merged to main via #6) done; B5 full 20-metric evaluator done on branch b5
@@ -213,6 +238,15 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   direction test per new metric (with independence checks — depth/workspace/
   bimanual unaffected by a pure XY translation; danger-zone 100 with no zones),
   weighted-overall, determinism, and the `toAttemptResult` schema round-trip.
+- A5 implementation - translucent single-instrument ghost and needle renderer
+  (`src/components/scene/ghost-layer.tsx`), scene-aligned 5-checkpoint trajectory
+  and glowing 3D path tube, sub-frame 30 Hz `lerp`/`slerp` interpolation
+  (`src/lib/exercise/ghost-playback.ts`), `0.5x` and `1x` speed controls,
+  `demonstration` / `progress-coupled` (12% lead + stall step-sweep) / `continuous`
+  synchronization, 1-Hand Quick Start / 1-Hand Mode (`singleHand`), 7-frame centered
+  display smoothing, and runtime JIGSAWS `Needle_Passing_E005` workspace fitting +
+  gesture mapping (`src/lib/exercise/ghost-reference.ts`) with Gao et al. (2014)
+  attribution. Unit, scene-lifecycle, and Chromium E2E tests pass.
 
 ## 6. In Progress
 - A3 usability acceptance - synthetic depth-drift pickup, assistance switching and
@@ -291,7 +325,25 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
-Latest verification on b5 (2026-10-17, after merging latest main incl. A4 PR #7):
+Latest verification on `person-a/a5-ghost-renderer` (2026-10-17, on top of main `296e8b5` / B5 PR #8):
+- `npm run typecheck`: passed.
+- `npm run lint`: passed without warnings.
+- `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`: 23 files / 199 tests
+  passing, including 9 new A5 unit tests in `tests/unit/ghost-playback.test.ts`
+  (120 Hz sub-frame interpolation over 30 Hz frames, opposite-hemisphere quaternion
+  `slerp`, grip-to-tip invariant, JSON trail + 5-checkpoint scene alignment, `0.5x` vs
+  `1x` speed scaling, progress-coupled 12% lead and stall step-sweep, `Assessment` mode
+  hiding, JIGSAWS `Needle_Passing_E005` workspace fitting + 8-segment gesture mapping,
+  7-frame centered display smoothing, and 1-Hand Mode completion) plus extended
+  `GhostLayer` scene lifecycle tests in `tests/unit/training-scene.test.tsx` and all
+  B5 20-metric tests. B0 migration/seed tests were excluded to avoid cloud writes.
+- `npm run test:e2e -- --workers=1`: all 12 Chromium tests passed across 3 files,
+  including A5 ghost `0.5x`/`1x` speed switching, `Progress-coupled`/`Continuous`
+  sync toggling, JIGSAWS expert reference loading with Gao et al. attribution,
+  `Assessment` mode ghost control hiding, and full 8-segment Needle Passing completion
+  in `tests/e2e/tool-simulation.spec.ts`.
+
+Prior verification on b5 (2026-10-17, after merging latest main incl. A4 PR #7):
 `npm run typecheck` and `npm run lint` clean; `npm test` = 23 files / 193 tests
 passing, including the new B5 20-metric direction/weighting/`toAttemptResult` tests
 (plus a PR #8 review fix: `overshootControl` now scores reversals as excess over
@@ -333,17 +385,13 @@ CSS-worker local-port restriction; verify on an unrestricted host before release
 no production build success claimed.
 
 ## 11. Next Recommended Actions
-1. Person A: Implement **A5 — Ghost renderer** (translucent reference tool playback,
-   path trail, 30 Hz frame interpolation, 0.5x/1x speed, and progress-coupled mode
-   consuming A4's `modeHooks` and `overallProgress`/`segmentProgress`, plus real
-   JIGSAWS reference workspace fitting), and run target-Mac physical-camera QA from
-   `docs/HAND_TRACKING.md` and `docs/SIMULATION.md`.
-2. Person B: B2 + B3 + B4 + B5 done → **B6** live coaching event engine (depends on
+1. Both (Person A + Person B): Implement **S1 — First end-to-end integration** on `/train/[skillId]` (connecting webcam, calibration/1-hand quick start, 3D scene, A4 exercise engine, A5 ghost renderer, B5 20-metric evaluator with `tissue-wall` danger zone options, and deterministic `?fixture=` fallback), or Person A proceeds to **A6 — Attempt recording and 3D replay renderer** (dual user/expert replay, offline replay smoothing, deviation connectors, and seekable replay cursor API).
+2. Person A: Run target-Mac physical-camera QA from `docs/HAND_TRACKING.md` and `docs/SIMULATION.md`.
+3. Person B: B2 + B3 + B4 + B5 done → **B6** live coaching event engine (depends on
    B3/B5). B10 Tiger persistence can run in parallel now (frozen 20-vector +
-   `AttemptUploadPayload` contracts; only B10 touches the DB). Joint **S1** integration
-   on `/train/[skillId]` can now wire A4's exercise telemetry + `tissue-wall` danger
-   zone into `evaluateAttempt` options. Deferred analytics/search work belongs to B10/B12.
-3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
+   `AttemptUploadPayload` contracts; only B10 touches the DB). Deferred analytics/search
+   work belongs to B10/B12.
+4. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
 ## 12. Manual Demo Notes
 - Target browser: latest Chrome on macOS.

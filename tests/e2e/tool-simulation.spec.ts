@@ -183,17 +183,33 @@ test("completes Needle Passing across all 8 segments, guards early release, and 
   test.setTimeout(60_000);
   await start(page);
 
-  // Verify Learn, Assessment, and Practice mode hooks in UI
+  // Verify Learn, Assessment, and Practice mode hooks and A5 ghost playback controls in UI
   await page.getByTestId("mode-learn").click();
   await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: demonstration");
   await expect(page.getByTestId("exercise-ghost-status")).toHaveText("Ghost: visible");
   await expect(page.getByTestId("ghost-toggle")).toHaveCount(0);
+  await expect(page.getByTestId("ghost-speed-0.5x")).toBeVisible();
+  await page.getByTestId("ghost-speed-0.5x").click();
+  await expect(page.getByTestId("ghost-playback-summary")).toContainText("Playback: 0.5x");
+  await page.getByTestId("ghost-speed-1x").click();
+  await expect(page.getByTestId("ghost-playback-summary")).toContainText("Playback: 1x");
+  await page.getByTestId("ghost-sync-toggle").click();
+  await expect(page.getByTestId("ghost-sync-toggle")).toContainText("Continuous loop");
+  await page.getByTestId("ghost-sync-toggle").click();
+  await expect(page.getByTestId("ghost-sync-toggle")).toContainText("Progress-coupled");
+  await page.getByTestId("ghost-reference-select").selectOption("jigsaws-expert-v1");
+  await expect(page.getByTestId("ghost-attribution")).toContainText("Gao et al.");
+  await page.getByTestId("ghost-reference-select").selectOption("synthetic-v1");
+  await expect(page.getByTestId("ghost-attribution")).toHaveCount(0);
   await page.getByTestId("start-attempt").click();
   await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: active");
 
   await page.getByTestId("mode-assessment").click();
   await expect(page.getByTestId("exercise-ghost-status")).toHaveText("Ghost: disabled in assessment");
+  await expect(page.getByTestId("ghost-playback-summary")).toHaveText("Playback: off");
   await expect(page.getByTestId("ghost-toggle")).toHaveCount(0);
+  await expect(page.getByTestId("ghost-speed-0.5x")).toHaveCount(0);
+  await expect(page.getByTestId("ghost-sync-toggle")).toHaveCount(0);
   await expect(page.getByTestId("exercise-instruction")).toHaveText("Segment: Approach");
 
   await page.getByTestId("mode-practice").click();

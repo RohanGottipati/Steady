@@ -50,6 +50,7 @@ export class HandControlsController {
   private size: VideoDimensions | null = null;
   private suspended = true;
   private planar = false;
+  private singleHand = false;
   private readonly mapping: ControlMappingOptions;
 
   constructor(mapping: Partial<ControlMappingOptions> = {}) {
@@ -73,6 +74,20 @@ export class HandControlsController {
   }
 
   setPlanar(enabled: boolean) { this.planar = enabled; }
+
+  setSingleHand(enabled: boolean) {
+    this.singleHand = enabled;
+    this.publish();
+  }
+
+  quickCalibrate(size: VideoDimensions) {
+    const validSize = validDimensions(size) ? size : { width: 1280, height: 720 };
+    this.size = { ...validSize };
+    this.suspended = false;
+    this.singleHand = true;
+    this.calibration.applyQuickProfile(validSize);
+    this.publish();
+  }
 
   suspend(nowMs: number) {
     this.suspended = true;
@@ -112,8 +127,11 @@ export class HandControlsController {
   private publish() {
     const left = this.hands.left.control, right = this.hands.right.control;
     const calibrated = this.calibration.profile !== null;
+    const readyHands = this.singleHand
+      ? [left, right].some(hand => hand.status === "tracking" && !hand.rotationHeld)
+      : [left, right].every(hand => hand.status === "tracking" && !hand.rotationHeld);
     this.snapshot = { sourceTMs: Number.isFinite(this.lastSource) ? this.lastSource : null, calibrated,
-      canProgress: calibrated && !this.suspended && [left, right].every(hand => hand.status === "tracking" && !hand.rotationHeld), left, right };
+      canProgress: calibrated && !this.suspended && readyHands, left, right };
   }
 
   private consume(slot: HandSlot, hand: RawTrackedHand, m: HandMeasurement, tMs: number) {
@@ -127,7 +145,11 @@ export class HandControlsController {
       runtime.control = { ...runtime.control, status: "recovering", hand: null, lastSeenMs: tMs };
       return;
     }
-    const rest = slot === "left" ? this.mapping.leftRest : this.mapping.rightRest;
+    const rest = this.singleHand
+      ? { x: 0, y: 0, z: 0 }
+      : slot === "left"
+        ? this.mapping.leftRest
+        : this.mapping.rightRest;
     const dx = (profile.neutralCenter.x - m.center.x) * this.size!.width / this.size!.height;
     const dy = profile.neutralCenter.y - m.center.y;
     const position = {

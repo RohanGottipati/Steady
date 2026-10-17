@@ -3322,6 +3322,18 @@ Needle Passing or Peg Transfer. If JIGSAWS licensing/data access is unresolved, 
 **Depends on:** A3 + B2 reference schema  
 **Priority:** P0
 
+Implementation is available in `src/lib/exercise/ghost-reference.ts`,
+`src/lib/exercise/ghost-playback.ts`, `src/components/scene/ghost-layer.tsx`,
+`src/components/scene/training-scene.tsx`, and `src/components/training/3d-training-preview.tsx`.
+`GhostPlaybackController` interpolates 30 Hz `ReferenceMotion` frames at display
+refresh rate via linear position `lerp` and shortest-path quaternion `slerp`,
+resolves grip poses so translucent instrument tips match `tipPosition` on the
+path trail, supports `0.5x` and `1x` playback speeds plus `demonstration`,
+`progress-coupled` (12% lead + 600 ms stall micro-loop), and `continuous` sync
+modes, strictly hides ghost visuals in `Assessment` mode, and provides runtime
+workspace fitting + gesture mapping for B4's JIGSAWS `Needle_Passing_E005` expert
+reference with Gao et al. (2014) attribution. See `docs/SIMULATION.md`.
+
 ### Output
 
 - translucent tool playback,

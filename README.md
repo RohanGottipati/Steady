@@ -46,13 +46,17 @@ either control becomes unavailable. A4 adds the 8-segment **Needle Passing**
 exercise (`Approach -> Grip -> Align -> Entry -> Rotation -> Exit -> Release -> Complete`)
 with three target rings (`ring-1`, `ring-2`, `ring-3`), a curved corridor guide,
 an upper-right release ring, a lower `tissue-wall` danger zone, and **Learn / Practice / Assessment**
-mode controls (Assessment hides ghost and coaching hooks). **Reset scene** restores the needle and exercise progress without
+mode controls (Assessment hides ghost and coaching hooks). A5 adds the translucent
+**Ghost renderer** with reference tool-tip path trails, smooth sub-frame `lerp`/`slerp`
+interpolation, **0.5x / 1x** playback speeds, **Progress-coupled / Continuous** sync
+modes, and runtime switching between the canonical synthetic reference and the
+workspace-fitted JIGSAWS `Needle_Passing_E005` expert trial. **Reset scene** restores the needle, exercise progress, and ghost playback without
 recalibrating. Debug mode includes calibrated pinch thresholds, a planar
-depth fallback, and live exercise telemetry. Calibration stays in memory and must be repeated after restarting
+depth fallback, and live exercise/ghost telemetry. Calibration stays in memory and must be repeated after restarting
 the camera. See [`docs/HAND_TRACKING.md`](docs/HAND_TRACKING.md) for the raw and
 calibrated interfaces, fallbacks, privacy details, and manual acceptance checklist.
-See [`docs/SIMULATION.md`](docs/SIMULATION.md) for A3/A4 geometry, interaction,
-exercise state machine, rendering interfaces and outstanding physical acceptance checks.
+See [`docs/SIMULATION.md`](docs/SIMULATION.md) for A3/A4/A5 geometry, interaction,
+exercise state machine, ghost playback, rendering interfaces and outstanding physical acceptance checks.
 
 After unlocking, commit and push `.env.local` changes normally; git-crypt encrypts
 them when staged. Keep the tracked file and its encryption rules in place. Do not

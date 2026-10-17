@@ -13,6 +13,8 @@ export function useHandControls(tracking: ReturnType<typeof useHandTracking>) {
   const controllerRef = useRef<HandControlsController | null>(null);
   const statusRef = useRef<TrackingStatus>("idle");
   const planarRef = useRef(false);
+  const singleHandRef = useRef(false);
+  const [singleHand, setSingleHandState] = useState(false);
   const [ui, setUi] = useState<{
     calibration: CalibrationState; profile: CalibrationProfile | null; snapshot: typeof snapshotRef.current;
   }>({ calibration: { stage: "idle", progress: 0, message: "Start the camera, then calibrate controls." }, profile: null, snapshot: emptyControlSnapshot() });
@@ -20,6 +22,7 @@ export function useHandControls(tracking: ReturnType<typeof useHandTracking>) {
   useEffect(() => {
     const controller = new HandControlsController();
     controller.setPlanar(planarRef.current);
+    controller.setSingleHand(singleHandRef.current);
     controllerRef.current = controller;
     let animation = 0;
     let lastStream: HTMLVideoElement["srcObject"] = null;
@@ -74,7 +77,25 @@ export function useHandControls(tracking: ReturnType<typeof useHandTracking>) {
     snapshotRef.current = controller.snapshot;
     setUi({ calibration: { ...controller.calibration.state }, profile: null, snapshot: controller.snapshot });
   };
-  return { snapshotRef, ui, calibrate, cancel, setPlanar: (enabled: boolean) => {
+  const quickCalibrate = () => {
+    const video = videoRef.current, controller = controllerRef.current;
+    if (!controller) return;
+    singleHandRef.current = true;
+    setSingleHandState(true);
+    controller.quickCalibrate({ width: video?.videoWidth || 1280, height: video?.videoHeight || 720 });
+    snapshotRef.current = controller.snapshot;
+    setUi({ calibration: { ...controller.calibration.state }, profile: controller.calibration.profile, snapshot: controller.snapshot });
+  };
+  const setSingleHand = (enabled: boolean) => {
+    singleHandRef.current = enabled;
+    setSingleHandState(enabled);
+    const controller = controllerRef.current;
+    if (!controller) return;
+    controller.setSingleHand(enabled);
+    snapshotRef.current = controller.snapshot;
+    setUi({ calibration: { ...controller.calibration.state }, profile: controller.calibration.profile, snapshot: controller.snapshot });
+  };
+  return { snapshotRef, ui, calibrate, cancel, quickCalibrate, singleHand, setSingleHand, setPlanar: (enabled: boolean) => {
     planarRef.current = enabled; controllerRef.current?.setPlanar(enabled);
   } };
 }
