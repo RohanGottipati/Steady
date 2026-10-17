@@ -1,0 +1,3 @@
+# Offline expert-dataset conversion only (not used by the Next.js app)
+numpy>=1.26
+pandas>=2.2

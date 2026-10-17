@@ -1,13 +1,13 @@
 # Project Context
 
-Last updated: 2026-10-16 23:14
-Updated by: repo bootstrap
+Last updated: 2026-10-16 23:19
+Updated by: dependency bootstrap
 Current branch: main
 Current milestone: M0
 Demo-critical status: YELLOW
 
 ## 1. Current Working State
-- Initial repository structure and planning docs committed.
+- Next.js App Router bootstrap complete with hackathon dependencies installed.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -31,9 +31,10 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 
 ## 5. Completed Tasks
 - Partial S0 - repository structure and docs seeded
+- Partial S0 - Next.js, Tailwind, shadcn/ui, MediaPipe, R3F, Zustand, Zod, postgres, ElevenLabs, Vitest, Playwright installed
 
 ## 6. In Progress
-- S0 - Next.js app, deps, shared types, health route still remaining
+- S0 - shared TypeScript contracts and remaining bootstrap acceptance still open
 
 ## 7. Known Issues / Risks
 - External dataset license and access must be confirmed before public redistribution.
