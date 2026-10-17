@@ -2,6 +2,41 @@
 
 Hardware-free AI surgical motion trainer that uses a laptop webcam to teach precise procedural movements through expert ghost demonstrations, real-time voice coaching, motion-level evaluation, and 3D expert-versus-user replay.
 
+## Current training workflow (S1)
+
+Open `/library`, choose **Needle Passing**, then select Learn, Practice, or Assessment.
+Start the camera explicitly and calibrate, or use **1-Hand Quick Start** after starting
+it, holding one open hand still briefly to establish its neutral wrist pose. Learn
+shows a ghost demonstration before the active attempt. Pass the needle
+through Rings 1 → 2 → 3, then open inside the release ring. Results appear on the
+same page: overall score, five categories, strongest/weakest metrics, deviation
+markers, and expandable detail for all 20 deterministic metrics. **Try again** resets
+the attempt while retaining camera calibration; stopping the camera retains a finished
+result. Restarting the camera requires calibration again.
+
+For a camera-free demonstration, select **Run Demo Fixture** or open:
+
+- `/train/needle-passing?fixture=needle-pass-good`
+- `/train/needle-passing?fixture=needle-pass-late-rotation`
+
+Both animate through the actual simulation and exercise engine. Learn includes its
+three-second demonstration. The perturbed pass scores worse than the clean pass.
+Demo results are labelled and excluded from saved history. `?fixture=off` overrides
+`NEXT_PUBLIC_DEMO_FIXTURE_MODE=true` when switching back to the camera.
+
+Webcam attempts save asynchronously to IndexedDB on this device (newest 20). Results
+remain available in memory if storage is restricted or full; the save message tells
+you which applies. Reload retrieval is available through the local cache interface;
+a history/results navigation screen belongs to the later results task. No attempt
+upload runs in S1. Raw video stays in the browser; saved replay data contains tool
+telemetry without raw hand landmarks. Optional `?debug=1` exposes numerical
+diagnostics and the result object.
+
+Live coaching is deterministic text with recorded events. Assessment hides the ghost,
+path guide, and coaching. Scoring always uses the unsmoothed canonical synthetic scene
+guide; choosing the optional JIGSAWS ghost changes the demonstration only. AI review,
+audio, post-attempt 3D replay, and cloud synchronization remain scheduled work.
+
 ## Stack
 
 Next.js App Router · TypeScript · Tailwind · shadcn/ui · MediaPipe · React Three Fiber · Zustand · Zod · Tiger Data (`postgres`) · ElevenLabs · IndexedDB (`idb`)

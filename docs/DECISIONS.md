@@ -2,6 +2,19 @@
 
 Record architectural and product decisions here as they are made.
 
+### 2026-10-17 - S1 owns a single numerical runtime and local results
+- Context: The unfinished product integration had competing fixture/render drivers,
+  shared mutable camera inputs, changing completion timestamps, and display-reference
+  scoring. B6 was merged with an explicit S1 live-wiring handoff.
+- Decision: Drive camera/fixture progression through one ref-backed runtime. Freeze
+  completion once, score against the unsmoothed canonical synthetic guide, supply exact
+  tissue-wall boxes, and wire B6 text/events. Persist webcam results asynchronously in
+  bounded IndexedDB with a memory fallback; keep demos out of normal history.
+- Consequences: Shared result/vector contracts stay stable. Ghost selection is display
+  only. IndexedDB APIs are asynchronous and normal saves remain pending for B10;
+  no cloud/audio/AI/replay implementation is implied. Physical acceptance and the
+  restricted-host production-build blocker remain separately tracked.
+
 ### 2026-10-17 - A5 ghost renderer, sub-frame interpolation, and JIGSAWS workspace fitting
 - Context: Task A5 requires translucent expert tool playback, a reference tool-tip path trail, smooth interpolation over 30 Hz `ReferenceMotion` data without visible stepping, `0.5x`/`1x` playback speeds, demonstration and progress-coupled synchronization, and workspace fitting + gesture mapping for B4's data-only JIGSAWS expert trial (`needle-passing-jigsaws-expert-v1.json`) without mutating Person B's committed reference fixtures or shared contracts.
 - Decision: Implement `ghost-reference.ts` and `ghost-playback.ts` in `src/lib/exercise/` and `GhostLayer` in `src/components/scene/ghost-layer.tsx`. Derive ghost instrument grip positions as `tipPosition - applyQuaternion(TIP_OFFSET, rotation)` so jaw tips always match `tipPosition` on the path trail. Preload `needle-passing-reference-v1.json` synchronously as the default canonical reference and support runtime loading of `needle-passing-jigsaws-expert-v1.json` (`Needle_Passing_E005`, 3,233 frames) via `prepareGhostReference` (mapping `G1..G11` to the 8 Needle Passing segments, fitting raw metre coordinates into canonical workspace bounds above `tissue-wall`, applying 7-frame centered display smoothing, and displaying the Gao et al. 2014 attribution). Step `GhostPlaybackController` at display rate in `useFrame` with `0.5x`/`1x` speeds, a 12%-lead progress-coupled mode with 600 ms stall micro-looping, and strict hiding in `Assessment` mode.

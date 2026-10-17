@@ -1,4 +1,4 @@
-# A3/A4/A5 simulation, exercise, and ghost handoff
+# A3/A4/A5/S1 simulation and training handoff
 
 The development-only `/dev/hand-tracking?debug=1` route combines A1/A2 tracking and
 calibration with two kinematic 3D instruments, the A4 Needle Passing exercise
@@ -16,9 +16,79 @@ A4's 8-segment exercise progression. In `Learn` mode (and in `Practice` mode whe
 on or auto-triggered), A5 renders translucent reference instruments, a ghost needle,
 and reference tool-tip path trails (`0.5x`/`1x` speed, `progress-coupled`/`continuous` sync,
 and runtime switching between the canonical synthetic reference and the workspace-fitted
-JIGSAWS `Needle_Passing_E005` expert trial). Product-route integration (`S1`) and dual
-user-versus-expert post-attempt replay (`A6`) belong to subsequent tasks. This is an educational motion-control
+JIGSAWS `Needle_Passing_E005` expert trial). S1 connects these systems to `/train/needle-passing` with deterministic results; dual
+user-versus-expert post-attempt replay remains A6. This is an educational motion-control
 prototype; task-object physics and anatomical fidelity are not claimed.
+
+## S1 runtime, results, and local persistence
+
+`TrainingSession` composes one existing tracker/control hook on the product route.
+Quick start retains its preset workspace/pinch defaults but now captures each visible
+hand's neutral wrist orientation and palm scale from its first eligible open observation
+after the normal three-frame recovery gate. Using identity as the SDK wrist baseline
+could clamp a neutral hand at 90° and block entry. Every quick-start click resets the
+attempt and control-filter history; full guided calibration remains unchanged.
+`TrainingRuntime` owns simulation, exercise, ghost, B6 coaching, attempt identity,
+and completion. `SceneContent` calls `runtime.advance(liveControls, delta, now)` once
+per visible display frame. The older controller props remain usable for isolated
+scene tests. The runtime never writes into the webcam-owned control ref.
+
+- Camera samples retain their original freshness/duplicate/reordering gates. Fixtures
+  consume sequential 30 Hz numerical samples with a separate monotonic clock; elapsed
+  display time accumulates with a 100 ms per-frame cap. Learn holds the first waypoint
+  during its demonstration instead of consuming grasp/entry frames. Fixture pickup
+  always uses assistance; the webcam's assistance preference is preserved.
+- Mode, source, one-hand, assistance, and explicit retry transitions reset recording,
+  fixture cursor, coaching, result, and attempt identity. Source changes explicitly reset
+  source watermarks; ordinary simulation resets retain stale-input protection.
+  Hidden tabs/context loss suspend progression and cancel pending coaching. Restoration
+  resumes from fresh input without catching up the hidden interval. Fixtures re-seed
+  their last generated pose before the next waypoint to preserve a paused close edge;
+  this seed is not an additional evaluation frame.
+- Completion freezes one validated `CompletedAttemptBundle`, so further camera frames
+  cannot rescore or save duplicates. Stopping the camera preserves that result.
+  Recording-limit/incomplete/evaluation failures show a restart action and never save
+  a partial score. Route/effect cleanup releases camera resources and invalidates old
+  asynchronous UI updates. The scene's React boundary supplies renderer retry.
+- Evaluation uses the authoritative recorded tool stream and a snapshot of the
+  unsmoothed canonical scene guide, independently of ghost source, smoothing, speed,
+  and visibility. Right-tool attempts swap the canonical active reference slot;
+  one-hand attempts park the inactive reference slot at the recorded rest pose.
+  Shared `AttemptResult`, `SavedAttempt`, and the 20-metric order are unchanged.
+- `EvaluationScene.dangerBoxes` adds optional axis-aligned boxes alongside the existing
+  sphere API. S1 supplies `TISSUE_WALL_ZONE` directly. The exercise and metric use
+  inclusive boundaries with a `1e-9` numerical tolerance. The safety metric measures
+  aligned tool-tip occupancy; it is not continuous needle-body collision detection.
+- `CoachingSignalsAdapter` derives finite-difference speeds from accepted timestamps,
+  held-needle corridor deviation, danger state, early release, required-minus-achieved
+  rotation, and target-plane crossing followed by reversal. Interrupted histories reset.
+  The runtime evaluates B6 every ~333 active ms. Rotation tolerance/range are 3°/12°
+  to match A4's 12° gate. B6's 500 ms commit delay, suppression/cooldown/cap, and separate
+  recording/message gates remain intact. Eligible messages appear as text; committed
+  events populate `AttemptResult.importantEvents`. Assessment records/speaks nothing.
+- `attempt-cache.ts` exposes asynchronous save/get/latest/clear functions using the
+  existing `idb` dependency. Database `steady-attempts`, version 1, store `attempts`,
+  keys by `result.id`; saved replay frames retain tool telemetry and omit raw hand
+  landmark/debug observations. Writes/retention serialize and retain the newest 20 webcam
+  attempts. Corrupt entries are ignored/pruned. Blocked opens time out after 1.5 s;
+  quota, security, or unsupported-storage errors fall back to bounded memory. Saving
+  never delays result presentation. `cloudSyncStatus` stays `pending`; S1 uploads nothing.
+  Fixtures remain session-only and do not enter pending webcam history.
+
+Manual S1 acceptance on Chrome/macOS:
+
+1. From a fresh library visit, start one camera, calibrate, watch Learn's ghost, and
+   complete all eight segments. Check the inline result and all 20 metric details.
+2. Stop the camera: the finished result must remain. Try again, restart the camera,
+   and verify recalibration is required. Check one-hand completion on either side.
+3. Deny permission, run each demo fixture, restart it, change mode, and return to
+   webcam. No fixture should request a camera or enter normal saved history.
+4. During a pass, leave/re-enter tracking, hide/restore the tab, and lose/restore
+   WebGL. Progress must freeze and ownership must not drop solely because input paused.
+5. Disable networking after local assets load. Finish a pass and verify results still
+   work. With device storage blocked, verify the memory-only save message.
+6. Check actual camera-track release when leaving the route. Record measured target-Mac
+   FPS/latency/soak separately; synthetic Chromium input is not physical signoff.
 
 ## Interfaces and ownership
 

@@ -9,7 +9,7 @@ attribution text.
 
 | Dataset | License / Terms | Source URL | Raw stored locally? | Derived deployable? | Attribution | Status |
 |---------|-----------------|-----------|---------------------|---------------------|-------------|--------|
-| JIGSAWS | Academic research use only, **not for commercial use** (JHU IRB-approved) | Access form: https://www.cs.jhu.edu/~los/jigsaws/info.php (emails same-day download links); info: https://cirl.lcsr.jhu.edu/research/hmm/datasets/jigsaws_release/ | Yes — git-ignored `datasets/jigsaws/` only, never committed | Yes, for this non-commercial prototype — derived motion committed with attribution; must be removed if Steady is ever commercialized | Gao et al. 2014 (see Citation below) | **Acquired; derived expert refs committed data-only (not product-wired)** |
+| JIGSAWS | Academic research use only, **not for commercial use** (JHU IRB-approved) | Access form: https://www.cs.jhu.edu/~los/jigsaws/info.php (emails same-day download links); info: https://cirl.lcsr.jhu.edu/research/hmm/datasets/jigsaws_release/ | Yes — git-ignored `datasets/jigsaws/` only, never committed | Yes, for this non-commercial prototype — derived motion committed with attribution; must be removed if Steady is ever commercialized | Gao et al. 2014 (see Citation below) | **Acquired; Needle Passing available as an optional attributed ghost; scoring remains synthetic** |
 | LASK | CC BY 4.0 (project-stated, unverified) | _to confirm_ | _to confirm_ | Pending — CC BY 4.0 would allow it **with attribution**, but confirm URL + exact attribution text first | _to confirm_ | Not acquired; adapter used only for the synthetic peg-transfer fixture |
 | SHANDS | TBD | _to confirm_ | TBD | TBD | _to confirm_ | Optional future source |
 
@@ -28,12 +28,12 @@ one per task, at `public/references/<skill>/<skill>-jigsaws-expert-v1.json`
 | `knot-tying-jigsaws-expert-v1.json` | `Knot_Tying_E003` | Expert, GRS 22 | 1198 |
 | `suturing-jigsaws-expert-v1.json` | `Suturing_E002` | Expert, GRS 20 | 2926 |
 
-**Data-only, not product-wired.** These are *not* yet the references the trainer or
-evaluator use. They carry JIGSAWS's gesture vocabulary (`G1`–`G15`) and raw
+**Optional display wiring for Needle Passing (A5/S1).** Its expert trial can be
+selected as a workspace-fitted, gesture-mapped ghost with attribution. It never
+selects the S1 scoring reference. Suturing and Knot Tying remain data-only. They carry JIGSAWS's gesture vocabulary (`G1`–`G15`) and raw
 source scale (metres, ~0.04–0.13), which do not match the skill-definition phase
-labels or the scene workspace. Product wiring (segment mapping + fit/scale/center
-into the canonical workspace, verified against the A5 ghost viewer) is deferred.
-Until then the **product/eval references stay synthetic**: needle-passing uses the
+labels or the scene workspace. A5 maps/fits the optional Needle Passing ghost at runtime without changing these
+committed data files. The **evaluation references stay synthetic**: needle-passing uses the
 scene-scale synthetic `needle-passing-reference-v1.json`, and peg-transfer uses the
 synthetic LASK-format fixture.
 

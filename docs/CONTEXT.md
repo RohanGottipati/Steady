@@ -1,9 +1,9 @@
 # Project Context
 
-Last updated: 2026-10-17 19:00 UTC
-Updated by: Person B — Task B6 (live coaching event engine; rebased on main after A5 PR #9)
-Current branch: person-b/b6-live-coaching-engine
-Current milestone: M0–M4 implemented in dev preview; M1/M2/M3 physical acceptance pending
+Last updated: 2026-10-17 19:59 UTC
+Updated by: Joint S1 integration — publication and user-reviewed preview
+Current branch: integration/s1-training-results (branched from origin/main 097d3d4 / B6 PR #10; S1 publication branch targeting main)
+Current milestone: S1 training/results integrated; physical M1/M2/M3 and production-build acceptance pending
 Demo-critical status: YELLOW
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -43,9 +43,9 @@ truth for the current project state — it records what exists and where it is.
   This records preview approval; the formal soak/performance checklist is still pending.
 - Tiger Data schema live: migration `0001_init` applied (core relational tables + 4 hypertables, `attempt_scores.performance_vector vector(20)`); `npm run db:migrate`/`db:seed` runners work and are idempotent; one synthetic `needle-passing` attempt seeded and queryable.
 - `/api/health` reports `{ ok, service, db }` where `db` is `up`/`down`/`unconfigured` and never throws on DB outage (server-only client in `src/lib/db/`).
-- `/library` lists all four skills (data-driven from `src/data/skill-catalog.ts`) with difficulty/source/license badges, availability, and client-side search; `/train/[skillId]` is a STUB (shared file) with a mode selector and a placeholder where Person A adds the 3D trainer. Every card links to `/train/[id]`; coming-soon skills reach a friendly notice there instead of breaking navigation.
+- `/library` lists all four skills with search, source/license badges, and availability. `/train/needle-passing` now connects camera/calibration or demo fixtures to the 3D exercise, ghost, B6 text coaching, deterministic inline results, and local saving. Other known skills retain their coming-soon notice; unknown IDs 404.
 - Reference-motion framework (B2): `src/lib/references/load-reference.ts` loads + Zod-validates `ReferenceMotion` JSON (browser-usable); stdlib Python adapters (`scripts/data/{jigsaws,lask}/adapter.py` + `scripts/data/common/reference_builder.py`) convert source motion into canonical references (coordinate transform → 30 Hz resample → segment-normalize).
-- External data conversion (B4): real JIGSAWS expert trials are committed as **data-only** refs at `public/references/<skill>/<skill>-jigsaws-expert-v1.json` for needle-passing/knot-tying/suturing (patient-side channels; highest-GRS `E` demo per task: Needle_Passing_E005, Knot_Tying_E003, Suturing_E002). `adapter.py` gained a `--format kinematics` mode (76-col kinematics + transcription gesture segments; matrix→quat; gripper→jaw; `len==76` guard). **These are NOT product-wired**: they carry JIGSAWS gesture ids (`G1`–`G15`) and raw metre scale, so segment-mapping + fit-to-workspace is deferred to A5. Product/eval references stay synthetic (`needle-passing-reference-v1.json` scene-scale with skill-phase segments; `peg-transfer` synthetic LASK). Raw JIGSAWS lives only in git-ignored `datasets/jigsaws/`; acquisition is the JHU access form, `scripts/data/jigsaws/fetch.py` only extracts the downloaded archives (local-only). See `docs/DATA_LICENSES.md`.
+- External data conversion (B4/A5): derived expert JIGSAWS references remain committed under `public/references/<skill>/`, with raw data only in ignored `datasets/jigsaws/`. A5/S1 maps gestures and fits Needle_Passing_E005 into the workspace for an optional attributed ghost; Knot Tying/Suturing remain data-only. Evaluation uses the synthetic canonical scene guide, independently of ghost settings. See `docs/DATA_LICENSES.md`.
 - A2 implementation available in the same development preview: automatic
   neutral/open → pinch → workspace calibration, canonical target visualization,
   One Euro position filtering, bounded palm rotation/depth, debounced pinch,
@@ -95,7 +95,7 @@ truth for the current project state — it records what exists and where it is.
   display smoothing, **1-Hand Quick Start / 1-Hand Mode** (`singleHand`), and runtime
   workspace fitting + gesture-to-segment mapping for B4's JIGSAWS `Needle_Passing_E005`
   expert trial (`needle-passing-jigsaws-expert-v1.json`) with Gao et al. (2014)
-  attribution. `/train/[skillId]` integration (`S1`) and 3D replay (`A6`) remain next.
+  attribution. S1 now exposes training/results on `/train/[skillId]`; 3D replay remains A6.
 - Live coaching engine (B6): `src/lib/coaching/coaching-engine.ts` turns a compact
   per-tick `CoachingSignals` snapshot (path/corridor deviation, danger zone, tool/
   assisting-hand speed, grip slip, rotation lateness, overshoot) into deterministic
@@ -107,7 +107,7 @@ truth for the current project state — it records what exists and where it is.
   Practice records medium-severity events for review but speaks only high-severity ones
   and Assessment stays fully silent. `COACHING_MESSAGES` holds the §14.3 clip text (keys
   the B7 ElevenLabs assets). The engine never scores — authoritative scoring stays in
-  B3/B5. Live-loop wiring into the exercise/control streams is deferred to S1.
+  B3/B5. S1 now wires these signals into text coaching and the completed result events.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -184,14 +184,31 @@ Person A - Realtime Vision and 3D Simulation:
 - A5 implemented: translucent ghost renderer, tool-tip path trail/tube, sub-frame 30 Hz
   `lerp`/`slerp` interpolation, `0.5x`/`1x` speeds, `demonstration`/`progress-coupled`/`continuous`
   sync modes, 1-Hand Quick Start / 1-Hand Mode, 7-frame display smoothing, and runtime
-  JIGSAWS expert workspace fitting. Joint `S1` (`/train/[skillId]` integration) and `A6`
-  (3D replay renderer) are next; A1/A2/M2/M3 physical performance acceptance remains pending.
+  JIGSAWS expert workspace fitting. Joint `S1` product integration is implemented; `A6`
+  (3D replay renderer) is next; A1/A2/M2/M3 physical performance acceptance remains pending.
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4), B4 external data conversion (merged to main via #6), B5 full 20-metric evaluator (merged to main via #8) done
-- B6 live coaching event engine implemented (live telemetry only, so it did not block on B5; live wiring deferred to S1). B7 ElevenLabs integration next (B6's `COACHING_MESSAGES` key its clips). B10 Tiger persistence can proceed in parallel against the frozen `PERFORMANCE_VECTOR_ORDER`/`vector(20)` + `AttemptUploadPayload` contracts
+- B6 live coaching event engine implemented (live telemetry only, so it did not block on B5; S1 live text/event wiring implemented). B7 ElevenLabs integration next (B6's `COACHING_MESSAGES` key its clips). B10 Tiger persistence can proceed in parallel against the frozen `PERFORMANCE_VECTOR_ORDER`/`vector(20)` + `AttemptUploadPayload` contracts
 
 ## 5. Completed Tasks
+- S1 implementation — one scene-driven `TrainingRuntime` connects camera or fixed
+  30 Hz fixtures to simulation/exercise/ghost/coaching and freezes one validated
+  result per attempt. Product modes, reset/retry, one-hand control, interruption,
+  recording-limit/error handling, and camera-stop result retention are integrated.
+  Scoring uses the unsmoothed canonical reference and exact tissue-wall boxes;
+  shared result/vector schemas remain stable. Quick start captures the actual open
+  hand wrist baseline rather than clamping a neutral SDK palm at 90°; it resets the
+  attempt and filters on every click. B6 text/events are wired. Webcam
+  results save asynchronously to the newest-20 IndexedDB cache with bounded memory
+  fallback; raw landmark observations are omitted from saved replay telemetry.
+  Demo results stay session-only. Ownership/interface changes were recorded before
+  S1 touched the shared scene and Person B evaluator interfaces. Audio, cloud
+  synchronization, AI review, and replay remain separate tasks. The user reviewed
+  S1, reported that it looks good, and authorized branch publication and a PR into
+  main (2026-10-17). This is qualitative preview approval, not measured hardware
+  acceptance.
+
 - Partial S0 - repository structure and docs seeded
 - Partial S0 - Next.js, Tailwind, shadcn/ui, MediaPipe, R3F, Zustand, Zod, postgres, ElevenLabs, Vitest, Playwright installed
 - Setup - Backboard model catalog verified live (`google` / `gemini-2.5-flash`, JSON output supported)
@@ -255,7 +272,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   explanations, and `toAttemptResult()` assembling a schema-valid `AttemptResult`
   (`evaluate.ts`). Danger-zone/collision inputs are optional scene inputs; A4's
   `tissue-wall` danger zone + target geometry can now be wired in via
-  `evaluateAttempt` options at S1 integration. Tests (`tests/unit/b5-metrics.test.ts`
+  `evaluateAttempt` options via the exact S1 tissue-wall box. Tests (`tests/unit/b5-metrics.test.ts`
   + updated `evaluation.test.ts`, new fixtures in `tests/fixtures/evaluation.ts`):
   full-set/canonical-order + 0-100 + explanation-per-metric structure, a targeted
   direction test per new metric (with independence checks — depth/workspace/
@@ -280,7 +297,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   (`COACHING_MESSAGES`). 17 unit tests in `tests/unit/coaching-engine.test.ts` cover the
   three acceptance criteria (one event per large deviation, no spam while sustained,
   cancel-on-correction) plus cooldown/cap, record-vs-speak gating (incl. the Practice
-  overshoot regression), `CoachingEvent` schema validity, and reset. Live wiring deferred to S1.
+  overshoot regression), `CoachingEvent` schema validity, and reset. S1 now wires live text/events.
 
 ## 6. In Progress
 - A3 usability acceptance - synthetic depth-drift pickup, assistance switching and
@@ -340,7 +357,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   Source/asset decision recorded in `docs/ASSET_LICENSES.md`.
 - Hand Landmarker float16 v1 and MediaPipe 1.1.1 WASM: acquired, checksum verified;
   source/license/attribution recorded in `docs/ASSET_LICENSES.md`. Generated binaries are ignored.
-- Reference motions: product/eval refs are synthetic (needle-passing scene-scale; peg-transfer LASK format). Real JIGSAWS expert-derived refs are committed data-only alongside them (`*-jigsaws-expert-v1.json`) pending A5 product wiring. All under `public/references/`.
+- Reference motions: S1 evaluates the runtime canonical synthetic Needle Passing scene guide (the raw committed JSON remains unchanged). The optional JIGSAWS expert ghost is display-only; other expert-derived skills remain data-only. Synthetic peg-transfer remains available as adapter/evaluator data.
 
 ## 9. External Service Status
 - Tiger Cloud service created: yes (project `p2r9lzrn7s`, service `ort1b0mw86` "db-21893", free plan, us-east-1, Postgres 18.6 / TimescaleDB 2.30.2; connection verified via `tiger db ping`). `TIGER_DATABASE_URL`/`TIGER_PROJECT_ID`/`TIGER_SERVICE_ID` set in encrypted `.env.local`. Details in `docs/TIGER_DATA.md`.
@@ -358,6 +375,23 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm run lint
 - npm test
 - npm run build
+
+Latest S1 verification (2026-10-17, implementation carried to `integration/s1-training-results`, main base `097d3d4`):
+- `npm run lint` and `npm run typecheck`: passed without warnings.
+- `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`: 28 files / 249 tests
+  passed with read-only health connectivity outside the sandbox. Migration/seed tests
+  remain excluded to avoid cloud writes. Expected adapter rejection traceback is a
+  passing negative test.
+- `npm run test:e2e -- --workers=1`: all 17 Chromium tests passed after the final
+  quick-start correction (3.0 minutes). Coverage includes real local MediaPipe
+  worker/main-thread inference and offline processing, natural fixtures, guided
+  calibration-to-results, IndexedDB persistence/reload, permission fallback,
+  mode/source changes, camera release on navigation, WebGL recovery, and a complete
+  quick-start attempt with networking and IndexedDB unavailable. No uncaught page
+  errors were observed in S1 acceptance cases.
+- `npm run build`: prepared cached vision assets, then reproduced the existing
+  Turbopack `globals.css` CSS-worker port `Operation not permitted` failure even with
+  an elevated retry. No production-build or physical-camera signoff is claimed.
 
 Latest verification for B6 (2026-10-17, on `person-b/b6-live-coaching-engine` rebased on main `100c97b` / A5 PR #9):
 - `npm run typecheck`: passed.
@@ -431,19 +465,24 @@ CSS-worker local-port restriction; verify on an unrestricted host before release
 no production build success claimed.
 
 ## 11. Next Recommended Actions
-1. Both (Person A + Person B): Implement **S1 — First end-to-end integration** on `/train/[skillId]` (connecting webcam, calibration/1-hand quick start, 3D scene, A4 exercise engine, A5 ghost renderer, B5 20-metric evaluator with `tissue-wall` danger zone options, and deterministic `?fixture=` fallback), or Person A proceeds to **A6 — Attempt recording and 3D replay renderer** (dual user/expert replay, offline replay smoothing, deviation connectors, and seekable replay cursor API).
-2. Person A: Run target-Mac physical-camera QA from `docs/HAND_TRACKING.md` and `docs/SIMULATION.md`.
-3. Person B: B2 + B3 + B4 + B5 + B6 done → **B7** ElevenLabs integration (pre-generate the
-   `COACHING_MESSAGES` clips, `/api/speech`, audio manager, browser-speech fallback; now
-   unblocked since B6 exists). B10 Tiger persistence can run in parallel now (frozen
-   20-vector + `AttemptUploadPayload` contracts; only B10 touches the DB). At **S1**, wire
-   the B6 engine into the live loop via a `CoachingSignals` adapter over `ControlSnapshot`
-   + `SimulationSnapshot` + `ExerciseSnapshot`. Deferred analytics/search work belongs to B10/B12.
-4. Keep `npm run verify:ai` green after key rotation. B6 now exists → B7 unblocked; B8/B9
-   still pending (B8 needs A6 + B5).
+1. Person A: A6 dual user/expert 3D replay (seekable cursor, smoothing and deviation
+   connectors); S1 now supplies validated saved tool-motion frames and results.
+2. Person B: B7 audio consumes B6's existing message/event seam. B8 can add dedicated
+   results/history/replay navigation once A6 exists; B9 follows B8. S1's inline
+   results and text coaching must remain usable without these services.
+3. Person B: B10 cloud synchronization uses the existing pending `SavedAttempt` /
+   `AttemptUploadPayload` and frozen 20-vector contracts. Keep demo attempts out of
+   uploaded history and preserve asynchronous local evaluation/cache behavior.
+4. Run the normal production build on an unrestricted host and collect the target-Mac
+   physical checks in `docs/HAND_TRACKING.md` / `docs/SIMULATION.md`. The build-port
+   restriction and measured hardware acceptance remain open.
 
 ## 12. Manual Demo Notes
 - Target browser: latest Chrome on macOS.
+- Product: `/library` → Needle Passing, or `/train/needle-passing?fixture=needle-pass-good`
+  / `?fixture=needle-pass-late-rotation` for camera-free animated demonstrations.
+  Results appear inline; Try again starts a fresh attempt. `?fixture=off` forces webcam
+  mode even when the public demo environment flag is enabled.
 - Development preview: `http://localhost:3000/dev/hand-tracking?debug=1`; explicit Start/Stop controls.
 - No model CDN dependency during tracking. `npm run prepare:vision` needs network only when the pinned model cache is absent/invalid.
 - Worker uses the classic WASM loader to match Turbopack's worker output; fallback reason is visible in debug mode.

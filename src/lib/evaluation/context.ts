@@ -6,6 +6,9 @@ import type { RecordedMotion } from "./types";
 /** A spherical danger/forbidden region in canonical scene units. */
 export type DangerSphere = { center: Vec3; radius: number };
 
+/** Axis-aligned forbidden volume, matching the authoritative exercise geometry. */
+export type DangerBox = { center: Readonly<Vec3>; halfExtents: Readonly<Vec3> };
+
 /**
  * Optional scene inputs for the safety/interaction metrics. Real danger-zone
  * geometry and tool-collision radii arrive with the A4 exercise engine; until
@@ -14,6 +17,7 @@ export type DangerSphere = { center: Vec3; radius: number };
  */
 export type EvaluationScene = {
   dangerZones?: DangerSphere[];
+  dangerBoxes?: readonly DangerBox[];
   collisionRadius?: number;
 };
 

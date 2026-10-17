@@ -17,6 +17,22 @@ function ready() {
   return { controller, tick, now: () => time };
 }
 
+it("quick start captures each visible open hand's neutral wrist instead of clamping it at 90 degrees", () => {
+  for (const side of ["left", "right"] as const) {
+    const controller = new HandControlsController();
+    controller.quickCalibrate(cameraSize);
+    for (let index = 1; index <= 8; index++) {
+      const frame = controlFrame(index * 40, { rotationZ: 0.3 }, { rotationZ: -0.2 });
+      frame[side === "left" ? "right" : "left"] = null;
+      controller.update(frame, index * 40, cameraSize);
+    }
+    const control = controller.snapshot[side];
+    expect(controller.snapshot.canProgress).toBe(true);
+    expect(control.target?.rotation.w).toBeCloseTo(1, 6);
+    expect(control.rotationHeld).toBe(false);
+  }
+});
+
 describe("guided calibration", () => {
   it("captures independent hand profiles and outputs schema-valid calibrated hands", () => {
     const { controller } = ready();

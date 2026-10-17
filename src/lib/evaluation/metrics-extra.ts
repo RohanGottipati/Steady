@@ -349,7 +349,8 @@ export function toolCollisionAvoidance(ctx: Ctx): MetricResult {
 
 export function dangerZoneAvoidance(ctx: Ctx): MetricResult {
   const zones = ctx.scene.dangerZones ?? [];
-  if (zones.length === 0) {
+  const boxes = ctx.scene.dangerBoxes ?? [];
+  if (zones.length === 0 && boxes.length === 0) {
     // No forbidden geometry supplied (pre-A4): nothing to violate.
     return {
       id: "dangerZoneAvoidance",
@@ -359,7 +360,10 @@ export function dangerZoneAvoidance(ctx: Ctx): MetricResult {
       tolerance: EXTRA_TOLERANCES.dangerFraction,
     };
   }
-  const inside = (p: Vec3) => zones.some((z) => dist(p, z.center) <= z.radius);
+  const inside = (p: Vec3) => zones.some((z) => dist(p, z.center) <= z.radius) ||
+    boxes.some(box => Math.abs(p.x - box.center.x) <= box.halfExtents.x + 1e-9 &&
+      Math.abs(p.y - box.center.y) <= box.halfExtents.y + 1e-9 &&
+      Math.abs(p.z - box.center.z) <= box.halfExtents.z + 1e-9);
   const total = ctx.samples.length || 1;
   const violations = ctx.samples.filter(
     (s) => inside(s.user.left.tipPosition) || inside(s.user.right.tipPosition),

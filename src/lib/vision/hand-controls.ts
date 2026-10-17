@@ -51,6 +51,7 @@ export class HandControlsController {
   private suspended = true;
   private planar = false;
   private singleHand = false;
+  private quickNeutralPending = { left: false, right: false };
   private readonly mapping: ControlMappingOptions;
 
   constructor(mapping: Partial<ControlMappingOptions> = {}) {
@@ -62,6 +63,7 @@ export class HandControlsController {
 
   reset(message?: string) {
     this.calibration.reset(message);
+    this.quickNeutralPending = { left: false, right: false };
     this.hands = { left: new HandRuntime(), right: new HandRuntime() };
     this.snapshot = emptyControlSnapshot(); this.lastSource = -Infinity; this.size = null; this.suspended = true;
   }
@@ -85,6 +87,8 @@ export class HandControlsController {
     this.size = { ...validSize };
     this.suspended = false;
     this.singleHand = true;
+    this.hands = { left: new HandRuntime(), right: new HandRuntime() };
+    this.quickNeutralPending = { left: true, right: true };
     this.calibration.applyQuickProfile(validSize);
     this.publish();
   }
@@ -144,6 +148,13 @@ export class HandControlsController {
     if (recovering && runtime.consecutive < CONTROL_TIMING.recoveryFrames) {
       runtime.control = { ...runtime.control, status: "recovering", hand: null, lastSeenMs: tMs };
       return;
+    }
+    // The SDK's palm basis is not the scene identity. Seed quick start from an
+    // eligible open observation after the normal recovery gate, once per hand.
+    if (this.quickNeutralPending[slot] && hand.handednessConfidence >= 0.5 && m.pinchRatio >= profile.releasePinchRatio) {
+      profile.neutralRotation = { ...m.rotation };
+      profile.palmScale = m.palmScale;
+      this.quickNeutralPending[slot] = false;
     }
     const rest = this.singleHand
       ? { x: 0, y: 0, z: 0 }

@@ -104,8 +104,15 @@ describe("A5 reference frame interpolation and grip-to-tip invariant", () => {
         const tipStep = pointDistance(previousTip, sample.leftTool.tipPosition);
         const rotStep = quatAngleDegrees(previousRot, sample.leftTool.rotation);
         if (sample.alpha > 0.05 && sample.alpha < 0.95) {
-          expect(tipStep).toBeGreaterThan(1e-4);
-          subFrameTransitions++;
+          // The canonical guide contains deliberate holds while closing jaws.
+          // Interpolation must move only when the bracketing tip poses differ.
+          const index = sample.bracketIndices[0];
+          if (pointDistance(ref.frames[index].leftTool.tipPosition, ref.frames[index + 1].leftTool.tipPosition) > 1e-6) {
+            expect(tipStep).toBeGreaterThan(1e-6);
+            subFrameTransitions++;
+          } else {
+            expect(tipStep).toBeLessThan(1e-6);
+          }
         }
         // No single 120 Hz step should jump more than 6 degrees
         expect(rotStep).toBeLessThan(6);

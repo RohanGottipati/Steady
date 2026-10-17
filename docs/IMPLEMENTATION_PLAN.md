@@ -3377,6 +3377,13 @@ Implement remaining metrics, skill-specific weights, worst-moment extraction, ca
 **Depends on:** A4 + A5 + B3 + B4  
 **Priority:** P0
 
+Implementation handoff (2026-10-17): S1 now uses the shared `TrainingRuntime` on
+`/train/needle-passing` and the development preview, with animated 30 Hz fixtures,
+once-per-attempt results, exact tissue-wall evaluator boxes, B6 text/event wiring,
+and asynchronous local IndexedDB saving. The scoring reference remains synthetic
+and independent of optional ghost display data. See `docs/SIMULATION.md` for reset,
+failure, cache, and manual acceptance semantics. A6/B7/B8/B9/B10 remain separate tasks.
+
 ### Goal
 
 One skill works with webcam, tool control, ghost, recording, and deterministic results before any cloud AI is required.
