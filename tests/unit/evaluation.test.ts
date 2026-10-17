@@ -93,6 +93,15 @@ describe("evaluateAttempt", () => {
     expect(score(p, "proceduralSequencing")).toBe(100);
   });
 
+  it("overshoot control scores a perfect clone of a curved expert reference near 100", () => {
+    // Curved JIGSAWS expert trajectories naturally oscillate distance-to-endpoint;
+    // the metric must score excess over the reference's own reversals, so a clone
+    // inherits no penalty.
+    const jig = loadJigsawsExpertReference("needle-passing");
+    const p = evaluateAttempt(perfectAttempt(jig), jig);
+    expect(score(p, "overshootControl")).toBeGreaterThanOrEqual(99);
+  });
+
   it("is deterministic", () => {
     const a = evaluateAttempt(translatedAttempt(ref), ref);
     const b = evaluateAttempt(translatedAttempt(ref), ref);

@@ -292,9 +292,11 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm run build
 
 Latest verification on b5 (2026-10-17, after merging latest main incl. A4 PR #7):
-`npm run typecheck` and `npm run lint` clean; `npm test` = 23 files / 192 tests
+`npm run typecheck` and `npm run lint` clean; `npm test` = 23 files / 193 tests
 passing, including the new B5 20-metric direction/weighting/`toAttemptResult` tests
-and A4's exercise-controller/scene suites. The Python adapter `len==76` guard test
+(plus a PR #8 review fix: `overshootControl` now scores reversals as excess over
+the reference, guarded by a JIGSAWS perfect-clone regression) and A4's
+exercise-controller/scene suites. The Python adapter `len==76` guard test
 prints an expected subprocess traceback to stderr (not a failure). The B0 Tiger
 integration test ran green against the cloud service. Production build not re-run on
 this branch (still blocked by the known Turbopack CSS-worker restriction).

@@ -111,29 +111,43 @@ function bySegment(samples: AlignedSample[]): Map<string, AlignedSample[]> {
   return by;
 }
 
-export function overshootControl(ctx: Ctx): MetricResult {
-  // Per segment, the target is the user's goal at the segment end (the reference
-  // tip at u=1). Count reversals in the user's distance-to-target: each change of
-  // direction after approaching is an overshoot/correction.
+// Count direction reversals in a distance series: each change from approaching to
+// receding (or vice versa) is one overshoot/correction.
+function distanceReversals(d: number[]): number {
   let reversals = 0;
+  let prevDir = 0;
+  for (let i = 1; i < d.length; i++) {
+    const diff = d[i] - d[i - 1];
+    const dir = diff > 1e-6 ? 1 : diff < -1e-6 ? -1 : 0;
+    if (dir !== 0 && prevDir !== 0 && dir !== prevDir) reversals++;
+    if (dir !== 0) prevDir = dir;
+  }
+  return reversals;
+}
+
+export function overshootControl(ctx: Ctx): MetricResult {
+  // Per segment, the target is the goal at the segment end (the reference tip at
+  // u=1). Curved expert paths naturally oscillate distance-to-target, so score the
+  // user's *excess* reversals over the reference's own — a clone inherits none.
+  let userReversals = 0;
+  let refReversals = 0;
   for (const seg of bySegment(ctx.samples).values()) {
     if (seg.length < 3) continue;
     const target = seg[seg.length - 1].ref;
     for (const side of SIDES) {
-      const d = seg.map((s) => dist(s.user[side].tipPosition, target[side].tipPosition));
-      let prevDir = 0;
-      for (let i = 1; i < d.length; i++) {
-        const diff = d[i] - d[i - 1];
-        const dir = diff > 1e-6 ? 1 : diff < -1e-6 ? -1 : 0;
-        if (dir !== 0 && prevDir !== 0 && dir !== prevDir) reversals++;
-        if (dir !== 0) prevDir = dir;
-      }
+      userReversals += distanceReversals(
+        seg.map((s) => dist(s.user[side].tipPosition, target[side].tipPosition)),
+      );
+      refReversals += distanceReversals(
+        seg.map((s) => dist(s.ref[side].tipPosition, target[side].tipPosition)),
+      );
     }
   }
+  const excess = Math.max(0, userReversals - refReversals);
   return {
     id: "overshootControl",
-    score: errorToScore(reversals, EXTRA_TOLERANCES.overshootReversals),
-    rawValue: reversals,
+    score: errorToScore(excess, EXTRA_TOLERANCES.overshootReversals),
+    rawValue: excess,
     unit: "count",
     tolerance: EXTRA_TOLERANCES.overshootReversals,
   };
