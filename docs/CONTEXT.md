@@ -1,7 +1,7 @@
 # Project Context
 
-Last updated: 2026-10-17 00:20
-Updated by: Tiger Data service bootstrap
+Last updated: 2026-10-17 00:30
+Updated by: B0 Tiger migrations and health check
 Current branch: main
 Current milestone: M0
 Demo-critical status: YELLOW
@@ -35,6 +35,8 @@ truth for the current project state — it records what exists and where it is.
 
 ## 1. Current Working State
 - Next.js App Router bootstrap complete with hackathon dependencies installed.
+- Tiger Data schema live: migration `0001_init` applied (core relational tables + 4 hypertables, `attempt_scores.performance_vector vector(20)`); `npm run db:migrate`/`db:seed` runners work and are idempotent; one synthetic `needle-passing` attempt seeded and queryable.
+- `/api/health` reports `{ ok, service, db }` where `db` is `up`/`down`/`unconfigured` and never throws on DB outage (server-only client in `src/lib/db/`).
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -69,9 +71,11 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - S0 - shared TypeScript contracts in `src/types/` with Zod schemas, fixtures, and unit tests
 - Setup - git-crypt initialized and `.env.local` intentionally tracked/pushed encrypted; team and agent workflow documented in `docs/GIT_CRYPT.md`.
 - Setup - Tiger Cloud service provisioned (`ort1b0mw86`, Postgres 18.6 / TimescaleDB 2.30.2), CLI installed and authenticated, connection verified; Tiger env vars populated in encrypted `.env.local`.
+- B0 - Tiger base migrations + schema (relational tables, hypertables, `vector(20)`), migration/seed runners (`scripts/tiger/*.mjs`, `npm run db:migrate`/`db:seed`), `/api/health` DB check, and synthetic seed; integration test `tests/unit/b0-tiger-bootstrap.test.ts` (auto-skips without `TIGER_DATABASE_URL`).
 
 ## 6. In Progress
 - S0 - bootstrap acceptance commands must stay green; remaining product shell dirs can grow with A1/B0
+- B0 - deferred to B10/B12: continuous aggregates, vector/BM25 indexes, retention/columnstore, Tiger MCP (intentionally skipped; agents use CLI + `.env.local`)
 
 ## 7. Known Issues / Risks
 - External dataset license and access must be confirmed before public redistribution.
@@ -86,8 +90,8 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 
 ## 9. External Service Status
 - Tiger Cloud service created: yes (project `p2r9lzrn7s`, service `ort1b0mw86` "db-21893", free plan, us-east-1, Postgres 18.6 / TimescaleDB 2.30.2; connection verified via `tiger db ping`). `TIGER_DATABASE_URL`/`TIGER_PROJECT_ID`/`TIGER_SERVICE_ID` set in encrypted `.env.local`. Details in `docs/TIGER_DATA.md`.
-- Tiger DB migrations current: no (no migrations applied yet - B0 pending)
-- Tiger extensions verified (`timescaledb`, `vectorscale`, `pg_textsearch`): timescaledb enabled (2.30.2); vectorscale 0.9.0 / pg_textsearch 1.5.1 / vector 0.8.7 available but not yet enabled (enable in B0)
+- Tiger DB migrations current: yes (`0001_init` applied via `npm run db:migrate`)
+- Tiger extensions verified (`timescaledb`, `vectorscale`, `pg_textsearch`): all enabled by `0001_init` (timescaledb 2.30.2, vectorscale 0.9.0 + vector 0.8.7, pg_textsearch 1.5.1)
 - Tiger MCP configured for coding agents: no (not needed; agents use Tiger CLI + `.env.local`)
 - Tiger cloud sync smoke test: not-run
 - Tiger optional fork workflow available: unknown

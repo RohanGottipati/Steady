@@ -1,7 +1,7 @@
 # Tiger Data Project Context
 
-Last updated: 2026-10-17 00:20
-Updated by: tiger bootstrap
+Last updated: 2026-10-17 00:30
+Updated by: B0 migrations
 
 ## 1. Service Status
 - Tiger project ID: p2r9lzrn7s
@@ -10,7 +10,7 @@ Updated by: tiger bootstrap
 - TimescaleDB version: 2.30.2
 - Service plan/free vs standard: free
 - Region: us-east-1
-- Current migration version: none (no migrations applied yet)
+- Current migration version: 0001_init (applied; tracked in `schema_migrations`)
 - Cloud sync smoke test: not-run
 - Optional fork support available: unknown
 
@@ -23,10 +23,10 @@ Access notes (no secrets here):
 Never put a database password, API secret, or full connection string in this file.
 
 ## 2. Required Extensions
-- timescaledb: verified (installed 2.30.2)
-- vectorscale: available 0.9.0, not yet enabled (enable during B0 migrations)
-- pg_textsearch: available 1.5.1, not yet enabled (enable during B0 migrations)
-- vector (pgvector): available 0.8.7, not yet enabled (enable during B0 migrations)
+- timescaledb: enabled (2.30.2)
+- vectorscale: enabled (0.9.0) via `0001_init`
+- pg_textsearch: enabled (1.5.1) via `0001_init`
+- vector (pgvector): enabled (0.8.7, pulled in by vectorscale CASCADE)
 - timescaledb_toolkit/hyperfunctions: not verified
 
 ## 3. Core Data Model
