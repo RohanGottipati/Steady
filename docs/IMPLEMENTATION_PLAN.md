@@ -3259,6 +3259,17 @@ Also build:
 **Depends on:** A3 + skill contract from B1  
 **Priority:** P0
 
+Implementation is available in `src/lib/exercise/` (`needle-passing-config.ts`,
+`exercise-controller.ts`), `src/components/scene/exercise-targets.tsx`,
+`src/components/scene/training-scene.tsx`, and `src/components/training/3d-training-preview.tsx`
+on the development preview surface. `ExerciseController` validates against
+`needlePassingSkill`, sequences all 8 segments (`approach -> grip -> align -> entry ->
+rotation -> exit -> release -> complete`) across `ring-1`, `ring-2`, `ring-3` and
+`release-zone` above the `tissue-wall` danger zone, guards against un-held/out-of-order
+or early-release completion, exposes `Learn`/`Practice`/`Assessment` `ModeBehaviorHooks`
+(with Assessment hiding ghost/coaching hooks), and records canonical `MotionFrame`
+samples compatible with B3's `evaluateAttempt`. See `docs/SIMULATION.md`.
+
 ### Target
 
 Needle Passing or Peg Transfer. If JIGSAWS licensing/data access is unresolved, Peg Transfer using LASK or internal reference is the cleanest public-data path.

@@ -2,6 +2,11 @@
 
 Record architectural and product decisions here as they are made.
 
+### 2026-10-17 - A4 3-checkpoint needle-passing state machine and mode behavior hooks
+- Context: Task A4 requires a deterministic exercise state machine for `needlePassingSkill` (`approach -> grip -> align -> entry -> rotation -> exit -> release -> complete`) with target rings (`ring-1`, `ring-2`, `ring-3`), a danger zone (`tissue-wall`), progress reporting, and `Learn` / `Practice` / `Assessment` mode behavior hooks without breaking existing A3 simulation contracts or editing Person B's shared `/train/[skillId]` route before S1.
+- Decision: Implement `ExerciseController` and `needle-passing-config.ts` in `src/lib/exercise/` and `ExerciseTargets` in `src/components/scene/exercise-targets.tsx`, composed alongside `ToolSimulationController` on `/dev/hand-tracking`. Map one pass across a 3-checkpoint quadratic corridor (`ring-1` at `(-0.16, 0.24, 0)`, `ring-2` at `(0, 0.18, 0)`, `ring-3` at `(0.16, 0.24, 0)`) to the release ring at `(0.20, 0.36, 0)` above the `tissue-wall` danger box (`y ∈ [-0.05, 0.07]`), keeping the needle start pose at `(0, 0.35, 0)`. Enforce strict sequential gates, orientation alignment at `ring-1` (`<= 45°`), wrist rotation delta at `ring-2` (`>= 12°`), non-destructive early-drop recovery, and danger-zone blocking. Expose deterministic `ModeBehaviorHooks` that strictly hide ghost/path/coaching hooks in `Assessment` mode, and record `MotionFrame` samples compatible with B3's `evaluateAttempt`.
+- Consequences: All existing A1/A2/A3 unit and Playwright E2E suites remain green alongside new A4 unit, scene, and browser E2E tests. A5 (`Ghost renderer`), B5 (`Complete 20-metric evaluator`), and S1 (`First end-to-end integration`) can consume `ExerciseController.snapshot` and `getRecordedMotion()` directly.
+
 ### 2026-10-17 - Track Next.js guidance with explicit provenance
 - Context: PR #5 review asked whether the generated root AGENTS.md was intentional.
   The A3 plan retained this file, and publication of that implementation was approved.

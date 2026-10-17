@@ -4,7 +4,9 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, type RefObject } from "react";
 import { Group, Mesh, MeshBasicMaterial, OrthographicCamera } from "three";
 import { composePose, interpolatePose, pickupFeedback, TIP_OFFSET, toolFromTarget, type Pose, type SimulationSnapshot, type ToolSimulationController } from "@/lib/simulation/tool-simulation";
+import type { ExerciseController, ExerciseSnapshot } from "@/lib/exercise/exercise-controller";
 import type { ControlSnapshot } from "@/lib/vision/control-types";
+import { ExerciseTargets, updateExerciseTargets } from "./exercise-targets";
 import { Instrument } from "./instrument";
 import { OperatingRoom, PracticeNeedle } from "./operating-room";
 import { RenderTiming } from "@/lib/simulation/render-timing";
@@ -15,11 +17,13 @@ export interface SceneDiagnostics {
   frames: number;
   timing: RenderTiming;
   snapshot: SimulationSnapshot;
+  exercise?: ExerciseSnapshot;
   rendered: { left: Pose | null; right: Pose | null; object: Pose | null };
 }
 export interface TrainingSceneProps {
   controlsRef: RefObject<ControlSnapshot>;
   controller: ToolSimulationController;
+  exercise?: ExerciseController;
   diagnosticsRef: RefObject<SceneDiagnostics | null>;
   onStatus: (status: "ready" | "lost") => void;
 }
@@ -29,8 +33,8 @@ function apply(group: Group, pose: Pose) {
   group.quaternion.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
 }
 
-export function SceneContent({ controlsRef, controller, diagnosticsRef, onStatus }: TrainingSceneProps) {
-  const left = useRef<Group>(null), right = useRef<Group>(null), needle = useRef<Group>(null);
+export function SceneContent({ controlsRef, controller, exercise, diagnosticsRef, onStatus }: TrainingSceneProps) {
+  const left = useRef<Group>(null), right = useRef<Group>(null), needle = useRef<Group>(null), targets = useRef<Group>(null);
   const leftCursor = useRef<Group>(null), rightCursor = useRef<Group>(null), halo = useRef<Group>(null);
   const initialized = useRef(false), interrupted = useRef(true), contextLost = useRef(false);
   const epoch = useRef(-1);
@@ -44,26 +48,28 @@ export function SceneContent({ controlsRef, controller, diagnosticsRef, onStatus
     contextLost.current = gl.getContext().isContextLost();
     interrupted.current = true;
     const canvas = gl.domElement;
-    const lost = (event: Event) => { event.preventDefault(); contextLost.current = true; interrupted.current = true; renderTiming.clear(); controller.suspend("Simulation paused: 3D context lost."); onStatus("lost"); };
+    const lost = (event: Event) => { event.preventDefault(); contextLost.current = true; interrupted.current = true; renderTiming.clear(); controller.suspend("Simulation paused: 3D context lost."); exercise?.suspend("Simulation paused: 3D context lost."); onStatus("lost"); };
     const restored = () => { contextLost.current = false; interrupted.current = true; onStatus("ready"); };
-    const visibility = () => { if (document.hidden) { interrupted.current = true; renderTiming.clear(); controller.suspend("Simulation paused: tab hidden."); } };
+    const visibility = () => { if (document.hidden) { interrupted.current = true; renderTiming.clear(); controller.suspend("Simulation paused: tab hidden."); exercise?.suspend("Simulation paused: tab hidden."); } };
     canvas.addEventListener("webglcontextlost", lost); canvas.addEventListener("webglcontextrestored", restored);
     document.addEventListener("visibilitychange", visibility);
     onStatus(contextLost.current ? "lost" : "ready");
     return () => {
       canvas.removeEventListener("webglcontextlost", lost); canvas.removeEventListener("webglcontextrestored", restored);
       document.removeEventListener("visibilitychange", visibility);
-      controller.reset(); diagnosticsRef.current = null; initialized.current = false;
+      controller.reset(); exercise?.reset(); diagnosticsRef.current = null; initialized.current = false;
       interrupted.current = true; frames.current = []; totalFrames.current = 0;
       renderTiming.clear();
     };
-  }, [camera, gl, controller, diagnosticsRef, onStatus]);
+  }, [camera, gl, controller, exercise, diagnosticsRef, onStatus]);
 
   useFrame((_, delta) => {
     const now = performance.now();
-    if (contextLost.current || document.hidden) { interrupted.current = true; controller.suspend(); return; }
-    controller.update(controlsRef.current, now);
-    if (epoch.current !== controller.epoch) { initialized.current = false; epoch.current = controller.epoch; timing.current.clear(); }
+    if (contextLost.current || document.hidden) { interrupted.current = true; controller.suspend(); exercise?.suspend(); return; }
+    const events = controller.update(controlsRef.current, now);
+    if (epoch.current !== controller.epoch) { initialized.current = false; epoch.current = controller.epoch; timing.current.clear(); exercise?.reset(); }
+    const exerciseSnapshot = exercise?.update(controlsRef.current, controller.snapshot, events, now);
+    updateExerciseTargets(targets.current, exerciseSnapshot ?? null);
     timing.current.record(now);
     const snapshot = controller.snapshot;
     const groups = { left: left.current, right: right.current };
@@ -114,13 +120,13 @@ export function SceneContent({ controlsRef, controller, diagnosticsRef, onStatus
       }
     }
     frames.current.push(now); while (frames.current.length && frames.current[0] < now - 1000) frames.current.shift();
-    diagnosticsRef.current = { fps: frames.current.length, frames: ++totalFrames.current, timing: timing.current, snapshot,
+    diagnosticsRef.current = { fps: frames.current.length, frames: ++totalFrames.current, timing: timing.current, snapshot, exercise: exerciseSnapshot,
       rendered: { left: left.current?.visible ? poseOf(left.current) : null, right: right.current?.visible ? poseOf(right.current) : null, object: needle.current ? poseOf(needle.current) : null } };
   });
 
   return <>
     {camera instanceof OrthographicCamera && <primitive object={camera} zoom={Math.min(size.width / 3.6, size.height / 2.6)} onUpdate={(value: OrthographicCamera) => value.updateProjectionMatrix()} />}
-    <OperatingRoom /><Instrument side="left" ref={left} /><Instrument side="right" ref={right} /><PracticeNeedle ref={needle} /><PickupHalo ref={halo} /><TipCursor side="left" ref={leftCursor} /><TipCursor side="right" ref={rightCursor} />
+    <OperatingRoom /><ExerciseTargets ref={targets} /><Instrument side="left" ref={left} /><Instrument side="right" ref={right} /><PracticeNeedle ref={needle} /><PickupHalo ref={halo} /><TipCursor side="left" ref={leftCursor} /><TipCursor side="right" ref={rightCursor} />
   </>;
 }
 

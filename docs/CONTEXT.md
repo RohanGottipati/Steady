@@ -1,9 +1,9 @@
 # Project Context
 
-Last updated: 2026-10-17 17:30 UTC
-Updated by: B5 complete 20-metric evaluator (branch b5, off b4)
+Last updated: 2026-10-17 17:45 UTC
+Updated by: B5 complete 20-metric evaluator (branch b5, merged latest main incl. A4 PR #7)
 Current branch: b5
-Current milestone: M0; A3 implementation available, M1/M2 physical acceptance pending
+Current milestone: M0–M3 implemented in dev preview; M1/M2/M3 physical acceptance pending
 Demo-critical status: YELLOW
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -75,7 +75,15 @@ truth for the current project state — it records what exists and where it is.
   Initial recovery seeds directly; pickup feedback guards absent tool slots without
   non-null assertions. New unit regressions cover rejection and recovery. Root
   AGENTS.md explicitly distinguishes generated framework guidance from project policy.
-- Exercise progression, ghosts and product-route integration are not implemented; B3 evaluation exists independently.
+- A4 implementation available in the development preview (`src/lib/exercise/`,
+  `src/components/scene/exercise-targets.tsx`, `src/components/scene/training-scene.tsx`,
+  `src/components/training/3d-training-preview.tsx`): deterministic 8-segment
+  `needle-passing` state machine (`approach -> grip -> align -> entry -> rotation ->
+  exit -> release -> complete`), 3-checkpoint curved corridor (`ring-1`, `ring-2`,
+  `ring-3`), release ring, `tissue-wall` danger zone, early-release and out-of-order
+  guardrails, `Learn` / `Practice` / `Assessment` mode behavior hooks (Assessment
+  hides ghost/path/coaching hooks), and canonical `MotionFrame` recording verified
+  against B3's `evaluateAttempt`. Ghosts (`A5`) and `/train/[skillId]` integration (`S1`) remain next.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -109,6 +117,14 @@ truth for the current project state — it records what exists and where it is.
   shared schemas remain unchanged. Interaction uses authoritative geometry and
   eligible fresh sources; display transforms never become interaction samples.
   See `docs/SIMULATION.md` for geometry, pause/reset and A4/A5 handoff contracts.
+- A4 exercise engine (`src/lib/exercise/exercise-controller.ts`,
+  `src/lib/exercise/needle-passing-config.ts`) validates against `needlePassingSkill`
+  and consumes `ControlSnapshot` + `SimulationSnapshot` + `SimulationEvent[]` once per
+  fresh `sourceTMs`. Exposes `ExerciseSnapshot` (`phase`, `segmentId`, `segmentProgress`,
+  `overallProgress`, `activeTargetId`, `completedTargetIds`, `corridorDeviation`,
+  `orientationErrorDeg`, `rotationDeltaDeg`, `inDangerZone`, `dangerZoneCount`,
+  `needleDropped`, `modeHooks`, `readyForEvaluation`, `readyForReplay`) and
+  `getRecordedMotion(): RecordedMotion` (validated `MotionFrame[]` compatible with B3).
 
 ## 4. Current Task Ownership
 Person A - Realtime Vision and 3D Simulation:
@@ -119,10 +135,12 @@ Person A - Realtime Vision and 3D Simulation:
   integration surface.
 - A3 implemented: numerical simulation, procedural scene/instruments/needle,
   existing-camera integration, interaction/display tests and simulation handoff.
-  A1/A2/M2 physical performance acceptance remains pending.
+- A4 implemented: Needle Passing 8-segment state machine, 3D target rings/corridor/danger
+  zone, Learn/Practice/Assessment mode behavior hooks, and `MotionFrame` recording.
+  A5 ghost renderer next; A1/A2/M2/M3 physical performance acceptance remains pending.
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
-- S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4) done; B4 external data conversion done on branch b4; B5 full 20-metric evaluator done on branch b5
+- S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4), B4 external data conversion (merged to main via #6) done; B5 full 20-metric evaluator done on branch b5
 - B6 live coaching event engine next (depends on B3/B5); B10 Tiger persistence can proceed in parallel against the frozen `PERFORMANCE_VECTOR_ORDER`/`vector(20)` + `AttemptUploadPayload` contracts
 
 ## 5. Completed Tasks
@@ -177,14 +195,21 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   axis swap, three data-only real refs validated, a 76-col kinematics parse fixture
   (offsets/grip/matrix→quat/len guard), and an LCS perfect-clone-of-repeating-ref
   regression.
+- A4 implementation - deterministic Needle Passing 8-segment exercise state machine
+  (`src/lib/exercise/`), 3D target rings (`ring-1..3`), corridor arc, release ring,
+  and `tissue-wall` danger zone (`src/components/scene/exercise-targets.tsx`),
+  `Learn` / `Practice` / `Assessment` mode hooks (Assessment hides ghost/coaching hooks),
+  early-drop and invalid-action guardrails, and `MotionFrame` recording verified
+  against B3's `evaluateAttempt`. Unit, scene-lifecycle, and Chromium E2E tests pass.
 - B5 - complete 20-metric evaluator: added the 12 remaining metrics
   (`src/lib/evaluation/metrics-extra.ts`), a shared `MetricContext` (`context.ts`),
   skill-specific weighting + full category/overall scoring + per-metric factual
   explanations, and `toAttemptResult()` assembling a schema-valid `AttemptResult`
-  (`evaluate.ts`). Danger-zone/collision inputs are optional scene inputs so the
-  task completes before A4. Tests (`tests/unit/b5-metrics.test.ts` + updated
-  `evaluation.test.ts`, new fixtures in `tests/fixtures/evaluation.ts`): full-set/
-  canonical-order + 0-100 + explanation-per-metric structure, a targeted
+  (`evaluate.ts`). Danger-zone/collision inputs are optional scene inputs; A4's
+  `tissue-wall` danger zone + target geometry can now be wired in via
+  `evaluateAttempt` options at S1 integration. Tests (`tests/unit/b5-metrics.test.ts`
+  + updated `evaluation.test.ts`, new fixtures in `tests/fixtures/evaluation.ts`):
+  full-set/canonical-order + 0-100 + explanation-per-metric structure, a targeted
   direction test per new metric (with independence checks — depth/workspace/
   bimanual unaffected by a pure XY translation; danger-zone 100 with no zones),
   weighted-overall, determinism, and the `toAttemptResult` schema round-trip.
@@ -241,8 +266,9 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - JIGSAWS: acquired via JHU access form (academic/non-commercial, IRB-approved). Raw in git-ignored `datasets/jigsaws/`; derived expert references committed **data-only** (`*-jigsaws-expert-v1.json`, not product-wired) with Gao et al. attribution. See `docs/DATA_LICENSES.md`.
 - LASK: not acquired (CC BY 4.0; adapter ready, used only for synthetic peg-transfer fixture). See `docs/DATA_LICENSES.md`.
 - SHANDS: optional future source.
-- 3D assets: repository-authored A3 room, instruments, target pad/grid, tip
-  crosshairs, pickup halo and needle procedural geometry. No external model downloads, textures or new dependencies.
+- 3D assets: repository-authored A3/A4 room, instruments, target pad/grid, tip
+  crosshairs, pickup halo, practice needle, target rings (`ring-1..3`), corridor arc,
+  release ring and `tissue-wall` danger zone procedural geometry. No external model downloads, textures or new dependencies.
   Source/asset decision recorded in `docs/ASSET_LICENSES.md`.
 - Hand Landmarker float16 v1 and MediaPipe 1.1.1 WASM: acquired, checksum verified;
   source/license/attribution recorded in `docs/ASSET_LICENSES.md`. Generated binaries are ignored.
@@ -265,12 +291,28 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
-Latest verification on b5 (2026-10-17): `npm run typecheck` and `npm run lint`
-clean; `npm test` = 22 files / 180 tests passing, including the new B5 20-metric
-direction/weighting/`toAttemptResult` tests. The Python adapter `len==76` guard
-test prints an expected subprocess traceback to stderr (not a failure). The B0
-Tiger integration test ran green against the cloud service. Production build not
-re-run on this branch (still blocked by the known Turbopack CSS-worker restriction).
+Latest verification on b5 (2026-10-17, after merging latest main incl. A4 PR #7):
+`npm run typecheck` and `npm run lint` clean; `npm test` = 23 files / 192 tests
+passing, including the new B5 20-metric direction/weighting/`toAttemptResult` tests
+and A4's exercise-controller/scene suites. The Python adapter `len==76` guard test
+prints an expected subprocess traceback to stderr (not a failure). The B0 Tiger
+integration test ran green against the cloud service. Production build not re-run on
+this branch (still blocked by the known Turbopack CSS-worker restriction).
+
+Prior verification on `person-a/a4-exercise-state-machine` (2026-10-17, on top of main `31db27f` / B4 PR #6):
+- `npm run typecheck`: passed.
+- `npm run lint`: passed without warnings.
+- `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`: 21 files / 171 tests
+  passing, including 11 new A4 unit tests in `tests/unit/exercise-controller.test.ts`
+  (assisted/free-depth 8-segment completion, B3 `evaluateAttempt` compatibility,
+  un-held/out-of-order/unaligned/unrotated/early-release/danger-zone guardrails,
+  `learn`/`practice`/`assessment` mode hooks, and freshness/loss freezes), extended
+  scene lifecycle coverage in `tests/unit/training-scene.test.tsx`, and all B4
+  reference/LCS tests. B0 migration/seed tests were excluded to avoid cloud writes.
+- `npm run test:e2e -- --workers=1`: all 12 Chromium tests passed across 3 files,
+  including full calibration-to-completion Needle Passing progression, early-release
+  recovery guardrails, and `Learn`/`Practice`/`Assessment` mode hook checks in
+  `tests/e2e/tool-simulation.spec.ts`.
 
 Prior verification on b4 (2026-10-17, review follow-up after rebase on main):
 `npm run typecheck` and `npm run lint` clean; `npm test` = 21 files / 163 tests
@@ -289,16 +331,16 @@ CSS-worker local-port restriction; verify on an unrestricted host before release
 no production build success claimed.
 
 ## 11. Next Recommended Actions
-1. Person A runs the A1/A2 and A3 physical-camera QA from `docs/HAND_TRACKING.md`
-   and `docs/SIMULATION.md`, recording measured outcomes. A3 unblocks A4 exercise
-   sequencing and A5 ghost rendering; preserve source freshness, single ownership
-   and separation of display/interaction streams. A5 can now replay the real JIGSAWS
-   references.
-2. Person B: B2 + B3 + B4 + B5 done → B6 live coaching event engine (depends on
+1. Person A: Implement **A5 — Ghost renderer** (translucent reference tool playback,
+   path trail, 30 Hz frame interpolation, 0.5x/1x speed, and progress-coupled mode
+   consuming A4's `modeHooks` and `overallProgress`/`segmentProgress`, plus real
+   JIGSAWS reference workspace fitting), and run target-Mac physical-camera QA from
+   `docs/HAND_TRACKING.md` and `docs/SIMULATION.md`.
+2. Person B: B2 + B3 + B4 + B5 done → **B6** live coaching event engine (depends on
    B3/B5). B10 Tiger persistence can run in parallel now (frozen 20-vector +
-   `AttemptUploadPayload` contracts; only B10 touches the DB). When A4 lands, feed
-   real danger-zone geometry + tool-collision radius via `evaluateAttempt` options.
-   Deferred analytics/search work belongs to B10/B12.
+   `AttemptUploadPayload` contracts; only B10 touches the DB). Joint **S1** integration
+   on `/train/[skillId]` can now wire A4's exercise telemetry + `tissue-wall` danger
+   zone into `evaluateAttempt` options. Deferred analytics/search work belongs to B10/B12.
 3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
 ## 12. Manual Demo Notes
