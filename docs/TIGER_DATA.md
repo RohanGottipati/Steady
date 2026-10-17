@@ -1,26 +1,33 @@
 # Tiger Data Project Context
 
-Last updated: 2026-10-16 23:14
-Updated by: repo bootstrap
+Last updated: 2026-10-17 00:20
+Updated by: tiger bootstrap
 
 ## 1. Service Status
-- Tiger project ID:
-- Tiger service ID:
-- PostgreSQL version:
-- TimescaleDB version:
-- Service plan/free vs standard:
-- Region:
-- Current migration version:
-- Cloud sync smoke test:
-- Optional fork support available: yes/no/unknown
+- Tiger project ID: p2r9lzrn7s
+- Tiger service ID: ort1b0mw86 (name: db-21893)
+- PostgreSQL version: 18.6
+- TimescaleDB version: 2.30.2
+- Service plan/free vs standard: free
+- Region: us-east-1
+- Current migration version: none (no migrations applied yet)
+- Cloud sync smoke test: not-run
+- Optional fork support available: unknown
+
+Access notes (no secrets here):
+- Connection string lives only in the git-crypt-encrypted `.env.local` as `TIGER_DATABASE_URL`.
+- Tiger CLI v0.26.0 installed at `C:\Users\david\.local\bin\tiger`; authenticated to project p2r9lzrn7s.
+- Master password stored in the Tiger keyring. Retrieve with `tiger service get ort1b0mw86 --with-password`.
+- Connectivity check: `tiger db ping ort1b0mw86`. Run SQL with `tiger db query ort1b0mw86 -c "..."`.
 
 Never put a database password, API secret, or full connection string in this file.
 
 ## 2. Required Extensions
-- timescaledb: verified/not verified
-- vectorscale: verified/not verified
-- pg_textsearch: verified/not verified
-- timescaledb_toolkit/hyperfunctions: verified/not verified
+- timescaledb: verified (installed 2.30.2)
+- vectorscale: available 0.9.0, not yet enabled (enable during B0 migrations)
+- pg_textsearch: available 1.5.1, not yet enabled (enable during B0 migrations)
+- vector (pgvector): available 0.8.7, not yet enabled (enable during B0 migrations)
+- timescaledb_toolkit/hyperfunctions: not verified
 
 ## 3. Core Data Model
 Relational:

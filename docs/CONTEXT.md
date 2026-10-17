@@ -1,7 +1,7 @@
 # Project Context
 
-Last updated: 2026-10-16 23:52
-Updated by: Setup encrypted environment workflow documentation
+Last updated: 2026-10-17 00:20
+Updated by: Tiger Data service bootstrap
 Current branch: main
 Current milestone: M0
 Demo-critical status: YELLOW
@@ -29,6 +29,9 @@ truth for the current project state — it records what exists and where it is.
    attributes. New clones must unlock with the existing key; do not run `git-crypt init`,
    overwrite it with `.env.example`, or expose secret contents or exported keys.
    See `docs/GIT_CRYPT.md` for the full workflow.
+5. **Do not commit or push until explicitly instructed.** Make and stage changes
+   freely, but wait for the human to say to commit or push. Never commit or push on
+   your own initiative, even when work looks complete.
 
 ## 1. Current Working State
 - Next.js App Router bootstrap complete with hackathon dependencies installed.
@@ -65,6 +68,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - Setup - `npm run verify:ai` script added (`scripts/setup/verify-ai-services.mjs`)
 - S0 - shared TypeScript contracts in `src/types/` with Zod schemas, fixtures, and unit tests
 - Setup - git-crypt initialized and `.env.local` intentionally tracked/pushed encrypted; team and agent workflow documented in `docs/GIT_CRYPT.md`.
+- Setup - Tiger Cloud service provisioned (`ort1b0mw86`, Postgres 18.6 / TimescaleDB 2.30.2), CLI installed and authenticated, connection verified; Tiger env vars populated in encrypted `.env.local`.
 
 ## 6. In Progress
 - S0 - bootstrap acceptance commands must stay green; remaining product shell dirs can grow with A1/B0
@@ -81,10 +85,10 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - Reference motions: none yet.
 
 ## 9. External Service Status
-- Tiger Cloud service created: no
-- Tiger DB migrations current: no
-- Tiger extensions verified (`timescaledb`, `vectorscale`, `pg_textsearch`): no
-- Tiger MCP configured for coding agents: no
+- Tiger Cloud service created: yes (project `p2r9lzrn7s`, service `ort1b0mw86` "db-21893", free plan, us-east-1, Postgres 18.6 / TimescaleDB 2.30.2; connection verified via `tiger db ping`). `TIGER_DATABASE_URL`/`TIGER_PROJECT_ID`/`TIGER_SERVICE_ID` set in encrypted `.env.local`. Details in `docs/TIGER_DATA.md`.
+- Tiger DB migrations current: no (no migrations applied yet - B0 pending)
+- Tiger extensions verified (`timescaledb`, `vectorscale`, `pg_textsearch`): timescaledb enabled (2.30.2); vectorscale 0.9.0 / pg_textsearch 1.5.1 / vector 0.8.7 available but not yet enabled (enable in B0)
+- Tiger MCP configured for coding agents: no (not needed; agents use Tiger CLI + `.env.local`)
 - Tiger cloud sync smoke test: not-run
 - Tiger optional fork workflow available: unknown
 - Backboard model ID verified: yes (`BACKBOARD_MODEL_PROVIDER=google`, `BACKBOARD_MODEL_NAME=gemini-2.5-flash`)
@@ -104,7 +108,7 @@ Turbopack's CSS worker could not bind a port (`Operation not permitted`). Run
 
 ## 11. Next Recommended Actions
 1. Person A begins A1 webcam and hand tracking (contracts are ready).
-2. Person B completes B0 Tiger Data bootstrap once `TIGER_DATABASE_URL` is set, then B1/B2.
+2. Person B begins B0 Tiger Data migrations (`TIGER_DATABASE_URL` is set): enable `vector`/`vectorscale`/`pg_textsearch`, add `db/migrations/` + runner, core tables and hypertables, `/api/health` DB check, seed one skill + synthetic attempt; then B1/B2.
 3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
 ## 12. Manual Demo Notes
