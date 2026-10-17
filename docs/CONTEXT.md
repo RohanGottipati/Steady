@@ -1,7 +1,7 @@
 # Project Context
 
-Last updated: 2026-10-16 23:40
-Updated by: context merge (agent operating rules + dependency bootstrap)
+Last updated: 2026-10-16 23:52
+Updated by: Setup encrypted environment workflow documentation
 Current branch: main
 Current milestone: M0
 Demo-critical status: YELLOW
@@ -23,6 +23,12 @@ truth for the current project state — it records what exists and where it is.
    `S0: scaffold Next.js app and shared types`.
 3. Read `docs/IMPLEMENTATION_PLAN.md` (architectural source of truth) before coding, and
    work one task ID at a time.
+4. **`.env.local` is intentionally tracked and pushed with git-crypt encryption.**
+   In an unlocked clone, stage, commit, and push normally; verify `git-crypt status -e`
+   reports it encrypted without warnings. Keep it tracked and preserve its encryption
+   attributes. New clones must unlock with the existing key; do not run `git-crypt init`,
+   overwrite it with `.env.example`, or expose secret contents or exported keys.
+   See `docs/GIT_CRYPT.md` for the full workflow.
 
 ## 1. Current Working State
 - Next.js App Router bootstrap complete with hackathon dependencies installed.
@@ -36,8 +42,12 @@ truth for the current project state — it records what exists and where it is.
 - Browser target: latest Chrome on macOS.
 
 ## 3. Shared Contracts
-- Add current TypeScript contract notes here.
-- Data schema version: 1.
+- Location: `src/types/` (barrel: `src/types/index.ts`)
+- Data schema version: `1` (`DATA_SCHEMA_VERSION`)
+- Coordinate system: `scene-canonical-v1` (+X user right, +Y up, +Z toward camera)
+- Core types: `Vec3`, `Quat`, `HandFrame`, `ToolState`, `ToolFrame`, `MotionFrame`, `ReferenceMotion`, `SkillDefinition`, `PerformanceVector`, `AttemptResult`, `CoachingEvent`, `ReplayMarker`, `AttemptUploadPayload`, `SavedAttempt`, `AiReview`
+- `PERFORMANCE_VECTOR_ORDER` is the stable 20-metric order for Tiger `vector(20)` (names from plan §6.9/§13.3; see `docs/DECISIONS.md`)
+- Zod schemas co-located with types; parse before trusting external/AI JSON
 
 ## 4. Current Task Ownership
 Person A - Realtime Vision and 3D Simulation:
@@ -50,12 +60,18 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 ## 5. Completed Tasks
 - Partial S0 - repository structure and docs seeded
 - Partial S0 - Next.js, Tailwind, shadcn/ui, MediaPipe, R3F, Zustand, Zod, postgres, ElevenLabs, Vitest, Playwright installed
+- Setup - Backboard model catalog verified live (`google` / `gemini-2.5-flash`, JSON output supported)
+- Setup - ElevenLabs voice configured (`Alice` / `Xb7hH8MSUJpSbSDYk0k2`) and TTS smoke OK with `eleven_flash_v2_5`
+- Setup - `npm run verify:ai` script added (`scripts/setup/verify-ai-services.mjs`)
+- S0 - shared TypeScript contracts in `src/types/` with Zod schemas, fixtures, and unit tests
+- Setup - git-crypt initialized and `.env.local` intentionally tracked/pushed encrypted; team and agent workflow documented in `docs/GIT_CRYPT.md`.
 
 ## 6. In Progress
-- S0 - shared TypeScript contracts and remaining bootstrap acceptance still open
+- S0 - bootstrap acceptance commands must stay green; remaining product shell dirs can grow with A1/B0
 
 ## 7. Known Issues / Risks
 - External dataset license and access must be confirmed before public redistribution.
+- New clones need git-crypt and the securely shared existing key to unlock tracked `.env.local`; maintain a secure recovery-key backup outside the repository.
 
 ## 8. Data / Asset Status
 - JIGSAWS: not yet acquired/cleared.
@@ -71,8 +87,8 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - Tiger MCP configured for coding agents: no
 - Tiger cloud sync smoke test: not-run
 - Tiger optional fork workflow available: unknown
-- Backboard model ID verified: no
-- ElevenLabs voice ID configured: no
+- Backboard model ID verified: yes (`BACKBOARD_MODEL_PROVIDER=google`, `BACKBOARD_MODEL_NAME=gemini-2.5-flash`)
+- ElevenLabs voice ID configured: yes (`ELEVENLABS_VOICE_ID=Xb7hH8MSUJpSbSDYk0k2`, voice name Alice — clear educator; TTS model `eleven_flash_v2_5` smoke-tested)
 - Vercel env configured: no
 
 ## 10. Commands That Must Pass
@@ -81,10 +97,15 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
+Latest verification (2026-10-16): typecheck and lint passed; unit tests passed
+(2 files, 8 tests). Production build was blocked by the execution sandbox:
+Turbopack's CSS worker could not bind a port (`Operation not permitted`). Run
+`npm run build` outside the sandbox to verify the production build.
+
 ## 11. Next Recommended Actions
-1. Finish S0 repository bootstrap.
-2. Person A begins A1 webcam and hand tracking.
-3. Person B completes B0 Tiger Data bootstrap, then begins B1/B2.
+1. Person A begins A1 webcam and hand tracking (contracts are ready).
+2. Person B completes B0 Tiger Data bootstrap once `TIGER_DATABASE_URL` is set, then B1/B2.
+3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
 ## 12. Manual Demo Notes
 - Target browser: latest Chrome on macOS.

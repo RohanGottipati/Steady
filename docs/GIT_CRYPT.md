@@ -5,13 +5,41 @@ while keeping them readable in an unlocked working directory.
 
 The repository's `.gitattributes` selects `.env`, `.env.*`, and `secrets/**`
 for encryption. `.env.example` and `.gitattributes` stay readable. Environment
-files remain ignored by default, so each developer can keep local credentials
-private or explicitly opt a file into encrypted version control.
+files remain ignored by default, but **`.env.local` is already intentionally
+tracked and pushed as encrypted shared configuration**. Ignore rules do not
+exclude an already tracked file from subsequent commits.
 
-These rules alone do not activate encryption. Each checkout needs git-crypt
-initialized or unlocked before adding secrets.
+The repository has been initialized. Each new checkout must be unlocked with
+the existing key before editing protected files.
+
+## Normal commits and pushes (teammates and agents)
+
+In an unlocked clone, use the normal Git workflow:
+
+```bash
+git add .env.local
+git-crypt status -e
+git diff --cached --stat
+git commit -m "Setup: update shared environment configuration"
+git push
+```
+
+Confirm `.env.local` appears as `encrypted` without warnings before committing.
+git-crypt encrypts protected files when staged; the working copy stays readable.
+No separate encryption command or `git add -f` is needed for the tracked file.
+
+Agents must preserve this intentional setup: keep `.env.local` tracked and keep
+its `filter=git-crypt diff=git-crypt` attributes. Do not remove it from Git as a
+secret cleanup, bypass encryption filters, or copy `.env.example` over it. If a
+clone is locked or the tool/key is unavailable, obtain access before changing
+protected files; do not initialize a replacement key. Review filenames and
+encryption status without printing secret values in logs, chats, or PRs. Exported
+keys must stay outside the repository and be shared securely.
 
 ## First setup (one maintainer, once)
+
+This step is already complete for Steady. Existing and new clones should follow
+"Another checkout" below, using the original key.
 
 On macOS, install the tool:
 
@@ -59,8 +87,13 @@ git-crypt unlock /absolute/path/to/repository.git-crypt-key
 git-crypt status -e
 ```
 
-After unlocking, use Git normally. If `.env.local` is not tracked, follow the
-README's `cp .env.example .env.local` setup instead.
+For an existing clone, move any untracked local `.env.local` outside the repository
+before pulling the tracked version. Unlock the clone, then start the app with
+`npm install` and `npm run dev`. Keep any needed personal values from the backup
+private unless they are intended for the team.
+
+After unlocking, use Git normally. Do not run `git-crypt init` or overwrite the
+shared `.env.local` with `.env.example`.
 
 GPG access is also supported: `git-crypt add-gpg-user FINGERPRINT` creates and
 commits an encrypted key under `.git-crypt/`. Collaborators with the matching

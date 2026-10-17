@@ -8,15 +8,23 @@ Next.js App Router · TypeScript · Tailwind · shadcn/ui · MediaPipe · React 
 
 ## Setup
 
+**`.env.local` is intentionally tracked and pushed with git-crypt encryption.**
+Obtain the repository key securely from a maintainer, then unlock this clone:
+
+```bash
+brew install git-crypt
+git-crypt unlock /absolute/path/to/repository.git-crypt-key
+```
+
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
-For encrypted environment files and shared secrets, see
-[`docs/GIT_CRYPT.md`](docs/GIT_CRYPT.md). Initialize or unlock git-crypt before
-adding any secret files to Git.
+After unlocking, commit and push `.env.local` changes normally; git-crypt encrypts
+them when staged. Keep the tracked file and its encryption rules in place. Do not
+overwrite it with `.env.example` or run `git-crypt init` in an existing clone.
+See [`docs/GIT_CRYPT.md`](docs/GIT_CRYPT.md) for the team and agent workflow.
 
 Optional offline dataset tooling:
 
