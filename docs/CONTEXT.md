@@ -1,8 +1,8 @@
 # Project Context
 
-Last updated: 2026-10-17 05:40 UTC
-Updated by: main fast-forwarded to origin (A1 + B0 + B1 + B2); local A2 work restored
-Current branch: main
+Last updated: 2026-10-17 06:30 UTC
+Updated by: B3 evaluation engine (rebased on main: A1 + B0 + B1 + B2 + A2)
+Current branch: b3
 Current milestone: M0
 Demo-critical status: YELLOW
 
@@ -55,7 +55,8 @@ truth for the current project state — it records what exists and where it is.
 - Control filtering now uses a 3 Hz base cutoff / beta 0.75 for position and
   quaternion response. Synthetic phase-delay and stationary-jitter tests guard
   responsiveness; the generic One Euro defaults, pinch and recovery gates are unchanged.
-- 3D instruments and evaluation are not implemented.
+- Evaluation engine (B3): `src/lib/evaluation/` deterministically scores a recorded attempt vs a `ReferenceMotion` — per-segment alignment (no DTW), 8 of 20 metrics (pathSimilarity, targetAccuracy, instrumentOrientationAccuracy, pathEfficiency, movementSmoothness, speedProfileControl, segmentTiming, proceduralSequencing), partial category scores (precision/control/efficiencySafety), overall, and top-3 worst-moment replay markers. Remaining 12 metrics + full `AttemptResult` 20-vector are B5/B10.
+- 3D instruments/tools are not implemented.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -96,8 +97,8 @@ Person A - Realtime Vision and 3D Simulation:
   integration surface; its copy now describes calibration and control targets.
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
-- S0 bootstrap, B0 Tiger bootstrap, B1 skill library (merged) done; B2 reference-motion adapters done on this branch
-- B3 deterministic evaluation engine next
+- S0 bootstrap, B0 Tiger bootstrap, B1 skill library (merged) done; B2 reference adapters (PR #3) + B3 evaluation engine done on this branch stack
+- B5 full 20-metric evaluator / B4 external data conversion next
 
 ## 5. Completed Tasks
 - Partial S0 - repository structure and docs seeded
@@ -133,6 +134,10 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   Stationary-stage quality gates are unchanged; invalid/missing observations earn
   no credit. Tests cover preserved progress, sequential hands, single-frame spikes,
   suspension and workspace-only timeout/retry. Documentation updated.
+- B3 - core evaluation engine (`src/lib/evaluation/`): per-segment alignment, scoring
+  helpers, 8 metrics with evidence timestamps, partial category/overall scores, worst-moment
+  markers. Tests: `evaluation-score.test.ts`, `evaluation.test.ts` (perfect vs perturbed
+  fixtures derived from the committed reference; deterministic).
 
 ## 6. In Progress
 - A2 manual verification - Person A confirmed calibration completes and pinching
@@ -201,13 +206,13 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
-Latest verification on main after B2 (2026-10-17): typecheck and lint clean;
-full suite passes (A1 vision, B0 database integration/health, B1 skill catalog,
-B2 reference loader + adapter round-trip). DB-backed tests auto-skip without
-`TIGER_DATABASE_URL`; the Python adapter test auto-skips without Python on PATH.
-Production build passed in that environment; A1 previously reported the build
-blocked by a Turbopack CSS-worker port restriction on a restricted host — confirm
-on an unrestricted host before release.
+Latest verification on b3 rebased on main (A1 + B0 + B1 + B2 + A2, 2026-10-17):
+typecheck and lint clean; full unit/integration suite passes including A2 controls
+and B3 evaluation (score helpers + perfect-vs-perturbed behavior). DB-backed tests
+auto-skip without `TIGER_DATABASE_URL`; the Python adapter test auto-skips without
+Python on PATH. Production build passed in this environment; A1 previously reported
+the build blocked by a Turbopack CSS-worker port restriction on a restricted host —
+confirm on an unrestricted host before release.
 Latest A2 verification (2026-10-17): typecheck and lint passed; 80 local unit tests
 passed across 12 files using `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`.
 B0's integration test was intentionally excluded: it applies migrations and seed
@@ -227,7 +232,7 @@ of frame-driven React rendering. Physical-camera accuracy and performance accept
 1. Person A runs A1/A2's physical-camera QA from `docs/HAND_TRACKING.md` and records
    actual outcomes. Proceed with A3 instruments using A2 control targets; honor
    freshness/progression gates and keep held-object ownership in simulation.
-2. Person B: B2 done → B3 deterministic evaluation engine next (path/orientation metrics against the reference), then B5 full 20-metric evaluator. Deferred analytics/search work belongs to B10/B12.
+2. Person B: B2 + B3 done → B5 full 20-metric evaluator (remaining 12 metrics + full `AttemptResult` 20-vector), or B4 external data conversion. Deferred analytics/search work belongs to B10/B12.
 3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
 ## 12. Manual Demo Notes
