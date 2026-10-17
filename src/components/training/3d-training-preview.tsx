@@ -1,16 +1,19 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Component, useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Component, useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { needlePassingSkill } from "@/data/skills/needle-passing";
-import { ExerciseController } from "@/lib/exercise/exercise-controller";
-import { GhostPlaybackController, type GhostPlaybackSpeed, type GhostSyncMode } from "@/lib/exercise/ghost-playback";
+import { type CompletedAttemptBundle } from "@/lib/exercise/attempt-evaluator";
+import { TrainingRuntime } from "@/lib/exercise/training-runtime";
+import { FIXTURE_CATALOG, type FixtureId } from "@/lib/exercise/fixture-playback";
+import { type GhostPlaybackSpeed, type GhostSyncMode } from "@/lib/exercise/ghost-playback";
 import { DEFAULT_NEEDLE_PASSING_REFERENCE, GHOST_REFERENCE_SOURCES, type GhostReferenceSourceId } from "@/lib/exercise/ghost-reference";
 import { loadReference } from "@/lib/references/load-reference";
-import { pickupFeedback, ToolSimulationController } from "@/lib/simulation/tool-simulation";
+import { pickupFeedback } from "@/lib/simulation/tool-simulation";
 import type { ControlSnapshot } from "@/lib/vision/control-types";
 import type { SceneDiagnostics } from "@/components/scene/training-scene";
-import type { ReferenceMotion, TrainingMode } from "@/types";
+import type { ReferenceMotion, SkillDefinition, TrainingMode } from "@/types";
+import { AttemptResultsPanel } from "./attempt-results-panel";
 
 const TrainingScene = dynamic(() => import("@/components/scene/training-scene"), { ssr: false, loading: () => <p>Loading 3D workspace…</p> });
 class SceneBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
@@ -24,31 +27,49 @@ export function ThreeDTrainingPreview({
   controlsRef,
   calibrated,
   debug,
-  singleHand = false,
+  skill = needlePassingSkill,
+  mode: controlledMode,
+  onModeChange,
+  singleHand: controlledSingleHand,
   onQuickSingleHand,
   onSingleHandChange,
+  fixtureId = null,
+  onFixtureChange,
+  onEvaluationComplete,
 }: {
   controlsRef: RefObject<ControlSnapshot>;
   calibrated: boolean;
   debug: boolean;
+  skill?: SkillDefinition;
+  mode?: TrainingMode;
+  onModeChange?: (mode: TrainingMode) => void;
   singleHand?: boolean;
   onQuickSingleHand?: () => void;
   onSingleHandChange?: (enabled: boolean) => void;
+  fixtureId?: FixtureId | null;
+  onFixtureChange?: (fixtureId: FixtureId | null) => void;
+  onEvaluationComplete?: (bundle: CompletedAttemptBundle | null) => void;
 }) {
-  const [controller] = useState(() => new ToolSimulationController());
-  const [exercise] = useState(() => new ExerciseController({ skill: needlePassingSkill, mode: "learn" }));
-  const [ghost] = useState(() => new GhostPlaybackController());
+  const [runtime] = useState(() => new TrainingRuntime(skill, controlledMode ?? "learn"));
+  useSyncExternalStore(runtime.subscribe, runtime.getGeneration, runtime.getGeneration);
+  const controller = runtime.simulation, exercise = runtime.exercise, ghost = runtime.ghost;
   const referenceCacheRef = useRef<Partial<Record<GhostReferenceSourceId, ReferenceMotion>>>({
     "synthetic-v1": DEFAULT_NEEDLE_PASSING_REFERENCE,
   });
+  const referenceRequestRef = useRef(0);
   const diagnosticsRef = useRef<SceneDiagnostics | null>(null);
+  const notifiedBundleRef = useRef<CompletedAttemptBundle | null>(null);
+  const evaluationCallbackRef = useRef(onEvaluationComplete);
+  useEffect(() => { evaluationCallbackRef.current = onEvaluationComplete; }, [onEvaluationComplete]);
   const [sample, setSample] = useState<SceneDiagnostics | null>(null);
   const [timing, setTiming] = useState({ medianFps: 0, p95FrameMs: 0, sampleCount: 0 });
   const [status, setStatus] = useState<"loading" | "ready" | "lost" | "error">("loading");
   const [generation, setGeneration] = useState(0);
   const [assisted, setAssisted] = useState(true);
-  const [localSingleHand, setLocalSingleHand] = useState(singleHand);
-  const [mode, setMode] = useState<TrainingMode>("learn");
+  const [localSingleHand, setLocalSingleHand] = useState(controlledSingleHand ?? false);
+  const singleHand = controlledSingleHand ?? localSingleHand;
+  const [localMode, setLocalMode] = useState<TrainingMode>(controlledMode ?? "learn");
+  const mode = controlledMode ?? localMode;
   const [ghostSpeed, setGhostSpeed] = useState<GhostPlaybackSpeed>(1);
   const [ghostSync, setGhostSync] = useState<GhostSyncMode>("progress-coupled");
   const [ghostSource, setGhostSource] = useState<GhostReferenceSourceId>("synthetic-v1");
@@ -56,20 +77,33 @@ export function ThreeDTrainingPreview({
   const [referenceError, setReferenceError] = useState<string | null>(null);
   const [, setUiTick] = useState(0);
   const onStatus = useCallback((value: "ready" | "lost") => setStatus(value), []);
-  const onFailure = useCallback(() => { controller.suspend("3D rendering unavailable."); exercise.suspend("3D rendering unavailable."); ghost.suspend(); setStatus("error"); }, [controller, exercise, ghost]);
-  // This also runs while the renderer has failed and its frame callback is absent.
-  useEffect(() => { if (!calibrated) { controller.reset(); exercise.reset(); ghost.reset(); } }, [calibrated, controller, exercise, ghost]);
+  const onFailure = useCallback(() => { runtime.suspend("3D rendering unavailable."); setStatus("error"); }, [runtime]);
+
+  useEffect(() => { runtime.configure(mode, fixtureId, singleHand, assisted); }, [runtime, mode, fixtureId, singleHand, assisted]);
+  useEffect(() => { if (!calibrated) runtime.invalidateCalibration(); }, [calibrated, runtime]);
   useEffect(() => {
+    const referenceRequests = referenceRequestRef;
+    const resume = setTimeout(() => setLoadingReference(false), 0);
     const interval = setInterval(() => {
       const diagnostics = diagnosticsRef.current;
       setSample(diagnostics ? { ...diagnostics, snapshot: controller.snapshot, exercise: exercise.snapshot, ghost: ghost.snapshot } : null);
       setTiming(diagnostics?.timing.read() ?? { medianFps: 0, p95FrameMs: 0, sampleCount: 0 });
+      if (notifiedBundleRef.current !== runtime.bundle) {
+        notifiedBundleRef.current = runtime.bundle;
+        evaluationCallbackRef.current?.(runtime.bundle);
+      }
+      setUiTick(value => value + 1);
     }, 250);
-    return () => { clearInterval(interval); controller.reset(); exercise.reset(); ghost.reset(); diagnosticsRef.current = null; };
-  }, [controller, exercise, ghost]);
-  const reset = () => { controller.reset(); exercise.reset(); ghost.reset(); setSample(null); setUiTick(value => value + 1); };
-  const retry = () => { reset(); setStatus("loading"); setGeneration(value => value + 1); };
-  const selectMode = (nextMode: TrainingMode) => { controller.reset(); exercise.setMode(nextMode); ghost.reset(); setMode(nextMode); setSample(null); setUiTick(value => value + 1); };
+    return () => {
+      clearInterval(interval); clearTimeout(resume); referenceRequests.current++; runtime.reset(); diagnosticsRef.current = null;
+    };
+  }, [runtime, controller, exercise, ghost]);
+  const reset = useCallback(() => { runtime.reset(); setSample(null); setUiTick(value => value + 1); }, [runtime]);
+  const retry = useCallback(() => { reset(); setStatus("loading"); setGeneration(value => value + 1); }, [reset]);
+  const selectMode = (nextMode: TrainingMode) => {
+    setLocalMode(nextMode); onModeChange?.(nextMode);
+  };
+
   const selectGhostSpeed = (nextSpeed: GhostPlaybackSpeed) => { ghost.setSpeed(nextSpeed); setGhostSpeed(nextSpeed); setUiTick(value => value + 1); };
   const toggleGhostSync = () => {
     const nextSync: GhostSyncMode = ghostSync === "progress-coupled" ? "continuous" : "progress-coupled";
@@ -78,19 +112,19 @@ export function ThreeDTrainingPreview({
     setUiTick(value => value + 1);
   };
   const activateSingleHandQuickStart = () => {
-    controller.setSingleHand(true);
+    runtime.reset();
     setLocalSingleHand(true);
     onSingleHandChange?.(true);
     onQuickSingleHand?.();
     setUiTick(value => value + 1);
   };
   const toggleSingleHandMode = (enabled: boolean) => {
-    controller.setSingleHand(enabled);
     setLocalSingleHand(enabled);
     onSingleHandChange?.(enabled);
     setUiTick(value => value + 1);
   };
   const selectGhostReference = async (sourceId: GhostReferenceSourceId) => {
+    const request = ++referenceRequestRef.current;
     setReferenceError(null);
     const cached = referenceCacheRef.current[sourceId];
     if (cached) {
@@ -104,19 +138,22 @@ export function ThreeDTrainingPreview({
     setLoadingReference(true);
     try {
       const loaded = await loadReference(item.url);
+      if (request !== referenceRequestRef.current) return;
       referenceCacheRef.current[sourceId] = loaded;
       ghost.setReference(loaded, sourceId);
       setGhostSource(sourceId);
       setUiTick(value => value + 1);
     } catch {
+      if (request !== referenceRequestRef.current) return;
       setReferenceError(`Could not load ${item.label}; keeping active reference.`);
     } finally {
-      setLoadingReference(false);
+      if (request === referenceRequestRef.current) setLoadingReference(false);
     }
   };
-  const snapshot = sample?.snapshot;
-  const exerciseSnapshot = sample?.exercise ?? exercise.snapshot;
-  const ghostSnapshot = sample?.ghost ?? ghost.snapshot;
+  const snapshot = controller.snapshot;
+  const exerciseSnapshot = exercise.snapshot;
+  const ghostSnapshot = ghost.snapshot;
+  const activeEvaluationBundle = runtime.bundle;
   const feedback = snapshot ? pickupFeedback(snapshot) : null;
   return <section aria-label="Virtual instrument preview" className="space-y-3 rounded-xl border p-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -134,8 +171,43 @@ export function ThreeDTrainingPreview({
         {(status === "error" || status === "lost") && <button className="rounded-md border px-4 py-2" onClick={retry}>Retry 3D scene</button>}
       </div>
     </div>
+    {fixtureId && (
+      <div
+        role="region"
+        aria-label="Fixture playback controls"
+        data-testid="fixture-banner"
+        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs text-indigo-950 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-100"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold">Demo Fixture Mode:</span>
+          <select
+            aria-label="Select motion fixture"
+            data-testid="fixture-select"
+            value={fixtureId}
+            onChange={event => onFixtureChange?.(event.target.value as FixtureId)}
+            className="rounded border border-indigo-300 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-indigo-700 dark:bg-zinc-900 dark:text-zinc-100"
+          >
+            {FIXTURE_CATALOG.map(item => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            data-testid="fixture-restart"
+            onClick={reset}
+            className="rounded border border-indigo-300 bg-white px-2.5 py-1 font-medium text-indigo-900 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-100"
+          >
+            Restart fixture
+          </button>
+        </div>
+      </div>
+    )}
     <div role="group" aria-label="Training mode" className="flex flex-wrap items-center gap-2 text-sm">
-      {(["learn", "practice", "assessment"] as const).map(candidate => (
+      {!onModeChange && (["learn", "practice", "assessment"] as const).map(candidate => (
         <button
           key={candidate}
           type="button"
@@ -219,7 +291,7 @@ export function ThreeDTrainingPreview({
         <input
           type="checkbox"
           data-testid="single-hand-mode"
-          checked={localSingleHand}
+          checked={singleHand}
           onChange={event => toggleSingleHandMode(event.target.checked)}
           className="mt-1"
         />
@@ -230,12 +302,10 @@ export function ThreeDTrainingPreview({
       <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-2.5 text-sm dark:border-slate-800">
         <input
           type="checkbox"
-          checked={assisted}
+          checked={fixtureId ? true : assisted}
+          disabled={Boolean(fixtureId)}
           onChange={event => {
             const enabled = event.target.checked;
-            controller.setAssisted(enabled);
-            exercise.reset();
-            ghost.reset();
             setAssisted(enabled);
             setSample(null);
             setUiTick(value => value + 1);
@@ -261,7 +331,7 @@ export function ThreeDTrainingPreview({
         <span className={exerciseSnapshot.activeTargetId === "release-zone" ? "font-bold text-sky-400" : exerciseSnapshot.phase === "complete" ? "text-emerald-400" : "text-slate-300"}>⑤ Top-Right Ring: Release (Open)</span>
       </div>
       <SceneBoundary key={generation} onFailure={onFailure}>
-        <TrainingScene controlsRef={controlsRef} controller={controller} exercise={exercise} ghost={ghost} diagnosticsRef={diagnosticsRef} onStatus={onStatus} />
+        <TrainingScene controlsRef={controlsRef} controller={controller} exercise={exercise} ghost={ghost} diagnosticsRef={diagnosticsRef} onStatus={onStatus} runtime={runtime} />
       </SceneBoundary>
     </div>
     <div aria-label="Exercise progression" className="space-y-2 rounded-lg border p-3 text-sm">
@@ -290,7 +360,7 @@ export function ThreeDTrainingPreview({
         </span>
       </div>
       <ol aria-label="Exercise segments" className="grid grid-cols-4 gap-1.5 text-xs sm:grid-cols-8">
-        {needlePassingSkill.segments.map((segment, index) => {
+        {skill.segments.map((segment, index) => {
           const completed = exerciseSnapshot.phase === "complete" || index < exerciseSnapshot.segmentIndex;
           const current = exerciseSnapshot.phase === "active" && index === exerciseSnapshot.segmentIndex;
           return (
@@ -305,6 +375,13 @@ export function ThreeDTrainingPreview({
         })}
       </ol>
     </div>
+    {runtime.error && <div role="alert" className="rounded-lg border border-amber-500 p-3">
+      <p>{runtime.error}</p><button type="button" onClick={reset} className="mt-2 rounded border px-3 py-1">Restart attempt</button>
+    </div>}
+    {runtime.message && mode !== "assessment" && <p role="status" data-testid="live-coaching" className="rounded-lg border border-sky-400 p-3">{runtime.message}</p>}
+    {activeEvaluationBundle && (
+      <AttemptResultsPanel bundle={activeEvaluationBundle} onTryAgain={reset} saveStatus={runtime.saveStatus} />
+    )}
     <p data-testid="pickup-guidance" aria-live="polite" className={`rounded-lg border p-3 font-medium ${feedback?.ready ? "border-green-500 bg-green-50 text-green-950" : "border-slate-300"}`}>{feedback?.message ?? "Calibrate both hands to begin."}</p>
     <p data-testid="needle-ownership">Needle: {snapshot?.object.heldBy ?? "free"}</p>
     <p className="text-sm text-zinc-500">Only one hand needs to hold and pass the needle (Left cyan or Right amber). Keep your unused hand comfortably visible in the camera frame so tracking stays active.</p>
@@ -315,6 +392,9 @@ export function ThreeDTrainingPreview({
       <p data-testid="needle-state">{JSON.stringify({ object: snapshot?.object ?? null, rendered: sample?.rendered.object ?? null })}</p>
       <p data-testid="exercise-state">{JSON.stringify(exerciseSnapshot)}</p>
       <p data-testid="ghost-state">{JSON.stringify(ghostSnapshot)}</p>
+      {activeEvaluationBundle && (
+        <p data-testid="evaluation-result-json">{JSON.stringify(activeEvaluationBundle.attemptResult)}</p>
+      )}
     </div>}
   </section>;
 }

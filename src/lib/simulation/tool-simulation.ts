@@ -104,7 +104,7 @@ export class ToolSimulationController {
     }
   }
 
-  reset() { this.epoch++; this.snapshot = { ...initial(this.assisted), singleHand: this.singleHand }; this.attachment = null; this.armed = { left: false, right: false }; }
+  reset(retainWatermark = true) { if (!retainWatermark) this.lastSource = -Infinity; this.epoch++; this.snapshot = { ...initial(this.assisted), singleHand: this.singleHand }; this.attachment = null; this.armed = { left: false, right: false }; }
 
   suspend(reason = "Simulation paused until both controls are tracking.") {
     this.armed = { left: false, right: false };

@@ -162,91 +162,17 @@ function lerp3(a: Vec3, b: Vec3, u: number): Vec3 {
  */
 export function buildSceneAlignedGhostReference(): ReferenceMotion {
   const needleStart: Vec3 = { x: 0, y: 0.35, z: 0 };
-  const ring1 = NEEDLE_PASSING_RINGS[0].position;
   const ring3 = NEEDLE_PASSING_RINGS[2].position;
   const releasePos = RELEASE_ZONE.position;
-  const restLeft: Vec3 = { x: -0.28, y: 0.34, z: 0 };
+  const restLeft: Vec3 = { x: -0.36, y: 0.35, z: 0 };
+  const approachEdge: Vec3 = { x: -0.242, y: 0.35, z: 0 };
+  const preAlign: Vec3 = { x: -0.04, y: 0.335, z: 0 };
+  const alignStart: Vec3 = { x: -0.05, y: 0.325, z: 0 };
+  const alignEdge: Vec3 = { x: -0.075, y: 0.312, z: 0 };
+  const exitEdge: Vec3 = { x: 0.18, y: 0.258, z: 0 };
   const restRight: Vec3 = { x: 0.42, y: 0.28, z: 0 };
-  const finishLeft: Vec3 = { x: 0.23, y: 0.38, z: 0 };
 
-  const phasePlan: Array<{
-    segmentId: NeedlePassingSegment;
-    sampleCount: number;
-    evalSample: (u: number) => { tip: Vec3; rotZRad: number; closed: boolean };
-  }> = [
-    {
-      segmentId: "approach",
-      sampleCount: 12,
-      evalSample: u => ({
-        tip: lerp3(restLeft, needleStart, u),
-        rotZRad: 0,
-        closed: false,
-      }),
-    },
-    {
-      segmentId: "grip",
-      sampleCount: 12,
-      evalSample: u => ({
-        tip: lerp3(needleStart, { x: ring1.x - 0.02, y: ring1.y + 0.02, z: 0 }, (u + 0.08) / 1.08),
-        rotZRad: -0.12 * ((u + 0.08) / 1.08),
-        closed: true,
-      }),
-    },
-    {
-      segmentId: "align",
-      sampleCount: 8,
-      evalSample: u => ({
-        tip: lerp3({ x: ring1.x - 0.015, y: ring1.y + 0.015, z: 0 }, ring1, (u + 0.1) / 1.1),
-        rotZRad: -0.12 - 0.03 * ((u + 0.1) / 1.1),
-        closed: true,
-      }),
-    },
-    {
-      segmentId: "entry",
-      sampleCount: 14,
-      evalSample: u => ({
-        tip: corridorArcPoint(0.5 * ((u + 0.07) / 1.07)),
-        rotZRad: -0.15 + 0.15 * ((u + 0.07) / 1.07),
-        closed: true,
-      }),
-    },
-    {
-      segmentId: "rotation",
-      sampleCount: 18,
-      evalSample: u => ({
-        tip: corridorArcPoint(0.5 + 0.5 * ((u + 0.05) / 1.05)),
-        rotZRad: 0.35 * ((u + 0.05) / 1.05),
-        closed: true,
-      }),
-    },
-    {
-      segmentId: "exit",
-      sampleCount: 12,
-      evalSample: u => ({
-        tip: lerp3(ring3, releasePos, (u + 0.08) / 1.08),
-        rotZRad: 0.35 * (1 - 0.5 * ((u + 0.08) / 1.08)),
-        closed: true,
-      }),
-    },
-    {
-      segmentId: "release",
-      sampleCount: 8,
-      evalSample: u => ({
-        tip: lerp3(releasePos, finishLeft, 0.5 * ((u + 0.12) / 1.12)),
-        rotZRad: 0.1,
-        closed: u < 0.35,
-      }),
-    },
-    {
-      segmentId: "complete",
-      sampleCount: 4,
-      evalSample: u => ({
-        tip: lerp3(releasePos, finishLeft, 0.55 + 0.45 * ((u + 0.2) / 1.2)),
-        rotZRad: 0,
-        closed: false,
-      }),
-    },
-  ];
+  const degToRad = (deg: number) => (deg * Math.PI) / 180;
 
   const rawSamples: Array<{
     segmentId: NeedlePassingSegment;
@@ -255,15 +181,99 @@ export function buildSceneAlignedGhostReference(): ReferenceMotion {
     closed: boolean;
   }> = [];
 
-  for (const phase of phasePlan) {
-    for (let i = 0; i < phase.sampleCount; i++) {
-      const u = phase.sampleCount > 1 ? i / (phase.sampleCount - 1) : 1;
+  const pushPhase = (
+    segmentId: NeedlePassingSegment,
+    count: number,
+    fn: (u: number, idx: number) => { tip: Vec3; rotDeg: number; closed: boolean },
+  ) => {
+    for (let i = 0; i < count; i++) {
+      const u = count > 1 ? i / (count - 1) : 1;
+      const sample = fn(u, i);
       rawSamples.push({
-        segmentId: phase.segmentId,
-        ...phase.evalSample(u),
+        segmentId,
+        tip: sample.tip,
+        rotZRad: degToRad(sample.rotDeg),
+        closed: sample.closed,
       });
     }
-  }
+  };
+
+  // 1. Approach (10 frames): outside 0.24 approachRadius
+  pushPhase("approach", 10, u => ({
+    tip: lerp3(restLeft, approachEdge, u),
+    rotDeg: 0,
+    closed: false,
+  }));
+
+  // 2. Grip (14 frames): enter approachRadius -> reach needleStart -> close jaws -> carry toward Ring 1
+  pushPhase("grip", 14, (_u, idx) => {
+    if (idx < 4) {
+      return {
+        tip: lerp3({ x: -0.2, y: 0.35, z: 0 }, needleStart, idx / 3),
+        rotDeg: 0,
+        closed: false,
+      };
+    }
+    const carryU = (idx - 4) / 9;
+    return {
+      tip: lerp3(needleStart, preAlign, carryU),
+      rotDeg: -6 * carryU,
+      closed: true,
+    };
+  });
+
+  // 3. Align (8 frames): inside 0.15 alignRadius, outside 0.11 gateRadius
+  pushPhase("align", 8, u => ({
+    tip: lerp3(alignStart, alignEdge, u),
+    rotDeg: -6 - 2.6 * u,
+    closed: true,
+  }));
+
+  // 4. Entry (14 frames): cross Ring 1 at idx 0, then curve along corridor with x < -0.08
+  pushPhase("entry", 14, u => ({
+    tip: corridorArcPoint(0.24 * u),
+    rotDeg: -8.6 + 4.6 * u,
+    closed: true,
+  }));
+
+  // 5. Rotation (20 frames): enter Ring 2 engagement zone (u=0.28..0.68), pass Ring 2 (u=0.5), rotate wrist to +20 deg
+  pushPhase("rotation", 20, u => ({
+    tip: corridorArcPoint(0.28 + 0.4 * u),
+    rotDeg: -4 + 24 * u,
+    closed: true,
+  }));
+
+  // 6. Exit (12 frames): cross Ring 3 (u=0.75..1.0) and pull toward Release Zone (stopping outside 0.10 releaseRadius)
+  pushPhase("exit", 12, (_u, idx) => {
+    if (idx < 4) {
+      const arcU = 0.75 + 0.25 * (idx / 3);
+      return {
+        tip: corridorArcPoint(arcU),
+        rotDeg: 20,
+        closed: true,
+      };
+    }
+    const pullU = (idx - 4) / 7;
+    return {
+      tip: lerp3(ring3, exitEdge, pullU),
+      rotDeg: 20 - 12 * pullU,
+      closed: true,
+    };
+  });
+
+  // 7. Release (8 frames): enter Release Zone (0.20, 0.36, 0) while holding needle
+  pushPhase("release", 8, u => ({
+    tip: lerp3({ x: 0.192, y: 0.33, z: 0 }, releasePos, u),
+    rotDeg: 8 * (1 - u),
+    closed: true,
+  }));
+
+  // 8. Complete (1 terminal frame): open jaws inside Release Zone
+  pushPhase("complete", 1, () => ({
+    tip: releasePos,
+    rotDeg: 0,
+    closed: false,
+  }));
 
   const fps = 30;
   const stepMs = 1000 / fps;

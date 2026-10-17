@@ -11,6 +11,7 @@ import { ExerciseTargets, updateExerciseTargets } from "./exercise-targets";
 import { GhostLayer, updateGhostLayer } from "./ghost-layer";
 import { Instrument } from "./instrument";
 import { OperatingRoom, PracticeNeedle } from "./operating-room";
+import type { TrainingRuntime } from "@/lib/exercise/training-runtime";
 import { RenderTiming } from "@/lib/simulation/render-timing";
 import { PickupHalo, TipCursor } from "./pickup-guides";
 
@@ -25,6 +26,7 @@ export interface SceneDiagnostics {
 }
 export interface TrainingSceneProps {
   controlsRef: RefObject<ControlSnapshot>;
+  runtime?: TrainingRuntime;
   controller: ToolSimulationController;
   exercise?: ExerciseController;
   ghost?: GhostPlaybackController;
@@ -37,7 +39,7 @@ function apply(group: Group, pose: Pose) {
   group.quaternion.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
 }
 
-export function SceneContent({ controlsRef, controller, exercise, ghost, diagnosticsRef, onStatus }: TrainingSceneProps) {
+export function SceneContent({ controlsRef, controller, exercise, ghost, diagnosticsRef, onStatus, runtime }: TrainingSceneProps) {
   const left = useRef<Group>(null), right = useRef<Group>(null), needle = useRef<Group>(null), targets = useRef<Group>(null), ghostGroup = useRef<Group>(null);
   const leftCursor = useRef<Group>(null), rightCursor = useRef<Group>(null), halo = useRef<Group>(null);
   const initialized = useRef(false), interrupted = useRef(true), contextLost = useRef(false);
@@ -52,30 +54,41 @@ export function SceneContent({ controlsRef, controller, exercise, ghost, diagnos
     contextLost.current = gl.getContext().isContextLost();
     interrupted.current = true;
     const canvas = gl.domElement;
-    const lost = (event: Event) => { event.preventDefault(); contextLost.current = true; interrupted.current = true; renderTiming.clear(); controller.suspend("Simulation paused: 3D context lost."); exercise?.suspend("Simulation paused: 3D context lost."); ghost?.suspend(); onStatus("lost"); };
+    const lost = (event: Event) => { event.preventDefault(); contextLost.current = true; interrupted.current = true; renderTiming.clear(); runtime?.suspend("Simulation paused: 3D context lost."); controller.suspend("Simulation paused: 3D context lost."); exercise?.suspend("Simulation paused: 3D context lost."); ghost?.suspend(); onStatus("lost"); };
     const restored = () => { contextLost.current = false; interrupted.current = true; onStatus("ready"); };
-    const visibility = () => { if (document.hidden) { interrupted.current = true; renderTiming.clear(); controller.suspend("Simulation paused: tab hidden."); exercise?.suspend("Simulation paused: tab hidden."); ghost?.suspend(); } };
+    const visibility = () => { if (document.hidden) { interrupted.current = true; renderTiming.clear(); runtime?.suspend("Simulation paused: tab hidden."); controller.suspend("Simulation paused: tab hidden."); exercise?.suspend("Simulation paused: tab hidden."); ghost?.suspend(); } };
     canvas.addEventListener("webglcontextlost", lost); canvas.addEventListener("webglcontextrestored", restored);
     document.addEventListener("visibilitychange", visibility);
     onStatus(contextLost.current ? "lost" : "ready");
     return () => {
       canvas.removeEventListener("webglcontextlost", lost); canvas.removeEventListener("webglcontextrestored", restored);
       document.removeEventListener("visibilitychange", visibility);
-      controller.reset(); exercise?.reset(); ghost?.reset(); diagnosticsRef.current = null; initialized.current = false;
+      if (runtime) runtime.suspend("Simulation paused: scene inactive.");
+      else { controller.reset(); exercise?.reset(); ghost?.reset(); }
+      diagnosticsRef.current = null; initialized.current = false;
       interrupted.current = true; frames.current = []; totalFrames.current = 0;
       renderTiming.clear();
     };
-  }, [camera, gl, controller, exercise, ghost, diagnosticsRef, onStatus]);
+  }, [camera, gl, controller, exercise, ghost, diagnosticsRef, onStatus, runtime]);
 
   useFrame((_, delta) => {
     const now = performance.now();
-    if (contextLost.current || document.hidden) { interrupted.current = true; controller.suspend(); exercise?.suspend(); ghost?.suspend(); return; }
-    const events = controller.update(controlsRef.current, now);
-    if (epoch.current !== controller.epoch) { initialized.current = false; epoch.current = controller.epoch; timing.current.clear(); exercise?.reset(); ghost?.reset(); }
-    if (controller.snapshot.object.heldBy === "right-tool") ghost?.setActiveSide("right");
-    else if (controller.snapshot.object.heldBy === "left-tool") ghost?.setActiveSide("left");
-    const exerciseSnapshot = exercise?.update(controlsRef.current, controller.snapshot, events, now);
-    const ghostSnapshot = ghost?.update(exerciseSnapshot ?? exercise?.snapshot ?? null, delta);
+    if (contextLost.current || document.hidden) { interrupted.current = true; runtime?.suspend(); controller.suspend(); exercise?.suspend(); ghost?.suspend(); return; }
+    if (epoch.current !== controller.epoch) {
+      initialized.current = false; epoch.current = controller.epoch; timing.current.clear();
+      if (!runtime) { exercise?.reset(); ghost?.reset(); }
+    }
+    if (runtime) runtime.advance(controlsRef.current, delta, now);
+    else {
+      const events = controller.update(controlsRef.current, now);
+      if (controller.snapshot.object.heldBy === "right-tool") ghost?.setActiveSide("right");
+      else if (controller.snapshot.object.heldBy === "left-tool") ghost?.setActiveSide("left");
+      const currentExercise = exercise?.update(controlsRef.current, controller.snapshot, events, now);
+      ghost?.update(currentExercise ?? exercise?.snapshot ?? null, delta);
+    }
+    const exerciseSnapshot = exercise?.snapshot;
+    const ghostSnapshot = ghost?.snapshot;
+    const activeControls = runtime?.controls ?? controlsRef.current;
     updateExerciseTargets(targets.current, exerciseSnapshot ?? null);
     updateGhostLayer(ghostGroup.current, ghostSnapshot ?? null, ghost?.getTrailData());
     timing.current.record(now);
@@ -89,7 +102,7 @@ export function SceneContent({ controlsRef, controller, exercise, ghost, diagnos
       for (const slot of ["left", "right"] as const) {
         const group = groups[slot], tool = snapshot[slot];
         if (!group || !tool) continue;
-        if (snapshot.singleHand && controlsRef.current[slot].status !== "tracking" && snapshot.object.heldBy !== tool.id) {
+        if (snapshot.singleHand && activeControls[slot].status !== "tracking" && snapshot.object.heldBy !== tool.id) {
           group.visible = false;
           continue;
         }
