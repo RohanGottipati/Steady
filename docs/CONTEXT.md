@@ -1,7 +1,7 @@
 # Project Context
 
-Last updated: 2026-10-17 04:32 UTC
-Updated by: Person A — A1 hand tracking implementation
+Last updated: 2026-10-17 04:35 UTC
+Updated by: Person A — A1 preview review and branch handoff
 Current branch: person-a/a1-hand-tracking
 Current milestone: M0
 Demo-critical status: YELLOW
@@ -36,6 +36,8 @@ truth for the current project state — it records what exists and where it is.
   explicit camera controls, mirrored skeleton preview, stable raw hand slots,
   ref-backed updates, GPU/CPU worker and main-thread fallback, debug diagnostics.
 - Local model/WASM assets are prepared before dev/build; cached assets support offline use.
+- Person A reviewed the tracking preview and reported it looks good (2026-10-17).
+  This records preview approval; the formal soak/performance checklist is still pending.
 - Calibration, pinch/rotation control, 3D tools, library/training flow, and evaluation are not implemented.
 
 ## 2. Architecture Invariants
@@ -76,7 +78,8 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - Setup - git-crypt initialized and `.env.local` intentionally tracked/pushed encrypted; team and agent workflow documented in `docs/GIT_CRYPT.md`.
 - A1 implementation - local asset preparation, camera lifecycle, hand identities,
   worker/fallback inference, development preview, regression tests and documentation.
-  Physical-camera acceptance remains pending; this does not complete M1.
+  Preview reviewed/approved by Person A on 2026-10-17. Formal physical-camera
+  acceptance remains pending; this does not complete M1.
 
 ## 6. In Progress
 - S0 - bootstrap acceptance commands must stay green; remaining product shell dirs can grow with A1/B0

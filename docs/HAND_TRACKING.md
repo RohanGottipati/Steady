@@ -86,6 +86,10 @@ load if network access is lost. This is an educational simulation prototype.
 
 ## Verification
 
+Person A reviewed the preview on 2026-10-17 and reported it looks good. The formal
+two-minute physical-camera soak, profiler, and measured performance checks below
+remain pending; preview approval does not imply those measurements were taken.
+
 Automated checks:
 
 ```bash
