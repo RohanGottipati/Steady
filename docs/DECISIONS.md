@@ -2,6 +2,45 @@
 
 Record architectural and product decisions here as they are made.
 
+### 2026-10-17 - Track Next.js guidance with explicit provenance
+- Context: PR #5 review asked whether the generated root AGENTS.md was intentional.
+  The A3 plan retained this file, and publication of that implementation was approved.
+- Decision: Keep AGENTS.md tracked, with a hand-authored provenance note outside
+  the framework-managed markers. The generated block describes the installed
+  framework; project ownership/workflow remain in CONTEXT and IMPLEMENTATION_PLAN.
+- Consequences: Next dev can refresh its block without removing the note. Generated
+  framework guidance is distinguishable from project policy during future reviews.
+
+### 2026-10-17 - A3 pickup guidance and depth assistance
+- Context: The user could not reliably pick up the needle, found the interaction
+  unclear and rejected the original instrument appearance. Projected alignment
+  hid depth mismatch, and decorative rings competed with the pickup marker.
+- Decision: Default to Easy pickup: constrain actual rotated tip contacts to Z=0,
+  show the exact 0.16-unit acquisition halo and colored tip crosshairs, and snap
+  the needle marker into the jaws on an eligible close edge. A visible switch
+  restores free 3D depth/0.10-unit acquisition, resetting scene ownership. Use a
+  front orthographic view, live ready/reopen/depth prompts, flat tweezers and a
+  pistol-grip instrument. Replace noninteractive rings with a muted grid.
+- Consequences: A2 inputs, grip debounce, freshness and recovery gates remain
+  intact. Assistance is explicit in the local simulation snapshot and must be
+  accounted for by future exercise/evaluation work. Synthetic regression and
+  screenshot review verify behavior; real-hand usability still needs user retest.
+
+### 2026-10-17 - A3 owns deterministic interaction and a separate display stream
+- Context: A2 supplies calibrated targets without geometry or object ownership.
+  The next bounded task is A3 in the existing development preview.
+- Decision: Use a Person-A-owned numerical controller and existing ToolState
+  contracts, shared local tip geometry, edge-triggered acquisition, single-owner
+  attachment and fresh-input release. Gate both tools on A2 readiness and source
+  freshness; preserve grip through loss and context suspension. Reset invalid
+  camera/calibration sessions without release events. Use procedural scene assets
+  and one existing camera; keep A4/A5 and product-route integration separate.
+- Consequences: Display-only lerp/slerp uses a 40/s response, guarded by <30 ms
+  added synthetic phase-delay tests. Held-object rendering follows that display
+  transform. Readiness, ownership and rendered/authoritative poses have 4 Hz
+  diagnostics; bounded numerical timings support manual FPS/frame-interval QA.
+  Physical latency/soak acceptance still requires measured target-Mac results.
+
 ## Format
 
 ### YYYY-MM-DD - Decision title

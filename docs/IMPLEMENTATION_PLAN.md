@@ -1363,15 +1363,18 @@ After filtering, Three.js should still interpolate tool transforms every display
 
 ```ts
 useFrame((_, delta) => {
-  const positionAlpha = 1 - Math.exp(-14 * delta);
-  const rotationAlpha = 1 - Math.exp(-10 * delta);
+  const displayDelta = Math.min(delta, 0.05);
+  const positionAlpha = 1 - Math.exp(-40 * displayDelta);
+  const rotationAlpha = 1 - Math.exp(-40 * displayDelta);
 
   tool.position.lerp(targetPosition, positionAlpha);
   tool.quaternion.slerp(targetRotation, rotationAlpha);
 });
 ```
 
-Constants are starting values only. Tune on the target Mac.
+A3 uses the 40/s display response above and skips the first recovery interpolation
+step. Synthetic tests guard <30 ms additional position/rotation phase delay;
+target-Mac responsiveness and camera-to-display latency still require measurement.
 
 ## 8.12 Tracking loss
 
@@ -1436,6 +1439,11 @@ Only a small subset of scene objects need behavior.
 
 Use premade licensed GLB/glTF assets.
 
+A3 development-preview decision (2026-10-17): use repository-authored procedural
+room/instrument/needle geometry for reproducible control verification. No external
+model dependency is required. Licensed GLB/glTF dressing can follow separately;
+record any future external models in the asset ledger. See `docs/SIMULATION.md`.
+
 No Blender dependency.
 
 Optimization options:
@@ -1450,7 +1458,7 @@ Every external model goes into `docs/ASSET_LICENSES.md`.
 ## 9.3 R3F hierarchy
 
 ```tsx
-<Canvas camera={{ position: [0, 2.6, 4.2], fov: 40 }}>
+<Canvas orthographic camera={{ position: [0, 0.15, 4], zoom: 160 }}>
   <Lighting />
   <OperatingRoom />
   <TrainingScene skill={skill} />
@@ -1459,6 +1467,12 @@ Every external model goes into `docs/ASSET_LICENSES.md`.
   <TrajectoryLayer />
 </Canvas>
 ```
+
+A3 uses a fixed front view, fitting orthographic zoom to a 3.6-by-2.6-unit
+workspace on resize. The pickup halo and tool crosshair rings give explicit
+alignment feedback. Easy pickup defaults on: tips stay at Z=0 and acquisition
+snaps within 0.16 units. Free 3D depth retains the 0.10-unit radius. Switching
+assistance resets scene ownership, not calibration.
 
 Use a mostly fixed camera for the training attempt. Allow limited orbiting during replay if stable.
 
@@ -3175,6 +3189,16 @@ interpolation. Setup, interface semantics and physical QA are maintained in
 **Owner:** Person A  
 **Depends on:** A2  
 **Priority:** P0
+
+Implementation is available in the development-only tracking preview. A numerical
+simulation controller consumes A2 controls once per source sample, publishes real
+shared ToolState tips, and owns the practice needle through deterministic
+grab/release. Both tools freeze when either control becomes ineligible. The scene
+uses procedural geometry and separate 40/s display interpolation, with no shared
+schema changes or additional camera acquisition. A4/A5 and product-route
+integration remain separate. See `docs/SIMULATION.md` for API/lifecycle semantics,
+automated coverage and outstanding target-Mac acceptance; availability does not
+constitute physical performance signoff.
 
 ### Output
 
