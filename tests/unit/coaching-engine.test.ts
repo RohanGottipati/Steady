@@ -17,7 +17,6 @@ function calm(overrides: Partial<CoachingSignals> = {}): CoachingSignals {
     voiceCoachingLevel: "full",
     corridorDeviation: 0,
     inCorridor: true,
-    orientationErrorDeg: 0,
     inDangerZone: false,
     toolSpeed: 0,
     assistingHandSpeed: 0,
@@ -169,21 +168,36 @@ describe("CoachingEngine severity and mode gating", () => {
     expect(engine.events).toHaveLength(0);
   });
 
-  it("high-severity level drops a medium-severity event that full would keep", () => {
-    // Choose a deviation whose severity sits between minimum (0.65) and high (0.8).
+  it("high-severity level records a medium-severity event but does not speak it", () => {
+    // Choose a deviation whose severity sits between minimum (0.65) and high (0.8):
+    // full coaching speaks it, Practice (high-severity) records it for review only.
     const { thresholds, minimumSeverity, highSeverityThreshold } = DEFAULT_COACHING_CONFIG;
     const target = (minimumSeverity + highSeverityThreshold) / 2;
     const medium = thresholds.corridorToleranceUnits + target * thresholds.corridorSeverityRangeUnits;
 
     const full = new CoachingEngine();
     full.evaluate(calm({ tMs: 0, corridorDeviation: medium }));
-    full.evaluate(calm({ tMs: 600, corridorDeviation: medium }));
+    const fullTick = full.evaluate(calm({ tMs: 600, corridorDeviation: medium }));
     expect(full.events).toHaveLength(1);
+    expect(fullTick.spoken?.event.type).toBe("path_deviation");
 
     const high = new CoachingEngine();
     high.evaluate(calm({ tMs: 0, voiceCoachingLevel: "high-severity", corridorDeviation: medium }));
-    high.evaluate(calm({ tMs: 600, voiceCoachingLevel: "high-severity", corridorDeviation: medium }));
-    expect(high.events).toHaveLength(0);
+    const highTick = high.evaluate(calm({ tMs: 600, voiceCoachingLevel: "high-severity", corridorDeviation: medium }));
+    expect(high.events).toHaveLength(1); // recorded for post-attempt review
+    expect(highTick.spoken).toBeNull(); // but not spoken live in Practice
+    expect(high.spokenCount).toBe(0);
+  });
+
+  it("records overshoot in Practice (high-severity) even though 0.75 < the speak gate", () => {
+    // Regression for the review note: overshootSeverity 0.75 sits below the 0.8
+    // high-severity speak gate, so Practice must still record it (just not speak it).
+    const engine = new CoachingEngine();
+    engine.evaluate(calm({ tMs: 0, voiceCoachingLevel: "high-severity", overshoot: true }));
+    const tick = engine.evaluate(calm({ tMs: 600, voiceCoachingLevel: "high-severity", overshoot: true }));
+    expect(engine.events.map((e) => e.type)).toEqual(["overshoot"]);
+    expect(tick.spoken).toBeNull();
+    expect(engine.spokenCount).toBe(0);
   });
 
   it("produces no coaching when the voice level is none", () => {

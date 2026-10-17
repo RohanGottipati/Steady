@@ -15,8 +15,10 @@ import {
  * - threshold rules turn telemetry into candidate events with a 0-1 severity,
  * - a short commit delay lets a self-corrected issue cancel its queued message,
  * - repeat suppression keeps a sustained issue from producing a storm of events,
- * - a global cooldown and per-attempt cap bound how many are actually spoken,
- * - every committed event is recorded for post-attempt review/upload.
+ * - events at/above the minimum severity are recorded for post-attempt review,
+ *   while voiceCoachingLevel gates which are spoken live (Practice speaks only
+ *   high-severity; Assessment speaks nothing and records nothing),
+ * - a global cooldown and per-attempt cap bound how many are actually spoken.
  *
  * The engine never computes scores; it only flags live deviations. Authoritative
  * scoring stays in the deterministic evaluator (B3/B5).
@@ -37,7 +39,6 @@ export interface CoachingSignals {
   corridorDeviation: number;
   /** True only during corridor segments with the needle held (deviation meaningful). */
   inCorridor: boolean;
-  orientationErrorDeg: number;
   inDangerZone: boolean;
   /** Controlling tool-tip speed, scene units/sec. */
   toolSpeed: number;
@@ -181,17 +182,22 @@ export class CoachingEngine {
     const recorded: CoachingEvent[] = [];
     let canceledPending = false;
 
-    const threshold = this.severityThreshold(signals.voiceCoachingLevel);
-    // When coaching is off or the attempt is idle, no rule is eligible; any pending
-    // incident is dropped silently (it was never spoken, so nothing to cancel).
+    // Recording gate (§14.1): events at or above the minimum severity are recorded
+    // for post-attempt review. Speaking gate (§14.2 / §10.3): live voice is further
+    // limited by voiceCoachingLevel (Practice speaks only high-severity events). An
+    // event below the speak gate is still recorded — just not spoken.
+    const recordThreshold = this.recordThreshold(signals.voiceCoachingLevel);
+    const speakThreshold = this.speakThreshold(signals.voiceCoachingLevel);
+    // When coaching is off (Assessment) or the attempt is idle, no rule is eligible;
+    // any pending incident is dropped silently (never spoken, so nothing to cancel).
     const candidates =
-      signals.active && Number.isFinite(threshold) ? this.evaluateRules(signals) : {};
+      signals.active && Number.isFinite(recordThreshold) ? this.evaluateRules(signals) : {};
 
     const committedThisTick: CoachingEvent[] = [];
 
     for (const type of COACHING_EVENT_TYPES) {
       const candidate = candidates[type];
-      const eligible = candidate !== undefined && candidate.severity >= threshold;
+      const eligible = candidate !== undefined && candidate.severity >= recordThreshold;
       const incident = this.incidents.get(type);
 
       if (eligible) {
@@ -232,17 +238,21 @@ export class CoachingEngine {
       }
     }
 
-    const spoken = this.speak(committedThisTick, signals.tMs);
+    const spoken = this.speak(committedThisTick, speakThreshold, signals.tMs);
     return { recorded, spoken, canceledPending };
   }
 
   /** Choose at most one message to speak this tick: the highest-severity committed
-   * event, subject to the global cooldown and the per-attempt spoken cap. */
-  private speak(committed: CoachingEvent[], tMs: number): SpokenCoachingMessage | null {
-    if (committed.length === 0 || this.spokenCount >= this.config.maxSpoken) return null;
+   * event meeting the voice-level speak gate, subject to the global cooldown and the
+   * per-attempt spoken cap. Events below the speak gate stay recorded, just silent. */
+  private speak(committed: CoachingEvent[], speakThreshold: number, tMs: number): SpokenCoachingMessage | null {
+    if (this.spokenCount >= this.config.maxSpoken) return null;
     if (this.lastSpokenMs !== null && tMs - this.lastSpokenMs < this.config.cooldownMs) return null;
 
-    const event = [...committed].sort((a, b) => b.severity - a.severity)[0];
+    const speakable = committed.filter((event) => event.severity >= speakThreshold);
+    if (speakable.length === 0) return null;
+
+    const event = speakable.sort((a, b) => b.severity - a.severity)[0];
     this.spokenCount += 1;
     this.lastSpokenMs = tMs;
     return { event, text: coachingMessageFor(event.type) };
@@ -260,7 +270,14 @@ export class CoachingEngine {
     };
   }
 
-  private severityThreshold(level: VoiceCoachingLevel): number {
+  /** Record everything above the minimum severity unless coaching is off (Assessment). */
+  private recordThreshold(level: VoiceCoachingLevel): number {
+    return level === "none" ? Number.POSITIVE_INFINITY : this.config.minimumSeverity;
+  }
+
+  /** Speak only events meeting the voice-level bar: full coaching speaks everything
+   * recordable, Practice speaks only high-severity, Assessment speaks nothing. */
+  private speakThreshold(level: VoiceCoachingLevel): number {
     if (level === "none") return Number.POSITIVE_INFINITY;
     if (level === "high-severity") return this.config.highSeverityThreshold;
     return this.config.minimumSeverity;

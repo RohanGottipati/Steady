@@ -102,10 +102,12 @@ truth for the current project state — it records what exists and where it is.
   `CoachingEvent`s with 0–1 severity, obeying the shared `COACHING_MESSAGE_POLICY`:
   a commit-delay queue lets a self-corrected issue cancel its queued message; per-type
   8 s repeat suppression stops a sustained issue from spamming; a global 4 s cooldown +
-  4-message cap bound spoken audio; `voiceCoachingLevel` (`full`/`high-severity`/`none`)
-  gates by severity so Assessment stays silent. `COACHING_MESSAGES` holds the §14.3 clip
-  text (keys the B7 ElevenLabs assets). The engine never scores — authoritative scoring
-  stays in B3/B5. Live-loop wiring into the exercise/control streams is deferred to S1.
+  4-message cap bound spoken audio. Recording keeps every event ≥ the 0.65 minimum;
+  `voiceCoachingLevel` (`full`/`high-severity`/`none`) sets a separate speak gate, so
+  Practice records medium-severity events for review but speaks only high-severity ones
+  and Assessment stays fully silent. `COACHING_MESSAGES` holds the §14.3 clip text (keys
+  the B7 ElevenLabs assets). The engine never scores — authoritative scoring stays in
+  B3/B5. Live-loop wiring into the exercise/control streams is deferred to S1.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -158,10 +160,12 @@ truth for the current project state — it records what exists and where it is.
   `rightPose`, `needlePose`, `needleHeldBy`).
 - B6 live coaching engine (`src/lib/coaching/coaching-engine.ts`) consumes a compact
   `CoachingSignals` per tick (`tMs`, `active`, `segmentId`, `voiceCoachingLevel`,
-  `corridorDeviation`/`inCorridor`, `orientationErrorDeg`, `inDangerZone`, `toolSpeed`,
-  `assistingHandSpeed`, `gripSlipping`, `rotationBehindDeg`, `overshoot`) and returns
-  `CoachingTick` (`recorded: CoachingEvent[]`, `spoken: {event,text}|null`,
-  `canceledPending`). `voiceCoachingLevel` maps straight from A4 `modeHooks`. S1 owns
+  `corridorDeviation`/`inCorridor`, `inDangerZone`, `toolSpeed`, `assistingHandSpeed`,
+  `gripSlipping`, `rotationBehindDeg`, `overshoot`) and returns `CoachingTick`
+  (`recorded: CoachingEvent[]`, `spoken: {event,text}|null`, `canceledPending`).
+  Recording gate is the 0.65 minimum severity; `voiceCoachingLevel` (mapped straight
+  from A4 `modeHooks`) sets the separate **speak** gate (Practice speaks only
+  high-severity but still records medium events; Assessment records/speaks nothing). S1 owns
   the adapter that derives per-tick speeds/grip-slip from `ControlSnapshot` +
   `SimulationSnapshot` + the `ExerciseSnapshot`; the shared `CoachingEvent` schema and
   `COACHING_MESSAGE_POLICY` in `src/types/coaching.ts` are unchanged.
@@ -270,11 +274,13 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   threshold rules → `CoachingEvent`s (path_deviation, danger_zone_near, moving_too_fast,
   unstable_grip, left_hand_unstable, rotation_late, overshoot) with 0–1 severity;
   commit-delay queue with self-correction cancel, per-type 8 s repeat suppression,
-  global 4 s cooldown, 4-message spoken cap, severity gating by `voiceCoachingLevel`,
-  event recording, and §14.3 message selection (`COACHING_MESSAGES`). 16 unit tests in
-  `tests/unit/coaching-engine.test.ts` cover the three acceptance criteria (one event
-  per large deviation, no spam while sustained, cancel-on-correction) plus cooldown/cap,
-  mode gating, `CoachingEvent` schema validity, and reset. Live wiring deferred to S1.
+  global 4 s cooldown, 4-message spoken cap, a 0.65 recording gate plus a separate
+  `voiceCoachingLevel` speak gate (Practice records medium events but speaks only
+  high-severity; Assessment silent), event recording, and §14.3 message selection
+  (`COACHING_MESSAGES`). 17 unit tests in `tests/unit/coaching-engine.test.ts` cover the
+  three acceptance criteria (one event per large deviation, no spam while sustained,
+  cancel-on-correction) plus cooldown/cap, record-vs-speak gating (incl. the Practice
+  overshoot regression), `CoachingEvent` schema validity, and reset. Live wiring deferred to S1.
 
 ## 6. In Progress
 - A3 usability acceptance - synthetic depth-drift pickup, assistance switching and
@@ -356,10 +362,11 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 Latest verification for B6 (2026-10-17, on `person-b/b6-live-coaching-engine` rebased on main `100c97b` / A5 PR #9):
 - `npm run typecheck`: passed.
 - `npm run lint`: passed without warnings.
-- `npx vitest run --exclude "**/b0-tiger-bootstrap.test.ts"`: 24 files / 215 tests
-  passing, including 16 new B6 tests in `tests/unit/coaching-engine.test.ts` (one event
+- `npx vitest run --exclude "**/b0-tiger-bootstrap.test.ts"`: 24 files / 216 tests
+  passing, including 17 new B6 tests in `tests/unit/coaching-engine.test.ts` (one event
   per large deviation, no spam while sustained, cancel-on-correction, cooldown/cap,
-  severity + `voiceCoachingLevel` gating, `CoachingEvent` schema validity, reset). The B0
+  record-vs-speak `voiceCoachingLevel` gating incl. the Practice overshoot regression,
+  `CoachingEvent` schema validity, reset). The B0
   Tiger integration test was excluded to avoid cloud writes (passes idempotently alone).
   Production build not re-run (engine is pure TS, no new deps/routes; host still hits the
   known Turbopack CSS-worker restriction).
