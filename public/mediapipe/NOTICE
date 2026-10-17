@@ -1,0 +1,12 @@
+MediaPipe hand tracking
+Copyright The MediaPipe Authors / Google LLC.
+
+Runtime: @mediapipe/tasks-vision (version recorded in runtime.json after preparation)
+Source: https://github.com/google-ai-edge/mediapipe
+Model: hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+Source: https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+
+Model and runtime are used under the Apache License, Version 2.0.
+See the accompanying LICENSE and preserved notices in the runtime files.
+Model card: https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Hand%20Tracking%20%28Lite_Full%29%20with%20Fairness%20Oct%202021.pdf
+Upstream privacy notice: https://goo.gle/mediapipe-privacy
