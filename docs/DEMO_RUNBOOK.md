@@ -45,7 +45,10 @@ UI changes.
   finish locally, and open the preloaded replay.
 - Tiger unavailable: preserve the device copy and use **Retry sync** later.
   Retrying uses the same attempt ID and does not insert a second score row.
-- Backboard unavailable or malformed: keep deterministic Coach Review and scores.
+- Backboard unconfigured or disabled: quietly keep deterministic Coach Review.
+  A configured provider that fails or returns malformed output keeps those notes
+  and shows a dismissible notice. Public review requests are limited to 20/minute
+  per IP per warm instance, with a 64 KiB body limit and bounded evidence text.
 - ElevenLabs unavailable: common coaching uses committed clips, then browser
   speech. Replay uses browser speech if live synthesis fails. Text stays visible
   when all audio is unavailable. Fixture replay never requests live synthesis.
@@ -55,6 +58,10 @@ UI changes.
 Service keys belong only in the tracked git-crypt encrypted environment file.
 Never expose its contents. Browser acceptance tests override server credentials
 and speech enablement so they cannot write cloud history or consume paid APIs.
+Attempt uploads are limited to 30/minute per IP per warm instance and 1 MiB per
+body, with at most 3,600 entries in each sample array, 256 entries in each event
+array, and 20 worst-moment markers. Limits apply before database access. Proxy
+forwarding headers must be set by the trusted deployment proxy, as for speech.
 
 ## Physical sign-off — pending
 

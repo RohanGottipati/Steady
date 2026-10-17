@@ -57,6 +57,7 @@ export async function requestAttemptReview(
       body: JSON.stringify(request),
       signal: AbortSignal.timeout(10_000),
     });
+    if (response.status === 204) return { source: "deterministic", review, notice: null };
     if (!response.ok) return { source: "deterministic", review, notice: REVIEW_UNAVAILABLE };
     const accepted = validatedReview(await response.json(), request);
     if (!accepted) return { source: "deterministic", review, notice: REVIEW_UNAVAILABLE };

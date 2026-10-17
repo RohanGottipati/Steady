@@ -172,4 +172,30 @@ describe("S2 narrated replay preview", () => {
     expect(spoken).toEqual([]);
     expect(state().divergenceEmphasis).toBe(false);
   });
+
+  it("updates the explanation and selected marker when choosing another issue without restarting speech", async () => {
+    const spoken: string[] = [];
+    const audio = new AudioManager({
+      browserSpeak: (text, onEnd) => { spoken.push(text); onEnd(); },
+      cancelBrowserSpeak: () => {},
+    });
+    const cancel = vi.spyOn(audio, "cancel");
+    await act(async () => root.render(<ThreeDReplayPreview replay={replay([high(), low()], {
+      replayNarration: "About the largest gap.",
+    })} onClose={() => {}} debug audio={audio} />));
+    await flush(700);
+    expect(spoken).toEqual(["About the largest gap."]);
+    await act(async () => { container.querySelector<HTMLButtonElement>("[data-testid=replay-marker-1]")!.click(); });
+    expect(state().segmentId).toBe("grip");
+    expect(state().playing).toBe(false);
+    expect(explanation()).toContain("Path Similarity");
+    expect(explanation()).not.toContain("About the largest gap.");
+    expect(container.querySelector("[data-testid=replay-marker-1]")?.getAttribute("aria-current")).toBe("true");
+    expect(cancel).toHaveBeenCalled();
+    await flush(350);
+    expect(spoken).toHaveLength(1);
+    await act(async () => { container.querySelector<HTMLButtonElement>("[data-testid=replay-marker-0]")!.click(); });
+    expect(state().segmentId).toBe("approach");
+    expect(explanation()).toBe("About the largest gap.");
+  });
 });

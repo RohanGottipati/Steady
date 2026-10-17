@@ -1,7 +1,7 @@
 # Project Context
 
 Last updated: 2026-10-17
-Updated by: Integration completion
+Updated by: PR #15 review fixes
 Current branch: integration/a7-s-completion (base origin/main ab25dcd)
 Current milestone: A7 and S0–S4 implementation and automated acceptance complete
 Demo-critical status: YELLOW — physical rehearsal and isolated live-database checks pending
@@ -64,11 +64,18 @@ helpers belong in ordinary library modules.
   dependency validates compact measured evidence and provider output, uses
   X-API-Key, and preserves deterministic review when unavailable. Scores remain
   deterministic. Reset discards stale responses; opening replay freezes its review.
+  Selecting a different replay issue updates its explanation and highlight without
+  restarting narration. An unconfigured/disabled review provider is a quiet 204;
+  configured provider failures retain the fallback notice.
 - One session audio manager cancels narration on takeover/reset/exit. Fixture
   sessions never call live review, upload, or speech services.
 - Training remains local-first with cache/sync retries, idempotent transactional
   ingestion, offline/storage/service notices, and visible render recovery.
   S4 adds loading states, scene/material polish, hidden debug controls, and credits.
+  Public review and upload routes use the speech limiter's per-IP mechanism
+  (20/minute and 30/minute respectively, per warm instance). Streaming body limits
+  are 64 KiB and 1 MiB; review text and upload sample/event arrays are bounded
+  before provider/database access. Shared recording schemas are unchanged.
 - Default development and production builds use Webpack with the installed
   Tailwind loader in Next's existing CSS pipeline. The isolated E2E development
   directory avoids interfering with an existing local development server.
@@ -90,17 +97,19 @@ helpers belong in ordinary library modules.
 The original four task worktrees and their WIP branches remain untouched, including
 S2/S3/S4's original conflict state. All four stashes remain preserved. The combined
 result is delivered on this integration branch, based on origin/main ab25dcd
-(verified current before publication). The user authorized committing, pushing,
-and opening a PR into main. Merge and deployment remain outside this workflow.
+(verified current before publication), in PR #15. Review fixes address all four
+comments: marker explanations, quiet optional review, provider request limits,
+and upload limits. Merge and deployment remain outside this workflow.
 Source worktree file hashes were checked against the recovery snapshots.
 
 Full B9 retrieval, B10 progress/history/telemetry, and B12 analytics remain separate.
 
 ## 4. Acceptance evidence and remaining sign-off
 
-- Offline unit suite: 47 files passed, one skipped; 365 tests passed and six
-  explicitly opt-in live-database tests skipped. The final replay UI correction
-  also passed its focused 36-test regression suite.
+- Offline unit suite after review fixes: 48 files passed, one skipped; 380 tests
+  passed and six explicitly opt-in live-database tests skipped. Regression cases
+  cover marker reselection, quiet unconfigured review, provider failures, per-IP
+  isolation/429 retry headers, streamed byte limits, text and all array bounds.
 - Typecheck, ESLint, production build, and git diff whitespace checks passed.
   Emitted CSS contains compiled Tailwind utilities.
 - Complete development Chromium/WebGL suite: 22 tests passed, covering local

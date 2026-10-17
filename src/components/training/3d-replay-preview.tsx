@@ -45,10 +45,11 @@ export function ThreeDReplayPreview({ replay, onClose, debug = false, initialMar
   /** Injected in tests. Production keeps one manager for this mount. */
   audio?: AudioManager;
 }) {
-  const held = initialMarker != null;
+  const [selectedMarker, setSelectedMarker] = useState(initialMarker);
+  const held = selectedMarker != null;
   const plan = useMemo(() => planReplayNarration({
-    skillId: replay.input.skillId, markers: replay.markers, review: replay.review, focus: initialMarker,
-  }), [replay, initialMarker]);
+    skillId: replay.input.skillId, markers: replay.markers, review: replay.review, focus: selectedMarker,
+  }), [replay, selectedMarker]);
   const [loaded] = useState(() => {
     try {
       const controller = new ReplayController(replay.input);
@@ -60,10 +61,10 @@ export function ThreeDReplayPreview({ replay, onClose, debug = false, initialMar
           focusNote = controller.seekMarker(plan.marker) && controller.armFocusPause(plan.marker) ? "armed" : "missing";
         } else focusNote = controller.armFocusPause(plan.marker) ? "armed" : "missing";
       }
-      return { controller, error: null as string | null, focusNote };
+      return { controller, error: null as string | null, focusNote, focusMarker: plan.marker };
     }
     catch (error) {
-      return { controller: null, error: error instanceof Error ? error.message : "This recording could not be loaded.", focusNote: "pending" as FocusNote };
+      return { controller: null, error: error instanceof Error ? error.message : "This recording could not be loaded.", focusNote: "pending" as FocusNote, focusMarker: null };
     }
   });
   const controller = loaded.controller;
@@ -81,10 +82,10 @@ export function ThreeDReplayPreview({ replay, onClose, debug = false, initialMar
     setStatus(next);
     // Scene mount/teardown pauses the controller. Resume the armed approach
     // after it reports ready, unless the user already took the timeline.
-    if (next !== "ready" || !controller || !plan.marker || narration.current.takenOver) return;
+    if (next !== "ready" || !controller || !loaded.focusMarker || narration.current.takenOver) return;
     if (controller.snapshot.divergenceEmphasis) return;
-    controller.armFocusPause(plan.marker);
-  }, [controller, plan.marker]);
+    controller.armFocusPause(loaded.focusMarker);
+  }, [controller, loaded.focusMarker]);
   const onFailure = useCallback(() => { controller?.pause(); setStatus("error"); }, [controller]);
   const manager = useCallback(() => {
     if (audio) return audio;
@@ -191,7 +192,11 @@ export function ThreeDReplayPreview({ replay, onClose, debug = false, initialMar
       <div className="flex flex-wrap gap-2" role="group" aria-label="Replay issue markers">
         {replay.markers.map((marker, index) => <button type="button" key={`${marker.metricId}-${index}`} data-testid={`replay-marker-${index}`}
           aria-current={sameMarker(marker) && snapshot.divergenceEmphasis ? "true" : undefined}
-          onClick={() => { takeOver(); change(c => { setSeekError(c.seekMarker(marker) ? null : "This issue's segment is unavailable in the recording."); }); }}
+          onClick={() => { takeOver(); change(c => {
+            const found = c.seekMarker(marker);
+            setSeekError(found ? null : "This issue's segment is unavailable in the recording.");
+            if (found) { c.armFocusPause(marker); setSelectedMarker(marker); }
+          }); }}
           className={`rounded border px-3 py-2 text-sm ${sameMarker(marker) && snapshot.divergenceEmphasis ? "border-rose-600 bg-rose-50" : ""}`}>Issue {index + 1}: {marker.segmentId}</button>)}
       </div>
       {seekError && <p role="alert">{seekError}</p>}

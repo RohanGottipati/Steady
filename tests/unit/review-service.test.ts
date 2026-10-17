@@ -71,11 +71,28 @@ describe("live review dependency", () => {
     const bundle = fixture();
     expect((await requestAttemptReview(bundle, { fetchFn, enabled: false })).source).toBe("deterministic");
     const disabled = await handleReviewRequest(new Request("http://local/api/review", { method: "POST" }), { env: {}, fetchFn });
-    expect(disabled.status).toBe(503);
+    expect(disabled.status).toBe(204);
     const bad = await handleReviewRequest(new Request("http://local/api/review", { method: "POST", body: "{}" }), {
       env: { BACKBOARD_API_KEY: "test-key" }, fetchFn,
     });
     expect(bad.status).toBe(400);
     expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("keeps unconfigured review quiet while configured failures show a notice", async () => {
+    const bundle = fixture();
+    for (const env of [{}, { BACKBOARD_API_KEY: "test-key", NEXT_PUBLIC_ENABLE_AI_REVIEW: "false" }]) {
+      const provider = vi.fn();
+      const result = await requestAttemptReview(bundle, { enabled: true,
+        fetchFn: async (_url, options) => handleReviewRequest(new Request("http://local/api/review", options), {
+          env, fetchFn: provider,
+        }),
+      });
+      expect(result).toEqual({ source: "deterministic", review: buildDeterministicReview(bundle), notice: null });
+      expect(provider).not.toHaveBeenCalled();
+    }
+    expect(await requestAttemptReview(bundle, { enabled: true,
+      fetchFn: async () => new Response(null, { status: 503 }),
+    })).toMatchObject({ source: "deterministic", notice: expect.stringContaining("unavailable") });
   });
 });

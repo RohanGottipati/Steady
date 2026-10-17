@@ -5,24 +5,35 @@ import { trainingModeSchema } from "@/types/skill";
 import { aiReviewSchema } from "@/types/ai";
 import { selectFocusMarker } from "@/lib/evaluation/focus-marker";
 
+const identifier = z.string().min(1).max(128);
+const explanation = z.string().max(2000);
+const boundedMarkerSchema = replayMarkerSchema.extend({
+  segmentId: identifier,
+  metricId: identifier,
+  explanationData: z.record(z.string().max(128), z.union([z.number(), z.string().max(2000), z.boolean()]))
+    .refine(data => Object.keys(data).length <= 32),
+});
+
 /** Compact metrics sent to `/api/review`. Motion frames and webcam frames stay out. */
 export const reviewRequestSchema = z.object({
-  skillId: z.string().min(1),
+  skillId: identifier,
   mode: trainingModeSchema,
   overallScore: z.number().min(0).max(100),
   categoryScores: categoryScoresSchema,
   strongest: z.object({
-    id: z.string().min(1),
+    id: identifier,
     score: z.number().min(0).max(100),
-    explanation: z.string().min(1),
+    explanation: explanation.min(1),
   }),
   weakest: z.object({
-    id: z.string().min(1),
+    id: identifier,
     score: z.number().min(0).max(100),
-    explanation: z.string().min(1),
+    explanation: explanation.min(1),
   }),
-  metrics: z.array(metricResultSchema.extend({ explanation: z.string() })).max(20),
-  worstMoments: z.array(replayMarkerSchema).max(3),
+  metrics: z.array(metricResultSchema.extend({
+    id: identifier, unit: z.string().max(128).optional(), segmentId: identifier.optional(), explanation,
+  })).max(20),
+  worstMoments: z.array(boundedMarkerSchema).max(3),
 });
 
 export type ReviewRequest = z.infer<typeof reviewRequestSchema>;

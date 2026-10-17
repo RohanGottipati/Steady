@@ -140,8 +140,8 @@ describe("POST /api/attempts", () => {
 describe("POST /api/review", () => {
   it("fails closed without a score when Backboard is missing or the network throws", async () => {
     const missing = await handleReviewRequest(new Request("http://local/api/review", { method: "POST", body: "{}" }), { env: {} });
-    expect(missing.status).toBe(503);
-    expect(await missing.json()).toEqual({ error: "review unavailable", persistence: "deterministic" });
+    expect(missing.status).toBe(204);
+    expect(await missing.text()).toBe("");
 
     const failed = await handleReviewRequest(new Request("http://local/api/review", {
       method: "POST",
