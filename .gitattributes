@@ -1,0 +1,13 @@
+# Initialize/unlock git-crypt before adding files matched here.
+.env filter=git-crypt diff=git-crypt
+.env.* filter=git-crypt diff=git-crypt
+secrets/** filter=git-crypt diff=git-crypt
+
+# Templates and Git configuration must remain readable without a key.
+.env.example !filter !diff
+.gitattributes !filter !diff
+**/.gitattributes !filter !diff
+.gitignore !filter !diff
+**/.gitignore !filter !diff
+.gitmodules !filter !diff
+**/.gitmodules !filter !diff

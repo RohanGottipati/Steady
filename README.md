@@ -14,6 +14,10 @@ cp .env.example .env.local
 npm run dev
 ```
 
+For encrypted environment files and shared secrets, see
+[`docs/GIT_CRYPT.md`](docs/GIT_CRYPT.md). Initialize or unlock git-crypt before
+adding any secret files to Git.
+
 Optional offline dataset tooling:
 
 ```bash
