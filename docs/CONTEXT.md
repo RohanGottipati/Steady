@@ -1,8 +1,8 @@
 # Project Context
 
-Last updated: 2026-10-17 15:50 UTC
-Updated by: A3 PR #5 review follow-up (display guards and guidance provenance)
-Current branch: person-a/a3-virtual-instruments
+Last updated: 2026-10-17 16:00 UTC
+Updated by: B4 external data conversion (branch b4, rebased on main after A3 PR #5)
+Current branch: b4
 Current milestone: M0; A3 implementation available, M1/M2 physical acceptance pending
 Demo-critical status: YELLOW
 
@@ -44,7 +44,8 @@ truth for the current project state — it records what exists and where it is.
 - Tiger Data schema live: migration `0001_init` applied (core relational tables + 4 hypertables, `attempt_scores.performance_vector vector(20)`); `npm run db:migrate`/`db:seed` runners work and are idempotent; one synthetic `needle-passing` attempt seeded and queryable.
 - `/api/health` reports `{ ok, service, db }` where `db` is `up`/`down`/`unconfigured` and never throws on DB outage (server-only client in `src/lib/db/`).
 - `/library` lists all four skills (data-driven from `src/data/skill-catalog.ts`) with difficulty/source/license badges, availability, and client-side search; `/train/[skillId]` is a STUB (shared file) with a mode selector and a placeholder where Person A adds the 3D trainer. Every card links to `/train/[id]`; coming-soon skills reach a friendly notice there instead of breaking navigation.
-- Reference-motion framework (B2): `src/lib/references/load-reference.ts` loads + Zod-validates `ReferenceMotion` JSON (browser-usable); stdlib Python adapters (`scripts/data/{jigsaws,lask}/adapter.py` + `scripts/data/common/reference_builder.py`) convert synthetic CSVs into canonical references (coordinate transform → 30 Hz resample → segment-normalize). Committed fixtures: `public/references/{needle-passing,peg-transfer}/*.json`.
+- Reference-motion framework (B2): `src/lib/references/load-reference.ts` loads + Zod-validates `ReferenceMotion` JSON (browser-usable); stdlib Python adapters (`scripts/data/{jigsaws,lask}/adapter.py` + `scripts/data/common/reference_builder.py`) convert source motion into canonical references (coordinate transform → 30 Hz resample → segment-normalize).
+- External data conversion (B4): real JIGSAWS expert trials are committed as **data-only** refs at `public/references/<skill>/<skill>-jigsaws-expert-v1.json` for needle-passing/knot-tying/suturing (patient-side channels; highest-GRS `E` demo per task: Needle_Passing_E005, Knot_Tying_E003, Suturing_E002). `adapter.py` gained a `--format kinematics` mode (76-col kinematics + transcription gesture segments; matrix→quat; gripper→jaw; `len==76` guard). **These are NOT product-wired**: they carry JIGSAWS gesture ids (`G1`–`G15`) and raw metre scale, so segment-mapping + fit-to-workspace is deferred to A5. Product/eval references stay synthetic (`needle-passing-reference-v1.json` scene-scale with skill-phase segments; `peg-transfer` synthetic LASK). Raw JIGSAWS lives only in git-ignored `datasets/jigsaws/`; acquisition is the JHU access form, `scripts/data/jigsaws/fetch.py` only extracts the downloaded archives (local-only). See `docs/DATA_LICENSES.md`.
 - A2 implementation available in the same development preview: automatic
   neutral/open → pinch → workspace calibration, canonical target visualization,
   One Euro position filtering, bounded palm rotation/depth, debounced pinch,
@@ -55,7 +56,7 @@ truth for the current project state — it records what exists and where it is.
 - Control filtering now uses a 3 Hz base cutoff / beta 0.75 for position and
   quaternion response. Synthetic phase-delay and stationary-jitter tests guard
   responsiveness; the generic One Euro defaults, pinch and recovery gates are unchanged.
-- Evaluation engine (B3): `src/lib/evaluation/` deterministically scores a recorded attempt vs a `ReferenceMotion` — per-segment alignment (no DTW), 8 of 20 metrics (pathSimilarity, targetAccuracy, instrumentOrientationAccuracy, pathEfficiency, movementSmoothness, speedProfileControl, segmentTiming, proceduralSequencing), partial category scores (precision/control/efficiencySafety), overall, and top-3 worst-moment replay markers. Remaining 12 metrics + full `AttemptResult` 20-vector are B5/B10.
+- Evaluation engine (B3): `src/lib/evaluation/` deterministically scores a recorded attempt vs a `ReferenceMotion` — per-segment alignment (no DTW), 8 of 20 metrics (pathSimilarity, targetAccuracy, instrumentOrientationAccuracy, pathEfficiency, movementSmoothness, speedProfileControl, segmentTiming, proceduralSequencing), partial category scores (precision/control/efficiencySafety), overall, and top-3 worst-moment replay markers. Remaining 12 metrics + full `AttemptResult` 20-vector are B5/B10. B4 fixed a latent `proceduralSequencing` bug: it now uses run-collapsed-segment LCS so references that legitimately revisit gestures (every real surgical task) score a perfect clone at 100.
 - A3 implementation available in the development preview: procedural operating room,
   forceps/needle holder, real geometry-derived tips, deterministic single-owner
   needle grab/release, and separate display interpolation. Both tools freeze when
@@ -121,8 +122,8 @@ Person A - Realtime Vision and 3D Simulation:
   A1/A2/M2 physical performance acceptance remains pending.
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
-- S0 bootstrap, B0 Tiger bootstrap, B1 skill library (merged) done; B2 reference adapters (PR #3) + B3 evaluation engine done on this branch stack
-- B5 full 20-metric evaluator / B4 external data conversion next
+- S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4) done; B4 external data conversion done on branch b4
+- B5 full 20-metric evaluator next
 
 ## 5. Completed Tasks
 - Partial S0 - repository structure and docs seeded
@@ -166,6 +167,16 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   edge-triggered single-owner acquisition, grip-preserving global pause, fresh
   release, scene/session reset and renderer recovery. Numerical, scene lifecycle
   and actual WebGL browser coverage pass; target-Mac acceptance remains pending.
+- B4 - external data conversion: real JIGSAWS expert references committed data-only
+  (`*-jigsaws-expert-v1.json`) for needle-passing/knot-tying/suturing (patient-side
+  tools, gesture segments); `adapter.py` `--format kinematics` mode + `len==76`
+  guard; `fetch.py` extracts JHU-form archives (Kaggle mirror has no kinematics);
+  `proceduralSequencing` LCS fix for repeated gestures. Product/eval refs kept
+  synthetic (review follow-up). `DATA_LICENSES.md` rewritten (JIGSAWS terms, Gao
+  et al. citation, data-only status). Tests: synthetic needle-passing invariants +
+  axis swap, three data-only real refs validated, a 76-col kinematics parse fixture
+  (offsets/grip/matrix→quat/len guard), and an LCS perfect-clone-of-repeating-ref
+  regression.
 
 ## 6. In Progress
 - A3 usability acceptance - synthetic depth-drift pickup, assistance switching and
@@ -216,15 +227,15 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - New clones need git-crypt and the securely shared existing key to unlock tracked `.env.local`; maintain a secure recovery-key backup outside the repository.
 
 ## 8. Data / Asset Status
-- JIGSAWS: not yet acquired/cleared (academic-use only; adapter ready). See `docs/DATA_LICENSES.md`.
-- LASK: not yet acquired (CC BY 4.0; adapter ready). See `docs/DATA_LICENSES.md`.
+- JIGSAWS: acquired via JHU access form (academic/non-commercial, IRB-approved). Raw in git-ignored `datasets/jigsaws/`; derived expert references committed **data-only** (`*-jigsaws-expert-v1.json`, not product-wired) with Gao et al. attribution. See `docs/DATA_LICENSES.md`.
+- LASK: not acquired (CC BY 4.0; adapter ready, used only for synthetic peg-transfer fixture). See `docs/DATA_LICENSES.md`.
 - SHANDS: optional future source.
 - 3D assets: repository-authored A3 room, instruments, target pad/grid, tip
   crosshairs, pickup halo and needle procedural geometry. No external model downloads, textures or new dependencies.
   Source/asset decision recorded in `docs/ASSET_LICENSES.md`.
 - Hand Landmarker float16 v1 and MediaPipe 1.1.1 WASM: acquired, checksum verified;
   source/license/attribution recorded in `docs/ASSET_LICENSES.md`. Generated binaries are ignored.
-- Reference motions: synthetic canonical fixtures for needle-passing and peg-transfer under `public/references/` (generated by the B2 adapters from synthetic CSVs — not real expert data).
+- Reference motions: product/eval refs are synthetic (needle-passing scene-scale; peg-transfer LASK format). Real JIGSAWS expert-derived refs are committed data-only alongside them (`*-jigsaws-expert-v1.json`) pending A5 product wiring. All under `public/references/`.
 
 ## 9. External Service Status
 - Tiger Cloud service created: yes (project `p2r9lzrn7s`, service `ort1b0mw86` "db-21893", free plan, us-east-1, Postgres 18.6 / TimescaleDB 2.30.2; connection verified via `tiger db ping`). `TIGER_DATABASE_URL`/`TIGER_PROJECT_ID`/`TIGER_SERVICE_ID` set in encrypted `.env.local`. Details in `docs/TIGER_DATA.md`.
@@ -243,59 +254,31 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
-Integration base: latest main `a304c70` (B3 evaluation engine, PR #4).
-The context conflict was reconciled to retain both B3 and A3 state. No B3 source
-changes were needed.
+Latest verification on b4 (2026-10-17, review follow-up after rebase on main):
+`npm run typecheck` and `npm run lint` clean; `npm test` = 21 files / 163 tests
+passing, including the synthetic product references, the three data-only JIGSAWS
+expert refs, the 76-col kinematics parse fixture + `len==76` guard, the repeat-safe
+`proceduralSequencing` LCS fix (guarded by a perfect-clone-of-a-repeating-ref test),
+and the Python adapter runs (auto-skip without Python on PATH). The B0 Tiger
+integration test ran green against the cloud service (idempotent). Production build
+not re-run on this branch.
 
-Latest A3 PR #5 review verification (2026-10-17):
-- `npm run typecheck`: passed.
-- `npm run lint`: passed without warnings.
-- `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`: 155 tests passed
-  across 20 files, including the newly merged B3 evaluation tests. An earlier
-  restricted run could not reach Tiger for two existing health assertions; the escalated run passed, including those read-only health queries.
-  B0 migration/seed tests were excluded to avoid cloud writes; no migration/seed
-  integration success is claimed for A3.
-- `npm run test:e2e -- --workers=1`: all 11 Chromium tests passed. Includes the
-  seven existing A1/A2 regressions (actual local MediaPipe worker, offline tracking
-  and main-thread fallback) plus A3 pickup/movement/freeze/recovery/release/reset,
-  single camera acquisition, restart and client navigation camera cleanup, actual
-  context loss/restoration, and unavailable-WebGL retry while tracking stays usable.
-  Four A3 scenarios also passed in a focused run. They include pickup despite
-  depth drift, geometry-derived alignment guidance and assistance switching/reset
-  without recalibration. Pickup waits for three fresh settled open observations,
-  rather than assuming a calibration range or a transient filtered pose.
-- New unit coverage: rotated tips and attachments, schema compatibility, malformed
-  geometry (including duplicate-source corruption and inconsistent hand slots),
-  grab boundaries/competition, single ownership, no same-sample handoff,
-  loss/stale/reordered/future input, reset without release events, display phase
-  delay <30 ms at 20/30 source FPS and 60/120 render FPS, bounded timing, and scene
-  lifecycle/display transforms under Strict Mode/Activity/visibility/context events,
-  including contexts restored while Activity listeners are detached. The 39 focused
-  A3 unit tests pass, including rotated-tip plane constraints, assisted radius
-  boundaries/snap, free-depth mismatch, mode reset, reopening after missed pickup,
-  and guidance priority when another in-range instrument is closed. The review
-  regressions reject a display projection after a valid pose and on initialization,
-  verify graceful recovery, and handle absent tool poses with inconsistent readiness.
-- `test-results/a3-instruments.png` and `test-results/a3-ready.png`: generated
-  and visually reviewed with the new instruments, single pickup halo and grid. This synthetic
-  WebGL screenshot is not physical-camera or target-Mac performance evidence.
-- `npm run build` was retried outside the sandbox for PR review. Asset preparation/
-  cached model verification passed; the normal production build still fails in
-  globals.css because the existing Turbopack CSS worker cannot bind a local port
-  (`Operation not permitted`). Production build acceptance remains outstanding on
-  a host permitting that process. Upstream B3 reported a successful build on its
-  verification host; no A3 production build success is claimed here.
-- Shared contracts, dependencies, database schema and encrypted environment files
-  were not changed. Next dev generated root `AGENTS.md` with installed Next.js
-  guidance; it is intentionally tracked with an explicit provenance note outside
-  the managed markers. The decision is recorded in DECISIONS. PR #5 targets main.
+A3 PR #5 verification (2026-10-17): typecheck and lint passed; 155 unit tests across
+20 files (B0 cloud-write test excluded) plus 11 Chromium e2e tests (A1/A2 regressions
++ A3 pickup/movement/freeze/recovery/release/reset) passed; A3 WebGL screenshots
+reviewed. The production build still fails in globals.css on the Turbopack
+CSS-worker local-port restriction; verify on an unrestricted host before release —
+no production build success claimed.
 
 ## 11. Next Recommended Actions
 1. Person A runs the A1/A2 and A3 physical-camera QA from `docs/HAND_TRACKING.md`
-   and `docs/SIMULATION.md`, recording measured outcomes. A3 implementation unblocks
-   A4 exercise sequencing and A5 ghost rendering as separate tasks; preserve source
-   freshness, single ownership and separation of display/interaction streams.
-2. Person B: B2 + B3 done → B5 full 20-metric evaluator (remaining 12 metrics + full `AttemptResult` 20-vector), or B4 external data conversion. Deferred analytics/search work belongs to B10/B12.
+   and `docs/SIMULATION.md`, recording measured outcomes. A3 unblocks A4 exercise
+   sequencing and A5 ghost rendering; preserve source freshness, single ownership
+   and separation of display/interaction streams. A5 can now replay the real JIGSAWS
+   references.
+2. Person B: B2 + B3 + B4 done → B5 full 20-metric evaluator (remaining 12 metrics +
+   full `AttemptResult` 20-vector, skill-specific weights). Deferred analytics/search
+   work belongs to B10/B12.
 3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
 ## 12. Manual Demo Notes

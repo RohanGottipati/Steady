@@ -1,7 +1,6 @@
 import type { MetricResult } from "@/types/evaluation";
 import type { MotionFrame } from "@/types/motion";
 import type { AlignedSample } from "./align";
-import { segmentOrder } from "./align";
 import { errorToScore, pathLength, quatAngleDeg, tipDistance } from "./score";
 import type { RecordedMotion } from "./types";
 
@@ -204,19 +203,37 @@ export function segmentTiming(ctx: Ctx): MetricResult {
   };
 }
 
-export function proceduralSequencing(ctx: Ctx): MetricResult {
-  const refOrder = ctx.reference.segments.map((s) => s.id);
-  const userOrder = segmentOrder(ctx.user.frames);
-  const rank = new Map(userOrder.map((id, i) => [id, i]));
-  let correct = 0;
-  let total = 0;
-  for (let i = 1; i < refOrder.length; i++) {
-    const a = rank.get(refOrder[i - 1]);
-    const b = rank.get(refOrder[i]);
-    total++;
-    if (a !== undefined && b !== undefined && a < b) correct++;
+// Collapse consecutive duplicate segment ids into runs, preserving order and any
+// legitimate revisits (real procedures repeat gestures, e.g. four needle passes).
+function runCollapse(ids: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const id of ids) if (out[out.length - 1] !== id) out.push(id);
+  return out;
+}
+
+// Longest common subsequence length — order-sensitive and repeat-safe.
+function lcsLength(a: readonly string[], b: readonly string[]): number {
+  const n = b.length;
+  const dp = new Array<number>(n + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = 0;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev + 1 : Math.max(dp[j], dp[j - 1]);
+      prev = tmp;
+    }
   }
-  const ratio = total ? correct / total : 1;
+  return dp[n];
+}
+
+export function proceduralSequencing(ctx: Ctx): MetricResult {
+  // Compare the reference's run-collapsed segment sequence (which may legitimately
+  // revisit gestures) against the user's via LCS. A perfect clone matches exactly
+  // (ratio 1); reordering, skipping, or looping gestures out of order lowers it.
+  const refSeq = ctx.reference.segments.map((s) => s.id);
+  const userSeq = runCollapse(ctx.user.frames.map((f) => f.segmentId));
+  const total = refSeq.length;
+  const ratio = total ? lcsLength(refSeq, userSeq) / total : 1;
   return {
     id: "proceduralSequencing",
     score: Math.round(100 * ratio),

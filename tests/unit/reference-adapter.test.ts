@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -58,14 +58,14 @@ function expectCanonicalInvariants(ref: ReturnType<typeof parseReference>) {
 }
 
 describe("committed reference fixtures", () => {
-  it("needle-passing fixture validates and holds canonical invariants", () => {
+  // needle-passing-reference-v1 is the product/eval reference and stays synthetic
+  // (scene-scale, skill-phase segments that match the skill definition). The real
+  // JIGSAWS expert refs are committed separately as data-only (see below).
+  it("synthetic needle-passing reference validates and applies the JIGSAWS y/z axis swap", () => {
     const ref = loadFixture("public/references/needle-passing/needle-passing-reference-v1.json");
     expect(ref.skillId).toBe("needle-passing");
+    expect(ref.sourceType).toBe("internal-recording");
     expectCanonicalInvariants(ref);
-  });
-
-  it("needle-passing applies the JIGSAWS y/z axis swap", () => {
-    const ref = loadFixture("public/references/needle-passing/needle-passing-reference-v1.json");
     // CSV row 0 left tool source (-0.40, 0.30, 0.10) with basis (x=right, y=toward
     // camera, z=up) -> canonical (x, z, y) = (-0.40, 0.10, 0.30).
     const p = ref.frames[0].leftTool.position;
@@ -74,7 +74,29 @@ describe("committed reference fixtures", () => {
     expect(p.z).toBeCloseTo(0.3, 9);
     expect(ref.frames[0].leftTool.jawClosed).toBe(false); // grip 0.80 -> open
     expect(ref.frames.find((fr) => fr.segmentId === "grip")!.leftTool.jawClosed).toBe(true);
+    // Source orientations rotate about source-Y; the Y/Z axis swap must carry them
+    // to canonical-Z. A non-identity frame must no longer be about Y.
+    const rot = ref.frames.find((fr) => Math.abs(fr.leftTool.rotation.w) < 0.999);
+    expect(rot).toBeDefined();
+    expect(Math.abs(rot!.leftTool.rotation.y)).toBeLessThan(1e-9);
+    expect(Math.abs(rot!.leftTool.rotation.z)).toBeGreaterThan(1e-3);
   });
+
+  // Real JIGSAWS expert trials (academic/non-commercial, derived motion only;
+  // DATA-ONLY, not product-wired — scale/visual calibration pending A5). See
+  // docs/DATA_LICENSES.md.
+  for (const skill of ["needle-passing", "knot-tying", "suturing"]) {
+    it(`${skill} JIGSAWS expert data-only ref validates and holds canonical invariants`, () => {
+      const ref = loadFixture(`public/references/${skill}/${skill}-jigsaws-expert-v1.json`);
+      expect(ref.skillId).toBe(skill);
+      expect(ref.sourceType).toBe("dataset");
+      expect(ref.sourceName).toMatch(/JIGSAWS/);
+      expect(ref.frames.length).toBeGreaterThan(100);
+      // Real surgical tasks revisit gestures, so segments repeat.
+      expect(ref.segments.length).toBeGreaterThan(1);
+      expectCanonicalInvariants(ref);
+    });
+  }
 
   it("peg-transfer fixture validates and applies the LASK z flip", () => {
     const ref = loadFixture("public/references/peg-transfer/peg-transfer-reference-v1.json");
@@ -100,53 +122,91 @@ describe("committed reference fixtures", () => {
       "complete",
     ]);
   });
-
-  it("rotations are mapped into the canonical basis, not left in the source frame", () => {
-    const ref = loadFixture("public/references/needle-passing/needle-passing-reference-v1.json");
-    // Source orientations rotate about source-Y; the JIGSAWS Y/Z axis swap must
-    // carry them to canonical-Z. A non-identity frame must no longer be about Y.
-    const fr = ref.frames.find((f) => Math.abs(f.leftTool.rotation.w) < 0.999);
-    expect(fr).toBeDefined();
-    const r = fr!.leftTool.rotation;
-    expect(Math.abs(r.y)).toBeLessThan(1e-9);
-    expect(Math.abs(r.z)).toBeGreaterThan(1e-3);
-  });
 });
 
 const py = pythonCmd();
 const describePy = py ? describe : describe.skip;
 
-describePy("dataset adapters produce valid references from a synthetic CSV", () => {
+// Build one 76-column JIGSAWS kinematics row (readme.txt layout). Only the
+// patient-side (Slave) channels are populated; Master columns stay zero.
+function kinRow(leftPos: number[], leftGrip: number, rightPos: number[], rightGrip: number) {
+  const v = new Array(76).fill(0);
+  const I = [1, 0, 0, 0, 1, 0, 0, 0, 1]; // identity rotation matrix
+  v[38] = leftPos[0]; v[39] = leftPos[1]; v[40] = leftPos[2]; // cols 39-41
+  for (let k = 0; k < 9; k++) v[41 + k] = I[k]; // cols 42-50
+  v[56] = leftGrip; // col 57
+  v[57] = rightPos[0]; v[58] = rightPos[1]; v[59] = rightPos[2]; // cols 58-60
+  for (let k = 0; k < 9; k++) v[60 + k] = I[k]; // cols 61-69
+  v[75] = rightGrip; // col 76
+  return v.join(" ");
+}
+
+describePy("dataset adapters produce valid references", () => {
   const tmp = mkdtempSync(join(tmpdir(), "steady-ref-"));
   afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-  it("JIGSAWS adapter output validates and stays in 0..1 progress", () => {
+  function runAdapter(args: string[]) {
+    execFileSync(py as string, ["scripts/data/jigsaws/adapter.py", ...args], { cwd: ROOT });
+  }
+
+  it("JIGSAWS synthetic CSV adapter output validates and stays in 0..1 progress", () => {
     const out = join(tmp, "jigsaws.json");
-    execFileSync(
-      py as string,
-      [
-        "scripts/data/jigsaws/adapter.py",
-        "scripts/data/jigsaws/synthetic-needle-passing.csv",
-        out,
-      ],
-      { cwd: ROOT },
-    );
+    runAdapter(["scripts/data/jigsaws/synthetic-needle-passing.csv", out]);
     const ref = parseReference(JSON.parse(readFileSync(out, "utf8")));
     expect(ref.coordinateSystem).toBe("scene-canonical-v1");
-    expect(
-      ref.frames.every((f) => f.normalizedProgress >= 0 && f.normalizedProgress <= 1),
-    ).toBe(true);
+    expect(ref.frames.every((f) => f.normalizedProgress >= 0 && f.normalizedProgress <= 1)).toBe(
+      true,
+    );
+  });
+
+  it("JIGSAWS --format kinematics maps column offsets, grip threshold and matrix->quat", () => {
+    const kin = join(tmp, "trial.txt");
+    const tr = join(tmp, "trial_tr.txt");
+    // grip < 0.1 rad -> closed; identity rotation matrix -> quaternion (0,0,0,1).
+    const rows = [
+      kinRow([0.1, 0.2, 0.3], -0.5, [0.4, 0.5, 0.6], 0.5),
+      kinRow([0.1, 0.2, 0.3], -0.5, [0.4, 0.5, 0.6], 0.5),
+      kinRow([0.1, 0.2, 0.3], -0.5, [0.4, 0.5, 0.6], 0.5),
+    ];
+    writeFileSync(kin, rows.join("\n") + "\n");
+    writeFileSync(tr, "1 3 G1\n");
+    const out = join(tmp, "kin.json");
+    runAdapter([kin, out, "--format", "kinematics", "--transcription", tr, "--skill", "suturing"]);
+    const ref = parseReference(JSON.parse(readFileSync(out, "utf8")));
+
+    const l = ref.frames[0].leftTool;
+    const r = ref.frames[0].rightTool;
+    // y/z axis swap: source (x,y,z) -> canonical (x,z,y).
+    expect(l.position.x).toBeCloseTo(0.1, 9);
+    expect(l.position.y).toBeCloseTo(0.3, 9);
+    expect(l.position.z).toBeCloseTo(0.2, 9);
+    expect(r.position.x).toBeCloseTo(0.4, 9);
+    expect(r.position.y).toBeCloseTo(0.6, 9);
+    expect(r.position.z).toBeCloseTo(0.5, 9);
+    // grip threshold: left -0.5 -> closed, right 0.5 -> open.
+    expect(l.jawClosed).toBe(true);
+    expect(r.jawClosed).toBe(false);
+    // identity rotation matrix -> identity quaternion.
+    expect(l.rotation).toMatchObject({ x: 0, y: 0, z: 0, w: 1 });
+    expect(ref.segments.map((s) => s.id)).toEqual(["G1"]);
+  });
+
+  it("JIGSAWS --format kinematics rejects rows without exactly 76 columns", () => {
+    const kin = join(tmp, "bad.txt");
+    const tr = join(tmp, "bad_tr.txt");
+    writeFileSync(kin, "0 1 2 3 4\n0 1 2 3 4\n"); // 5 columns, not 76
+    writeFileSync(tr, "1 2 G1\n");
+    const out = join(tmp, "bad.json");
+    expect(() =>
+      runAdapter([kin, out, "--format", "kinematics", "--transcription", tr]),
+    ).toThrow();
   });
 
   it("LASK adapter output validates", () => {
     const out = join(tmp, "lask.json");
     execFileSync(
       py as string,
-      [
-        "scripts/data/lask/adapter.py",
-        "scripts/data/lask/synthetic-peg-transfer.csv",
-        out,
-      ],
+      ["scripts/data/lask/adapter.py", "scripts/data/lask/synthetic-peg-transfer.csv", out],
       { cwd: ROOT },
     );
     const ref = parseReference(JSON.parse(readFileSync(out, "utf8")));

@@ -16,6 +16,20 @@ export function loadNeedleReference(): ReferenceMotion {
   );
 }
 
+// Real JIGSAWS expert reference (data-only). Its gesture segments legitimately
+// repeat, so it exercises the run-collapsed-LCS proceduralSequencing path that a
+// synthetic single-pass reference does not.
+export function loadJigsawsExpertReference(skill: string): ReferenceMotion {
+  return parseReference(
+    JSON.parse(
+      readFileSync(
+        join(process.cwd(), `public/references/${skill}/${skill}-jigsaws-expert-v1.json`),
+        "utf8",
+      ),
+    ),
+  );
+}
+
 // Deterministic PRNG so "jitter" fixtures are reproducible.
 function mulberry32(seed: number) {
   let a = seed >>> 0;
