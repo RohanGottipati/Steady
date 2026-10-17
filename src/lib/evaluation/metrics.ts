@@ -1,8 +1,8 @@
 import type { MetricResult } from "@/types/evaluation";
 import type { MotionFrame } from "@/types/motion";
 import type { AlignedSample } from "./align";
+import type { MetricContext } from "./context";
 import { errorToScore, pathLength, quatAngleDeg, tipDistance } from "./score";
-import type { RecordedMotion } from "./types";
 
 // B3 default tolerances in canonical scene units / degrees. Skill-specific
 // tuning (via SkillDefinition) comes later; these keep scoring deterministic.
@@ -15,11 +15,7 @@ export const TOLERANCES = {
   timingRatio: 0.5,
 } as const;
 
-type Ctx = {
-  samples: AlignedSample[];
-  reference: { frames: readonly MotionFrame[]; segments: readonly { id: string }[] };
-  user: RecordedMotion;
-};
+type Ctx = MetricContext;
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
