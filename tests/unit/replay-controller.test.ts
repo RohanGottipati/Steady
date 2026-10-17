@@ -99,6 +99,65 @@ describe("A6 replay clocks and alignment", () => {
     replay.seekTime(-50); expect(replay.snapshot.timeMs).toBe(0);
     replay.seekTime(Infinity); expect(replay.snapshot.timeMs).toBe(0);
   });
+  it("plays to the focused marker, pauses on that pose, and does not resume under later updates", () => {
+    const replay = new ReplayController(input());
+    expect(replay.armFocusPause(marker())).toBe(true);
+    expect(replay.snapshot.playing).toBe(true);
+    expect(replay.snapshot.divergenceEmphasis).toBe(false);
+    replay.update(0.05);
+    expect(replay.snapshot.timeMs).toBe(50);
+    replay.update(0.05);
+    expect(replay.snapshot.playing).toBe(false);
+    expect(replay.snapshot.timeMs).toBe(100);
+    expect(replay.snapshot.divergenceEmphasis).toBe(true);
+    expect(replay.snapshot.focusPoint).not.toBeNull();
+    expect(replay.snapshot.showExpert).toBe(true);
+    expect(replay.snapshot.segmentId).toBe("approach");
+    const paused = replay.snapshot.timeMs;
+    replay.update(0.2);
+    expect(replay.snapshot.timeMs).toBe(paused);
+    expect(replay.snapshot.playing).toBe(false);
+    replay.play();
+    replay.update(0.05);
+    expect(replay.snapshot.timeMs).toBe(150);
+    expect(replay.snapshot.divergenceEmphasis).toBe(false);
+  });
+  it("lets manual playback clear a focus pause before the marker is reached", () => {
+    const replay = new ReplayController(input());
+    replay.armFocusPause(marker());
+    replay.clearFocusPause();
+    replay.play();
+    replay.update(0.25);
+    expect(replay.snapshot.timeMs).toBe(250);
+    expect(replay.snapshot.playing).toBe(true);
+    expect(replay.snapshot.divergenceEmphasis).toBe(false);
+  });
+  it("picks an already-passed marker immediately and drops the arm when the user seeks", () => {
+    const replay = new ReplayController(input());
+    replay.seekTime(400);
+    expect(replay.armFocusPause(marker())).toBe(true);
+    expect(replay.snapshot.playing).toBe(false);
+    expect(replay.snapshot.timeMs).toBe(100);
+    expect(replay.snapshot.divergenceEmphasis).toBe(true);
+    const seeking = new ReplayController(input());
+    expect(seeking.armFocusPause(marker())).toBe(true);
+    seeking.update(0.02);
+    seeking.seekTime(0);
+    seeking.update(0.5);
+    expect(seeking.snapshot.timeMs).toBe(0);
+    expect(seeking.snapshot.playing).toBe(false);
+    expect(seeking.snapshot.divergenceEmphasis).toBe(false);
+  });
+  it("leaves playback unchanged when the focused marker segment is missing", () => {
+    const replay = new ReplayController(input());
+    replay.play();
+    expect(replay.armFocusPause(marker(100, "missing"))).toBe(false);
+    expect(replay.snapshot.playing).toBe(true);
+    expect(replay.snapshot.divergenceEmphasis).toBe(false);
+    const empty = new ReplayController({ ...input(), userFrames: [] });
+    expect(empty.armFocusPause(marker())).toBe(false);
+    expect(empty.snapshot.divergenceEmphasis).toBe(false);
+  });
   it("does not invent a comparison for missing or repeated user segments", () => {
     const data = input(); const frames = [...data.userFrames]; frames[1] = { ...frames[1], segmentId: "unavailable" };
     const replay = new ReplayController({ ...data, userFrames: frames }); replay.seekTime(100);
@@ -285,6 +344,8 @@ describe("A6 capture through S1", () => {
     expect(recording.frames.at(-1)!.segmentId).toBe("complete");
     expect(recording.frames.every(f => !f.leftHand && !f.rightHand)).toBe(true);
     const completed = runtime.lastReplay!; expect(completed).toBeTruthy();
+    expect(completed.mode).toBe("practice");
+    expect(completed.review?.replayNarration).toBe(runtime.review?.review.replayNarration);
     const player = new ReplayController(completed.input);
     recording.frames.forEach((f, index) => {
       player.seekTime(f.tMs); expect(player.snapshot.needle?.heldBy).toBe(recording.sceneFrames[index].needle.heldBy);

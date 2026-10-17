@@ -17,11 +17,15 @@ test("S1 fixture replays and seeks issues in actual WebGL without a camera, pres
   await expect(page.getByTestId("attempt-results-panel")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId("open-attempt-replay").click();
   await expect(page.getByTestId("replay-status")).toContainText("Replay ready");
+  await expect(page.getByTestId("replay-explanation")).toBeVisible();
   await expect(page.getByLabel("3D instrument workspace")).toHaveCount(0);
   const state = async () => JSON.parse(await page.getByTestId("replay-state").innerText());
+  await page.getByLabel("Replay timeline").focus();
+  await page.keyboard.press("Home");
+  await expect.poll(async () => (await state()).timeMs).toBe(0);
   await page.getByTestId("replay-play").click();
   await expect.poll(async () => (await state()).timeMs).toBeGreaterThan(100);
-  await page.getByTestId("replay-play").click();
+  if ((await state()).playing) await page.getByTestId("replay-play").click();
   await page.getByLabel("Replay speed", { exact: true }).selectOption("0.25");
   await expect.poll(async () => (await state()).speed).toBe(0.25);
   await page.getByLabel("Replay comparison mode").selectOption("original");

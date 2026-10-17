@@ -44,7 +44,9 @@ asset-license inventory for model URL, checksum, and attribution.
 - Diagnostics expose backend, fallback reason, inference time (including bitmap
   capture/transfer), completed frames in the preceding second, and total frames.
   Snapshots/diagnostics use refs; lifecycle state changes only on lifecycle events.
-  The HUD samples at 4 Hz. Canvas drawing runs independently of React rendering.
+  The HUD samples at 4 Hz and keeps landmark arrays on the tracking ref. The React
+  sample stores status, target, and pinch ratio only, so a landmark-only change does
+  not change the control key. Canvas drawing runs independently of React rendering.
 
 ## A2 calibration and control handoff
 
@@ -217,6 +219,12 @@ No raw frames or landmarks are recorded, persisted, or uploaded by Steady. Media
 performance/usage metrics to Google; see its [privacy notice](https://goo.gle/mediapipe-privacy).
 Do not describe all SDK network activity as absent. Tracking continues after assets
 load if network access is lost. This is an educational simulation prototype.
+
+The 4 Hz calibration HUD copies control status, target pose, and pinch ratio only.
+Landmark and world-landmark arrays stay on the tracking ref for the canvas and the
+recorder. A sample that does not change that readout does not render React again.
+Losing the network after the page has loaded shows a dismissible notice; it does not
+stop a running attempt or require a second database.
 
 ## Verification
 

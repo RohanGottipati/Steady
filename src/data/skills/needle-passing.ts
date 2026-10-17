@@ -6,12 +6,12 @@ export const needlePassingSkill: SkillDefinition = skillDefinitionSchema.parse({
   id: "needle-passing",
   title: "Needle Passing",
   description:
-    "Pass a needle through target rings with precise bimanual control, steady depth, and smooth wrist rotation.",
+    "Pass a curved needle through three rings, then release it.",
   category: "suturing",
   difficulty: "beginner",
   estimatedMinutes: 6,
   referenceMotionId: "needle-passing-reference-v1",
-  sourceLabel: "Synthetic reference (not expert data)",
+  sourceLabel: "Scene guide, not an expert recording",
   availableModes: ["learn", "practice", "assessment"],
   segments: [
     { id: "approach", title: "Approach", instructions: "Move both instruments toward the first target without overshooting." },

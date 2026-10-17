@@ -175,6 +175,27 @@ test("navigates from /library to /train/needle-passing, calibrates, shows ghost 
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await fakeHands(page);
+  const uploads: string[] = [];
+  let reviewCalls = 0;
+  let reviewedScore = 0;
+  const narration = "Compare the recorded movement at this measured difference with the guide.";
+  await page.route("**/api/review", async route => {
+    reviewCalls++;
+    const body = route.request().postDataJSON();
+    reviewedScore = body.overallScore;
+    const top = [...body.worstMoments].sort((a, b) => b.severity - a.severity || a.tMs - b.tMs)[0];
+    await route.fulfill({ json: {
+      summary: "Measured movement reviewed.", strengths: [body.strongest.explanation], improvements: [body.weakest.explanation],
+      largestDifference: { segmentId: top?.segmentId ?? "overall", explanation: body.weakest.explanation },
+      replayNarration: narration,
+    } });
+  });
+  await page.route("**/api/attempts", async route => {
+    uploads.push(route.request().postDataJSON().attempt.id);
+    await route.fulfill(uploads.length === 1
+      ? { status: 503, json: { persistence: "local-only" } }
+      : { json: { status: "duplicate", persistence: "duplicate" } });
+  });
 
   // Verify coming-soon skill route stays intact
   await page.goto("/train/suturing");
@@ -214,6 +235,13 @@ test("navigates from /library to /train/needle-passing, calibrates, shows ghost 
   expect(scoreValue).toBeLessThanOrEqual(100);
 
   const completed = JSON.parse(await page.getByTestId("evaluation-result-json").innerText()) as { id: string };
+  await expect(page.getByTestId("ai-review-source")).toHaveText("Model explanation");
+  await expect(page.getByTestId("ai-review-summary")).toHaveText("Measured movement reviewed.");
+  expect(Number(await page.getByTestId("overall-score").innerText())).toBe(reviewedScore);
+  expect(reviewCalls).toBe(1);
+  await page.getByTestId("retry-cloud-sync").click();
+  await expect(page.getByTestId("attempt-save-status")).toContainText("synced");
+  expect(uploads).toEqual([completed.id, completed.id]);
   await expect(page.getByTestId("attempt-save-status")).toContainText("Saved on this device");
   await page.getByRole("button", { name: "Stop camera" }).click();
   await expect(page.getByTestId("attempt-results-panel")).toBeVisible();
@@ -235,10 +263,13 @@ test("navigates from /library to /train/needle-passing, calibrates, shows ghost 
   expect(persisted).toEqual([completed.id]);
   await page.getByTestId("open-attempt-replay").click();
   await expect(page.getByTestId("replay-status")).toContainText("Replay ready");
+  await expect(page.getByTestId("replay-explanation")).toBeVisible();
+  await expect(page.getByTestId("replay-explanation")).toHaveText(narration);
   const initialReplay = JSON.parse(await page.getByTestId("replay-state").innerText());
-  expect(initialReplay.timeMs).toBeGreaterThanOrEqual(2000);
-  expect(initialReplay.playing).toBe(false);
-  expect(initialReplay.needle.heldBy).toBeNull();
+  if (!initialReplay.divergenceEmphasis) {
+    expect(initialReplay.timeMs).toBeGreaterThanOrEqual(2000);
+    expect(initialReplay.needle.heldBy).toBeNull();
+  }
   await page.getByLabel("Replay timeline").focus(); await page.keyboard.press("Home");
   await expect.poll(async () => JSON.parse(await page.getByTestId("replay-state").innerText()).timeMs).toBe(0);
   await page.getByTestId("replay-play").click();
@@ -337,6 +368,9 @@ test("S1 produces results offline when device storage is unavailable", async ({ 
     await expect(page.getByTestId("attempt-results-panel")).toBeVisible();
     await page.getByTestId("open-attempt-replay").click();
     await expect(page.getByTestId("replay-status")).toContainText("Replay ready");
+    await expect(page.getByTestId("replay-explanation")).toBeVisible();
+    await page.getByLabel("Replay timeline").focus();
+    await page.keyboard.press("Home");
     await page.getByTestId("replay-play").click();
     await expect.poll(async () => JSON.parse(await page.getByTestId("replay-state").innerText()).timeMs).toBeGreaterThan(0);
   } finally { await context.setOffline(false); }

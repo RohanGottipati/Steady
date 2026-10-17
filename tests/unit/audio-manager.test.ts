@@ -224,6 +224,32 @@ describe("AudioManager", () => {
       expect(h.manager.isSpeaking).toBe(false);
     });
 
+    it("resolves false when live speech, the clip, and browser speech all fail", async () => {
+      const fetchFn = vi.fn(async () => {
+        throw new Error("failed to fetch");
+      }) as unknown as typeof fetch;
+      const createFailing = vi.fn((src: string) => {
+        const audio = new FakeAudio(src);
+        audio.play = vi.fn(() => Promise.reject(new Error("cannot play")));
+        return audio;
+      });
+      const browserSpeak = vi.fn(() => {
+        throw new Error("speech synthesis failed");
+      });
+      const manager = new AudioManager({ fetchFn, createAudio: createFailing, browserSpeak });
+      await expect(manager.coach("overshoot")).resolves.toBe(false);
+      expect(manager.isSpeaking).toBe(false);
+      expect(fetchFn).toHaveBeenCalledOnce();
+    });
+
+    it("plays a fixture clip without calling the live speech route", async () => {
+      const fetchFn = vi.fn() as unknown as typeof fetch;
+      const { manager, created } = harness({ fetchFn });
+      await expect(manager.playClip("path_deviation")).resolves.toBe(true);
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(created[0].src).toBe("/audio/coach/path_deviation.mp3");
+    });
+
     it("cancel() stops the browser-speech fallback", async () => {
       const createFailing = vi.fn((src: string) => {
         const a = new FakeAudio(src);

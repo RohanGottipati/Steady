@@ -41,8 +41,8 @@ export default async function TrainPage({
         <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           <p className="font-medium">This skill is coming soon.</p>
           <p className="mt-1 text-sm">
-            Its expert reference ({skill.sourceLabel}) is not available yet. Try
-            Needle Passing to see the trainer in action.
+            Its trainer scene is not available yet ({skill.sourceLabel}). Try Needle
+            Passing or Peg Transfer to use the trainer.
           </p>
           <Link
             href="/library"

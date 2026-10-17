@@ -1,6 +1,7 @@
 import { motionFrameSchema, referenceMotionSchema, type MotionFrame, type Quat, type ReplayMarker, type ToolState, type Vec3 } from "@/types";
 import { lerpVec3, slerpQuat } from "@/lib/exercise/ghost-playback";
 import { NEEDLE_PASSING_SEGMENT_ORDER, normalizeQuat, normalizeToolWithGripOffset } from "@/lib/exercise/ghost-reference";
+import { PEG_ID, PEG_SEGMENT_IDS } from "@/lib/exercise/peg-transfer-config";
 import { composePose, NEEDLE_ID, relativePose } from "./tool-simulation";
 import type { ReplayInput, ReplayNeedle, ReplaySceneFrame } from "./replay-types";
 
@@ -38,6 +39,10 @@ export interface ReplaySnapshot {
   comparisonAvailable: boolean;
   message: string | null;
   deviations: Record<Side, { distance: number; angleDeg: number } | null>;
+  /** True only while paused on the armed highest-difference marker. */
+  divergenceEmphasis: boolean;
+  /** Midpoint of the larger displayed tip difference. Not a new score. */
+  focusPoint: Vec3 | null;
 }
 export interface ReplayTrails {
   user: Record<Side, Vec3[]>;
@@ -157,9 +162,21 @@ function trail(frames: readonly MotionFrame[], side: Side, scene?: readonly Repl
 function angle(a: Quat, b: Quat) {
   return 2 * Math.acos(clamp(Math.abs(a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w), 0, 1)) * 180 / Math.PI;
 }
+function emphasisPoint(user: ReplaySample | null, reference: ReplaySample | null,
+  deviations: ReplaySnapshot["deviations"]): Vec3 | null {
+  if (!user) return null;
+  const left = deviations.left?.distance ?? -1;
+  const right = deviations.right?.distance ?? -1;
+  const key = right > left ? "rightTool" : "leftTool";
+  const userTip = user[key].tipPosition;
+  const refTip = reference?.[key].tipPosition;
+  if (!refTip) return { ...userTip };
+  return { x: (userTip.x + refTip.x) / 2, y: (userTip.y + refTip.y) / 2, z: (userTip.z + refTip.z) / 2 };
+}
 
 /** Display-only, deterministic replay. Never feeds smoothed data into scoring. */
 export class ReplayController {
+  private readonly taskObjectId: string;
   private readonly userFrames: MotionFrame[];
   private readonly referenceFrames: MotionFrame[];
   private readonly sceneFrames?: ReplaySceneFrame[];
@@ -176,18 +193,25 @@ export class ReplayController {
   private showExpert = true;
   private showPaths = true;
   private markerAlignment: { userIndex: number; segmentId: string; u: number } | null = null;
+  private focusArm: { userTimeMs: number; userIndex: number; u: number; segmentId: string; reached: boolean } | null = null;
   snapshot: ReplaySnapshot;
 
   constructor(input: ReplayInput) {
+    this.taskObjectId = input.skillId === "peg-transfer" ? PEG_ID : NEEDLE_ID;
     if (input.truncated) throw new Error("This recording was truncated. Record a new attempt for complete replay.");
     const reference = referenceMotionSchema.parse(input.reference);
     if (reference.skillId !== input.skillId) throw new Error("Replay and reference must use the same skill.");
     this.userFrames = copyFrames(input.userFrames);
     this.referenceFrames = copyFrames(reference.frames);
+    const segmentOrder: readonly string[] = input.skillId === "peg-transfer" ? PEG_SEGMENT_IDS : NEEDLE_PASSING_SEGMENT_ORDER;
     let lastRank = -1;
     for (const frame of this.referenceFrames) {
-      const rank = NEEDLE_PASSING_SEGMENT_ORDER.indexOf(frame.segmentId as typeof NEEDLE_PASSING_SEGMENT_ORDER[number]);
-      if (rank < lastRank || rank < 0) throw new Error("Replay requires a single canonical Needle Passing reference.");
+      const rank = segmentOrder.indexOf(frame.segmentId);
+      if (rank < lastRank || rank < 0) {
+        throw new Error(input.skillId === "peg-transfer"
+          ? "Replay requires the peg-transfer reference segments in order."
+          : "Replay requires a single canonical Needle Passing reference.");
+      }
       lastRank = rank;
     }
     if (input.sceneFrames) {
@@ -224,45 +248,86 @@ export class ReplayController {
    */
   seekToTaskStart() {
     const index = this.sceneFrames
-      ? this.sceneFrames.findIndex(frame => frame.needle.id === NEEDLE_ID && frame.needle.heldBy !== null)
-      : this.userFrames.findIndex(frame => frame.leftTool.heldObjectId === NEEDLE_ID || frame.rightTool.heldObjectId === NEEDLE_ID);
+      ? this.sceneFrames.findIndex(frame => frame.needle.id === this.taskObjectId && frame.needle.heldBy !== null)
+      : this.userFrames.findIndex(frame => frame.leftTool.heldObjectId === this.taskObjectId || frame.rightTool.heldObjectId === this.taskObjectId);
     const time = index >= 0 ? this.userFrames[index].tMs - start(this.userFrames) - 3000 : 0;
     this.seekTime(Math.max(0, time));
   }
   play() {
     if (!this.userFrames.length || this.durationMs <= 0) return;
     if (this.timeMs >= this.durationMs) this.timeMs = 0;
+    if (this.focusArm?.reached) this.focusArm = null;
     this.markerAlignment = null;
     this.playing = true; this.refresh();
   }
   pause() { this.playing = false; this.refresh(); }
+  /** User playback controls take ownership from the one-time guided focus. */
+  clearFocusPause() { this.focusArm = null; this.refresh(); }
   seekTime(tMs: number) {
     if (!Number.isFinite(tMs)) return;
     this.markerAlignment = null;
+    this.focusArm = null;
     this.timeMs = clamp(tMs, 0, this.durationMs); this.pause();
   }
   seekProgress(progress: number) { if (Number.isFinite(progress)) this.seekTime(clamp(progress, 0, 1) * this.durationMs); }
+  private locateMarker(marker: ReplayMarker) {
+    if (!Number.isFinite(marker.tMs)) return null;
+    const refRange = this.referenceRanges.get(marker.segmentId), userRange = this.userRanges.get(marker.segmentId);
+    if (!refRange || !userRange) return null;
+    const ref = atTime(this.referenceFrames, clamp(marker.tMs, this.referenceFrames[refRange.first].tMs, this.referenceFrames[refRange.last].tMs));
+    if (!ref) return null;
+    const u = inRange(ref, refRange);
+    const userIndex = userRange.first + (userRange.last - userRange.first) * u;
+    const user = atIndex(this.userFrames, userIndex);
+    if (!user) return null;
+    return { userTimeMs: user.tMs - start(this.userFrames), userIndex, u };
+  }
   /** Markers use reference timestamps; return false when the segment is absent. */
   seekMarker(marker: ReplayMarker): boolean {
-    if (!Number.isFinite(marker.tMs)) return false;
-    const refRange = this.referenceRanges.get(marker.segmentId), userRange = this.userRanges.get(marker.segmentId);
-    if (!refRange || !userRange) return false;
-    const ref = atTime(this.referenceFrames, clamp(marker.tMs, this.referenceFrames[refRange.first].tMs, this.referenceFrames[refRange.last].tMs));
-    if (!ref) return false;
-    const u = inRange(ref, refRange);
-    const user = atIndex(this.userFrames, userRange.first + (userRange.last - userRange.first) * u)!;
+    const located = this.locateMarker(marker);
+    if (!located) return false;
     this.mode = "synchronized";
-    this.seekTime(user.tMs - start(this.userFrames));
+    this.seekTime(located.userTimeMs);
     // A one-frame user segment (or equal timestamps) cannot encode arbitrary
     // reference progress in its clock. Preserve the exact issue pose while paused.
-    this.markerAlignment = { userIndex: userRange.first + (userRange.last - userRange.first) * u, segmentId: marker.segmentId, u };
+    this.markerAlignment = { userIndex: located.userIndex, segmentId: marker.segmentId, u: located.u };
     this.refresh();
     return true;
+  }
+  /**
+   * Play from the current cursor until `marker`, then pause on its aligned pose.
+   * A cursor already at or past the marker pauses there immediately. Manual
+   * seeks clear the arm so later frames cannot snap playback back. Returns
+   * false, and changes nothing, when the marker segment is absent.
+   */
+  armFocusPause(marker: ReplayMarker): boolean {
+    const located = this.locateMarker(marker);
+    if (!located) return false;
+    this.focusArm = { ...located, segmentId: marker.segmentId, reached: false };
+    if (!this.userFrames.length || this.durationMs <= 0 || this.timeMs >= located.userTimeMs - 1e-6) {
+      this.arriveAtFocus();
+      return true;
+    }
+    this.playing = true;
+    this.refresh();
+    return true;
+  }
+  private arriveAtFocus() {
+    const arm = this.focusArm;
+    if (!arm) return;
+    this.mode = "synchronized";
+    this.timeMs = clamp(arm.userTimeMs, 0, this.durationMs);
+    this.markerAlignment = { userIndex: arm.userIndex, segmentId: arm.segmentId, u: arm.u };
+    this.focusArm = { ...arm, reached: true };
+    this.playing = false;
+    this.showExpert = true;
+    this.refresh();
   }
   setSpeed(speed: ReplaySpeed) { if ([0.25, 0.5, 1].includes(speed)) { this.speed = speed; this.refresh(); } }
   setMode(mode: ReplayMode) {
     if (mode !== "original" && mode !== "synchronized") return;
     this.markerAlignment = null;
+    this.focusArm = null;
     this.mode = mode; this.timeMs = Math.min(this.timeMs, this.durationMs); this.pause();
   }
   setSmoothing(smoothing: ReplaySmoothing) {
@@ -278,7 +343,13 @@ export class ReplayController {
   setShowPaths(visible: boolean) { this.showPaths = visible; this.refresh(); }
   update(deltaSeconds: number): ReplaySnapshot {
     if (this.playing && Number.isFinite(deltaSeconds) && deltaSeconds >= 0) {
-      this.timeMs = Math.min(this.durationMs, this.timeMs + deltaSeconds * 1000 * this.speed);
+      const next = Math.min(this.durationMs, this.timeMs + deltaSeconds * 1000 * this.speed);
+      if (this.focusArm && !this.focusArm.reached && next >= this.focusArm.userTimeMs) {
+        this.timeMs = next;
+        this.arriveAtFocus();
+        return this.snapshot;
+      }
+      this.timeMs = next;
       if (this.timeMs >= this.durationMs) this.playing = false;
       this.refresh();
     }
@@ -314,11 +385,14 @@ export class ReplayController {
       return { distance: Math.hypot(a.tipPosition.x - b.tipPosition.x, a.tipPosition.y - b.tipPosition.y, a.tipPosition.z - b.tipPosition.z),
         angleDeg: angle(a.rotation, b.rotation) };
     };
+    const deviations = { left: compare("left"), right: compare("right") };
+    const divergenceEmphasis = !!this.focusArm?.reached;
     return { playing: this.playing, ended: this.timeMs >= this.durationMs, mode: this.mode, speed: this.speed,
       smoothing: this.smoothing, showExpert: this.showExpert, showPaths: this.showPaths,
       timeMs: this.timeMs, durationMs: this.durationMs, progress: this.durationMs > 0 ? this.timeMs / this.durationMs : 0,
       segmentId: user?.segmentId ?? null, segmentProgress: u, user, reference, needle, visible: { ...visible },
-      comparisonAvailable: !!(user && reference), deviations: { left: compare("left"), right: compare("right") },
+      comparisonAvailable: !!(user && reference), deviations, divergenceEmphasis,
+      focusPoint: divergenceEmphasis ? emphasisPoint(user, reference, deviations) : null,
       message: !user ? "No recorded motion is available." : !reference ? "Reference comparison is unavailable for this segment."
         : !scene ? "Tool-only recording: needle state is unavailable." : null };
   }

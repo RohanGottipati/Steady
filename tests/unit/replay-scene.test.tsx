@@ -1,7 +1,7 @@
 import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BufferGeometry, Float32BufferAttribute, Group, Line, LineBasicMaterial } from "three";
+import { BufferGeometry, Float32BufferAttribute, Group, Line, LineBasicMaterial, OrthographicCamera } from "three";
 import { ReplayController } from "@/lib/simulation/replay-controller";
 import { DEFAULT_NEEDLE_PASSING_REFERENCE } from "@/lib/exercise/ghost-reference";
 
@@ -13,7 +13,7 @@ vi.mock("@react-three/fiber", async () => {
       runtime.frames.add(callback); return () => { runtime.frames.delete(callback); };
     }, [callback]) };
 });
-import { ReplayLoop, updateReplayLayer } from "@/components/scene/replay-scene";
+import { applyReplayEmphasis, ReplayLoop, updateReplayLayer } from "@/components/scene/replay-scene";
 
 const makeReplay = () => new ReplayController({ skillId: "needle-passing", userFrames: DEFAULT_NEEDLE_PASSING_REFERENCE.frames,
   reference: DEFAULT_NEEDLE_PASSING_REFERENCE });
@@ -51,6 +51,33 @@ describe("A6 actual Three group updates", () => {
     replay.setShowExpert(false); replay.setShowPaths(false); updateReplayLayer(root, replay.snapshot, replay.getTrails());
     expect(root.getObjectByName("replay-reference-left")!.visible).toBe(false);
     expect(connector.visible).toBe(false); expect(originalPath.visible).toBe(false);
+    root.traverse(node => { if (node instanceof Line) { node.geometry.dispose(); (node.material as LineBasicMaterial).dispose(); } });
+  });
+  it("whitens deviation connectors and frames the displayed difference only while narration is paused there", () => {
+    const replay = new ReplayController({ skillId: "needle-passing", userFrames: DEFAULT_NEEDLE_PASSING_REFERENCE.frames,
+      reference: DEFAULT_NEEDLE_PASSING_REFERENCE });
+    const root = new Group();
+    for (const side of ["left", "right"]) {
+      const geometry = new BufferGeometry(); geometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(6), 3));
+      const line = new Line(geometry, new LineBasicMaterial({ color: "#fb7185" })); line.name = `replay-${side}-deviation`; root.add(line);
+    }
+    updateReplayLayer(root, replay.snapshot, replay.getTrails());
+    const connector = root.getObjectByName("replay-left-deviation") as Line;
+    expect((connector.material as LineBasicMaterial).color.getHexString()).toBe("fb7185");
+    const camera = new OrthographicCamera(-1, 1, 1, -1, 0.05, 30);
+    applyReplayEmphasis(camera, replay.snapshot);
+    expect(camera.position.x).toBeCloseTo(0, 6);
+    expect(camera.position.y).toBeCloseTo(0.15, 6);
+    const marker = { tMs: replay.snapshot.reference?.tMs ?? 0, segmentId: replay.snapshot.segmentId ?? "approach",
+      metricId: "pathSimilarity", severity: 1, explanationData: {} };
+    expect(replay.armFocusPause(marker)).toBe(true);
+    if (!replay.snapshot.divergenceEmphasis) replay.update(30);
+    expect(replay.snapshot.divergenceEmphasis).toBe(true);
+    updateReplayLayer(root, replay.snapshot, replay.getTrails());
+    expect((connector.material as LineBasicMaterial).color.getHexString()).toBe("ffffff");
+    applyReplayEmphasis(camera, replay.snapshot);
+    expect(camera.position.x).toBeCloseTo(replay.snapshot.focusPoint!.x, 6);
+    expect(camera.position.y).toBeCloseTo(replay.snapshot.focusPoint!.y, 6);
     root.traverse(node => { if (node instanceof Line) { node.geometry.dispose(); (node.material as LineBasicMaterial).dispose(); } });
   });
 });

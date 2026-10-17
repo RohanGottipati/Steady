@@ -9,9 +9,10 @@ export function OperatingRoom() {
   return <>
     <color attach="background" args={["#101e29"]} />
     <group>
-    <ambientLight intensity={1.1} />
-    <directionalLight position={[2, 4, 5]} intensity={2.4} />
-    <pointLight position={[-3, 1, 2]} intensity={12} color="#b9e6ee" />
+    <ambientLight intensity={0.58} color="#dce8ee" />
+    <directionalLight position={[1.4, 3.1, 4.1]} intensity={1.65} color="#f7f4ee" />
+    <directionalLight position={[-1.8, 1.1, 3.2]} intensity={0.72} color="#d0dde6" />
+    <pointLight position={[-0.4, 1.8, 2.3]} intensity={3.4} color="#e3f4f7" distance={9} decay={2} />
     <mesh position={[0, -0.98, -0.1]}>
       <boxGeometry args={[3.8, 0.14, 2.3]} /><meshStandardMaterial color="#3b6874" roughness={0.85} />
     </mesh>
@@ -41,11 +42,26 @@ export function OperatingRoom() {
       <mesh position={[0, 1.05, 0.1]}><boxGeometry args={[0.7, 0.5, 0.08]} /><meshStandardMaterial color="#081b26" emissive="#174e5c" emissiveIntensity={0.45} /></mesh>
     </group>)}
     <mesh position={[0, 2, -0.8]} rotation={[0.3, 0, 0]}>
-      <cylinderGeometry args={[0.45, 0.38, 0.09, 24]} /><meshStandardMaterial color="#e2e8f0" emissive="#9ec9d4" emissiveIntensity={0.3} />
+      <cylinderGeometry args={[0.45, 0.38, 0.09, 24]} /><meshStandardMaterial color="#d5dee4" emissive="#8eb4be" emissiveIntensity={0.18} />
     </mesh>
     </group>
   </>;
 }
+
+export const PracticePeg = forwardRef<Group>(function PracticePeg(_, ref) {
+  return (
+    <group ref={ref} name="practice-peg">
+      <mesh position={[0, 0.028, 0]}>
+        <cylinderGeometry args={[0.016, 0.02, 0.055, 12]} />
+        <meshStandardMaterial color="#fbbf24" metalness={0.55} roughness={0.32} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.02, 12, 8]} />
+        <meshStandardMaterial color="#86efac" emissive="#166534" emissiveIntensity={0.45} />
+      </mesh>
+    </group>
+  );
+});
 
 export const PracticeNeedle = forwardRef<Group>(function PracticeNeedle(_, ref) {
   // The middle of this curve is exactly the local grab point (0,0,0).
@@ -54,7 +70,7 @@ export const PracticeNeedle = forwardRef<Group>(function PracticeNeedle(_, ref) 
     return new Vector3(0.13 * Math.sin(angle), 0.13 * (Math.cos(angle) - 1), 0);
   })), []);
   return <group ref={ref} name="practice-needle">
-    <mesh><tubeGeometry args={[curve, 32, 0.009, 6, false]} /><meshStandardMaterial color="#f1f5f9" metalness={0.85} roughness={0.22} /></mesh>
+    <mesh><tubeGeometry args={[curve, 32, 0.009, 6, false]} /><meshStandardMaterial color="#d7dee6" metalness={0.42} roughness={0.4} /></mesh>
     <mesh><sphereGeometry args={[0.022, 12, 8]} /><meshStandardMaterial color="#86efac" emissive="#166534" emissiveIntensity={0.5} /></mesh>
   </group>;
 });

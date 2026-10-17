@@ -25,8 +25,10 @@ const quat = (q: Quat) => new Quaternion(q.x, q.y, q.z, q.w);
 const point = (v: Vector3): Vec3 => ({ x: v.x, y: v.y, z: v.z });
 const rotation = (q: Quaternion): Quat => ({ x: q.x, y: q.y, z: q.z, w: q.w });
 const finitePoint = (p: Vec3 | null | undefined) => !!p && [p.x, p.y, p.z].every(Number.isFinite);
-const initial = (assisted: boolean): SimulationSnapshot => ({ assisted, sourceTMs: null, canProgress: false, reason: "Calibrate both hands to begin.", left: null, right: null,
-  object: { id: NEEDLE_ID, position: { x: 0, y: 0.35, z: 0 }, rotation: identity(), heldBy: null } });
+const DEFAULT_TASK_OBJECT: TaskObject = { id: NEEDLE_ID, position: { x: 0, y: 0.35, z: 0 }, rotation: identity(), heldBy: null };
+const cloneTaskObject = (object: TaskObject): TaskObject => ({ ...object, position: { ...object.position }, rotation: { ...object.rotation }, heldBy: null });
+const initial = (assisted: boolean, taskObject: TaskObject = DEFAULT_TASK_OBJECT): SimulationSnapshot => ({ assisted, sourceTMs: null, canProgress: false, reason: "Calibrate both hands to begin.", left: null, right: null,
+  object: cloneTaskObject(taskObject) });
 
 /** Reject invalid/overflowing geometry before publishing any part of a sample. */
 export function toolFromTarget(target: ToolControlTarget | null, id: ToolId, assisted = false): ToolState | null {
@@ -52,7 +54,8 @@ export function pickupFeedback(snapshot: SimulationSnapshot) {
     return { slot, tool, distance, inRange: snapshot.canProgress && !snapshot.object.heldBy && distance <= radius };
   });
   if (!snapshot.canProgress) return { radius, tools, ready: false, message: snapshot.reason };
-  if (snapshot.object.heldBy) return { radius, tools, ready: false, message: `Needle held by ${snapshot.object.heldBy === "left-tool" ? "left" : "right"} instrument. Open your thumb and index finger to release.` };
+  const objectNoun = snapshot.object.id === NEEDLE_ID ? "Needle" : "Peg";
+  if (snapshot.object.heldBy) return { radius, tools, ready: false, message: `${objectNoun} held by ${snapshot.object.heldBy === "left-tool" ? "left" : "right"} instrument. Open your thumb and index finger to release.` };
   const byDistance = [...tools].sort((a, b) => a.distance - b.distance);
   const nearest = byDistance.find(candidate => candidate.inRange && candidate.tool?.jawClosed === false) ?? byDistance[0];
   if (!nearest?.tool) return { radius, tools, ready: false, message: "Waiting for usable instrument poses." };
@@ -63,7 +66,9 @@ export function pickupFeedback(snapshot: SimulationSnapshot) {
     ? `${nearest.slot === "left" ? "Left" : "Right"} tip aligned — pinch thumb and index finger to pick up.`
     : "Open your thumb and index finger first, then pinch again to pick up."
     : depthMismatch ? `Depth is off: move your hand ${tool.tipPosition.z > snapshot.object.position.z ? "farther from" : "closer to"} the camera, or enable Easy pickup.`
-    : "Open your hand and move a colored tip ring inside the needle’s pickup circle.";
+    : snapshot.object.id === NEEDLE_ID
+      ? "Open your hand and move a colored tip ring inside the needle’s pickup circle."
+      : "Open your hand and move a colored tip ring onto the peg.";
   return { radius, tools, ready, message };
 }
 
@@ -84,15 +89,19 @@ export class ToolSimulationController {
   snapshot: SimulationSnapshot;
   private assisted: boolean;
   private singleHand: boolean;
+  private readonly taskObject: TaskObject;
   epoch = 0;
   attachment: Pose | null = null;
   private lastSource = -Infinity;
   private armed = { left: false, right: false };
 
-  constructor({ assisted = true, singleHand = false }: { assisted?: boolean; singleHand?: boolean } = {}) {
+  constructor({ assisted = true, singleHand = false, taskObject }: { assisted?: boolean; singleHand?: boolean; taskObject?: { id: string; position: Vec3 } } = {}) {
     this.assisted = assisted;
     this.singleHand = singleHand;
-    this.snapshot = { ...initial(assisted), singleHand };
+    this.taskObject = taskObject
+      ? { id: taskObject.id, position: { ...taskObject.position }, rotation: identity(), heldBy: null }
+      : cloneTaskObject(DEFAULT_TASK_OBJECT);
+    this.snapshot = { ...initial(assisted, this.taskObject), singleHand };
   }
 
   setAssisted(enabled: boolean) { if (enabled !== this.assisted) { this.assisted = enabled; this.reset(); } }
@@ -104,7 +113,7 @@ export class ToolSimulationController {
     }
   }
 
-  reset(retainWatermark = true) { if (!retainWatermark) this.lastSource = -Infinity; this.epoch++; this.snapshot = { ...initial(this.assisted), singleHand: this.singleHand }; this.attachment = null; this.armed = { left: false, right: false }; }
+  reset(retainWatermark = true) { if (!retainWatermark) this.lastSource = -Infinity; this.epoch++; this.snapshot = { ...initial(this.assisted, this.taskObject), singleHand: this.singleHand }; this.attachment = null; this.armed = { left: false, right: false }; }
 
   suspend(reason = "Simulation paused until both controls are tracking.") {
     this.armed = { left: false, right: false };

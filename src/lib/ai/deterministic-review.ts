@@ -1,5 +1,6 @@
 import type { CompletedAttemptBundle } from "@/lib/exercise/attempt-evaluator";
 import { metricLabel } from "@/lib/evaluation/metric-labels";
+import { selectFocusMarker } from "@/lib/evaluation/focus-marker";
 import type { AiReview, MetricResult } from "@/types";
 
 /**
@@ -48,23 +49,24 @@ export function buildDeterministicReview(bundle: CompletedAttemptBundle): AiRevi
   }
 
   // Largest difference: the top worst-moment marker if one exists, else the weakest metric.
-  const topMoment = attemptResult.worstMoments[0];
+  const topMoment = selectFocusMarker(attemptResult.worstMoments);
   const largestDifference = topMoment
     ? {
         segmentId: topMoment.segmentId,
         explanation:
           `${metricLabel(topMoment.metricId)} showed the largest deviation during the ` +
           `${topMoment.segmentId} segment (severity ${Math.round(topMoment.severity * 100)}%). ` +
-          explain({ id: topMoment.metricId, score: weakestMetric.score }),
+          explain(evaluation.metrics.find(metric => metric.id === topMoment.metricId) ?? weakestMetric),
       }
     : {
         segmentId: weakestMetric.segmentId ?? "overall",
         explanation: explain(weakestMetric),
       };
 
-  const replayNarration =
-    `In the replay, the largest gap from the reference appears in the ${largestDifference.segmentId} segment. ` +
-    `${largestDifference.explanation} Watch that segment and compare your instrument path against the reference guide.`;
+  const replayNarration = !topMoment && weakestMetric.score >= 100
+    ? "Every measured metric matched the canonical scene guide. Use the replay to review the recorded movement."
+    : `In the replay, the largest gap from the reference appears in the ${largestDifference.segmentId} segment. ` +
+      `${largestDifference.explanation} Watch that segment and compare your instrument path against the reference guide.`;
 
   return { summary, strengths, improvements, largestDifference, replayNarration };
 }

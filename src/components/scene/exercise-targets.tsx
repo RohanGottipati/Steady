@@ -54,11 +54,11 @@ export const ExerciseTargets = forwardRef<Group>(function ExerciseTargets(_, ref
         <group key={ring.id} position={[ring.position.x, ring.position.y, ring.position.z]} rotation={[0, 0, ring.tiltRad]}>
           <mesh name={ring.id}>
             <torusGeometry args={[0.048, 0.007, 12, 32]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.55} roughness={0.35} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.22} roughness={0.42} />
           </mesh>
           <mesh position={[0, -0.055, -0.07]}>
             <boxGeometry args={[0.01, 0.06, 0.14]} />
-            <meshStandardMaterial color="#64748b" metalness={0.4} roughness={0.6} />
+            <meshStandardMaterial color="#64748b" metalness={0.2} roughness={0.55} />
           </mesh>
         </group>
       ))}

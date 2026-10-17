@@ -15,10 +15,8 @@ vi.mock("@/lib/voice/tts-server", () => {
   return { synthesizeSpeech, SpeechConfigError, SpeechUpstreamError };
 });
 
-import {
-  POST,
-  __resetSpeechRateLimitForTests,
-} from "@/app/api/speech/route";
+import { POST } from "@/app/api/speech/route";
+import { __resetSpeechRateLimitForTests } from "@/lib/voice/speech-handler";
 import { SpeechConfigError, SpeechUpstreamError } from "@/lib/voice/tts-server";
 
 function req(body: unknown, ip = "1.1.1.1"): Request {

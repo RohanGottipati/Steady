@@ -3,8 +3,9 @@ import { TIP_OFFSET } from "@/lib/simulation/tool-simulation";
 import type { ControlSnapshot, ToolControlTarget } from "@/lib/vision/control-types";
 import type { HandFrame, Quat, Vec3 } from "@/types";
 import { corridorArcPoint, NEEDLE_PASSING_RINGS, RELEASE_ZONE } from "./needle-passing-config";
+import { PEG_HOME, TARGET_POST, TRANSFER_ZONE } from "./peg-transfer-config";
 
-export type FixtureId = "needle-pass-good" | "needle-pass-late-rotation";
+export type FixtureId = "needle-pass-good" | "needle-pass-late-rotation" | "peg-transfer-good";
 
 export interface FixtureCatalogItem {
   id: FixtureId;
@@ -15,15 +16,30 @@ export interface FixtureCatalogItem {
 export const FIXTURE_CATALOG: readonly FixtureCatalogItem[] = [
   {
     id: "needle-pass-good",
-    label: "Good Pass (Scene-aligned)",
-    description: "Smooth corridor trajectory and progressive wrist rotation through Rings 1–3.",
+    label: "Clean sample pass",
+    description: "A smooth pass through the three rings.",
   },
   {
     id: "needle-pass-late-rotation",
-    label: "Late Wrist Rotation (Perturbed)",
-    description: "Holds a misaligned wrist angle, hesitates, and drifts off-corridor before a late rotation snap at Ring 2.",
+    label: "Late wrist rotation",
+    description: "The wrist stays turned the wrong way until the middle ring.",
+  },
+  {
+    id: "peg-transfer-good",
+    label: "Good Peg Transfer",
+    description: "Lift the peg off the left post, meet at the midline, and place it on the right post.",
   },
 ] as const;
+
+export function fixtureMatchesSkill(skillId: string, fixtureId: FixtureId | null): boolean {
+  if (!fixtureId) return true;
+  if (fixtureId === "peg-transfer-good") return skillId === "peg-transfer";
+  return skillId === "needle-passing";
+}
+
+export function defaultFixtureForSkill(skillId: string): FixtureId {
+  return skillId === "peg-transfer" ? "peg-transfer-good" : "needle-pass-good";
+}
 
 export function resolveFixtureIdFromSearch(
   search: string,
@@ -36,6 +52,9 @@ export function resolveFixtureIdFromSearch(
   }
   if (raw === "needle-pass-late-rotation" || raw === "late-rotation") {
     return "needle-pass-late-rotation";
+  }
+  if (raw === "peg-transfer-good" || raw === "peg-transfer") {
+    return "peg-transfer-good";
   }
   if (raw === "off" || raw === "false" || raw === "0") return null;
   if (demoEnvEnabled) {
@@ -177,7 +196,55 @@ export function buildFixtureControlFrames(
     }
   };
 
-  if (fixtureId === "needle-pass-good") {
+  if (fixtureId === "peg-transfer-good") {
+    const home = { ...PEG_HOME };
+    const lifted = { x: -0.133, y: 0.32, z: 0 };
+    const midline = { ...TRANSFER_ZONE.position };
+    const placed = { ...TARGET_POST.position };
+    const parked = { x: 0.42, y: 0.32, z: 0 };
+    pushSpan(8, u => ({
+      tip: lerpVec3({ x: -0.48, y: 0.28, z: 0 }, home, u),
+      closed: false,
+      rotDeg: 0,
+      rightTip: parked,
+    }));
+    pushSpan(6, u => ({
+      tip: home,
+      closed: u > 0.34,
+      rotDeg: 0,
+      rightTip: parked,
+    }));
+    pushSpan(8, u => ({
+      tip: lerpVec3(home, lifted, u),
+      closed: true,
+      rotDeg: 0,
+      rightTip: parked,
+    }));
+    pushSpan(10, u => ({
+      tip: lerpVec3(lifted, midline, u),
+      closed: true,
+      rotDeg: 0,
+      rightTip: lerpVec3(parked, { x: 0.04, y: midline.y, z: 0 }, u),
+    }));
+    pushSpan(10, u => ({
+      tip: lerpVec3(midline, placed, u),
+      closed: true,
+      rotDeg: 0,
+      rightTip: { x: 0.08, y: 0.3, z: 0 },
+    }));
+    pushSpan(4, () => ({
+      tip: placed,
+      closed: true,
+      rotDeg: 0,
+      rightTip: { x: 0.12, y: 0.28, z: 0 },
+    }));
+    pushSpan(2, () => ({
+      tip: placed,
+      closed: false,
+      rotDeg: 0,
+      rightTip: { x: 0.12, y: 0.28, z: 0 },
+    }));
+  } else if (fixtureId === "needle-pass-good") {
     // 1. Approach (10 frames): outside 0.24 approachRadius
     pushSpan(10, u => ({
       tip: lerpVec3(restLeft, approachEdge, u),

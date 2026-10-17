@@ -1,4 +1,5 @@
 import { needlePassingSkill } from "@/data/skills/needle-passing";
+import { pegTransferSkill } from "@/data/skills/peg-transfer";
 import type { SkillCatalogEntry } from "@/lib/skills/types";
 import type { SkillDefinition } from "@/types/skill";
 
@@ -23,13 +24,12 @@ function availableEntry(
   };
 }
 
-// Ordered Surgical Skills Library. Only needle-passing is product-wired (full
-// SkillDefinition + scene) today. Suturing and knot-tying have real JIGSAWS
-// expert reference data committed (data-only, see docs/DATA_LICENSES.md) but stay
-// "coming-soon" until their trainer scenes land (plan 1.4). Keep this data-driven
-// — the UI renders whatever is listed here.
+// Ordered Surgical Skills Library. Needle Passing and Peg Transfer are
+// product-wired (SkillDefinition + scene + reference). Suturing and knot-tying
+// have real JIGSAWS expert reference data committed (data-only, see
+// docs/DATA_LICENSES.md) but stay "coming-soon" until their trainer scenes land.
 export const SKILL_CATALOG: readonly SkillCatalogEntry[] = [
-  availableEntry(needlePassingSkill, "Internal recording"),
+  availableEntry(needlePassingSkill, "Repository-authored"),
   {
     id: "suturing",
     title: "Suturing",
@@ -40,7 +40,7 @@ export const SKILL_CATALOG: readonly SkillCatalogEntry[] = [
     estimatedMinutes: 8,
     availableModes: ["learn", "practice", "assessment"],
     sourceLabel: "JIGSAWS",
-    sourceLicense: "JIGSAWS (academic, non-commercial) — expert reference data ready; trainer wiring pending",
+    sourceLicense: "JIGSAWS, academic non-commercial use. Not ready to train.",
     status: "coming-soon",
   },
   {
@@ -53,20 +53,11 @@ export const SKILL_CATALOG: readonly SkillCatalogEntry[] = [
     estimatedMinutes: 7,
     availableModes: ["learn", "practice", "assessment"],
     sourceLabel: "JIGSAWS",
-    sourceLicense: "JIGSAWS (academic, non-commercial) — expert reference data ready; trainer wiring pending",
+    sourceLicense: "JIGSAWS, academic non-commercial use. Not ready to train.",
     status: "coming-soon",
   },
-  {
-    id: "peg-transfer",
-    title: "Peg Transfer",
-    description:
-      "Transfer pegs between pegboard posts with bimanual coordination and minimal collisions.",
-    category: "laparoscopic",
-    difficulty: "beginner",
-    estimatedMinutes: 5,
-    availableModes: ["learn", "practice", "assessment"],
-    sourceLabel: "LASK",
-    sourceLicense: "CC BY 4.0",
-    status: "coming-soon",
-  },
+  availableEntry(
+    pegTransferSkill,
+    "Internal synthetic fixture (LASK adapter format; real LASK dataset not acquired)",
+  ),
 ];

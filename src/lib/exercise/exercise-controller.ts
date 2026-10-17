@@ -3,7 +3,7 @@ import type { RecordedMotion } from "@/lib/evaluation/types";
 import { ASSISTED_GRAB_RADIUS, GRAB_RADIUS, NEEDLE_ID, type SimulationEvent, type SimulationSnapshot } from "@/lib/simulation/tool-simulation";
 import { CONTROL_TIMING, type ControlSnapshot } from "@/lib/vision/control-types";
 import type { ReplayRecording, ReplaySceneFrame } from "@/lib/simulation/replay-types";
-import type { HandFrame, MotionFrame, NeedlePassingSegment, Quat, SkillDefinition, ToolState, TrainingMode } from "@/types";
+import type { HandFrame, MotionFrame, Quat, SkillDefinition, ToolState, TrainingMode } from "@/types";
 import {
   corridorMetrics,
   ENTRY_TARGET_ROTATION,
@@ -15,10 +15,19 @@ import {
   RELEASE_ZONE,
   TISSUE_WALL_ZONE,
   validateSkillSceneConfig,
-  type ActiveTargetId,
-  type DangerZoneId,
-  type TargetRingId,
 } from "./needle-passing-config";
+import {
+  BOARD_EDGE_ZONE,
+  PEG_HOME,
+  PEG_ID,
+  PEG_TRANSFER_THRESHOLDS,
+  SOURCE_POST,
+  TARGET_POST,
+  TRANSFER_ZONE,
+  pegCorridorDeviation,
+  pegLiftHeight,
+  validatePegTransferSceneConfig,
+} from "./peg-transfer-config";
 
 export type ExercisePhase = "idle" | "demonstration" | "active" | "complete";
 
@@ -34,8 +43,8 @@ export interface ModeBehaviorHooks {
 }
 
 export interface SegmentTransitionRecord {
-  from: NeedlePassingSegment;
-  to: NeedlePassingSegment;
+  from: string;
+  to: string;
   attemptTMs: number;
   sourceTMs: number;
 }
@@ -44,20 +53,20 @@ export interface ExerciseSnapshot {
   skillId: string;
   mode: TrainingMode;
   phase: ExercisePhase;
-  segmentId: NeedlePassingSegment;
+  segmentId: string;
   segmentIndex: number;
   segmentCount: number;
   segmentTitle: string;
   segmentInstructions: string;
   segmentProgress: number;
   overallProgress: number;
-  activeTargetId: ActiveTargetId;
-  completedTargetIds: TargetRingId[];
+  activeTargetId: string | null;
+  completedTargetIds: string[];
   corridorDeviation: number;
   orientationErrorDeg: number;
   rotationDeltaDeg: number;
   inDangerZone: boolean;
-  activeDangerZoneIds: DangerZoneId[];
+  activeDangerZoneIds: string[];
   dangerZoneCount: number;
   dangerZoneDurationMs: number;
   needleDropped: boolean;
@@ -145,14 +154,14 @@ export class ExerciseController {
   private wasInDangerZone = false;
   private dangerZoneCount = 0;
   private dangerZoneDurationMs = 0;
-  private completedTargets: TargetRingId[] = [];
+  private completedTargets: string[] = [];
   private frames: MotionFrame[] = [];
   private replaySceneFrames: ReplaySceneFrame[] = [];
   private recordingTruncated = false;
-  private segmentFrames = new Map<NeedlePassingSegment, number>();
+  private segmentFrames = new Map<string, number>();
 
   constructor({ skill = needlePassingSkill, mode = "practice" }: { skill?: SkillDefinition; mode?: TrainingMode } = {}) {
-    this.skill = validateSkillSceneConfig(skill);
+    this.skill = skill.id === "peg-transfer" ? validatePegTransferSceneConfig(skill) : validateSkillSceneConfig(skill);
     this.mode = mode;
     this.snapshot = this.initialSnapshot("idle", "Calibrate both hands to begin the exercise.");
   }
@@ -161,12 +170,12 @@ export class ExerciseController {
     const clampedIndex = Math.min(this.skill.segments.length - 1, Math.max(0, index));
     const seg = this.skill.segments[clampedIndex];
     const instructions =
-      seg.id === "approach"
+      this.skill.id === "needle-passing" && seg.id === "approach"
         ? "Move ONE open instrument tip (left cyan or right amber) into the needle's pickup circle."
         : seg.instructions;
     return {
       index: clampedIndex,
-      id: seg.id as NeedlePassingSegment,
+      id: seg.id,
       title: seg.title,
       instructions,
     };
@@ -185,7 +194,7 @@ export class ExerciseController {
       segmentInstructions: seg.instructions,
       segmentProgress: 0,
       overallProgress: 0,
-      activeTargetId: NEEDLE_ID,
+      activeTargetId: this.skill.id === "peg-transfer" ? PEG_ID : NEEDLE_ID,
       completedTargetIds: [],
       corridorDeviation: 0,
       orientationErrorDeg: 0,
@@ -241,7 +250,7 @@ export class ExerciseController {
   startAttempt() {
     if (this.snapshot.phase !== "demonstration") return;
     const seg = this.segmentMeta(0);
-    this.demonstrationMs = EXERCISE_THRESHOLDS.demonstrationDurationMs;
+    this.demonstrationMs = this.demonstrationDurationMs();
     this.snapshot = {
       ...this.snapshot,
       phase: "active",
@@ -310,8 +319,20 @@ export class ExerciseController {
     return this.snapshot.modeHooks.showLiveCoaching ? `${title}: ${liveInstruction}` : `Segment: ${title}`;
   }
 
+  private demonstrationDurationMs(): number {
+    return this.skill.id === "peg-transfer"
+      ? PEG_TRANSFER_THRESHOLDS.demonstrationDurationMs
+      : EXERCISE_THRESHOLDS.demonstrationDurationMs;
+  }
+
+  private demonstrationMessage(): string {
+    return this.skill.id === "peg-transfer"
+      ? "Learn demonstration: watch the peg move from the left post through the midline to the right post, or select Start attempt."
+      : "Learn demonstration: watch the target path through Rings 1–3, or select Start attempt.";
+  }
+
   private recordFrame(
-    segmentId: NeedlePassingSegment,
+    segmentId: string,
     normalizedProgress: number,
     simulation: SimulationSnapshot,
     controls: ControlSnapshot,
@@ -397,7 +418,7 @@ export class ExerciseController {
           sourceTMs: source,
           canProgress: true,
           modeHooks: buildModeHooks(this.mode, this.manualGhost, this.autoGhost),
-          message: "Learn demonstration: watch the target path through Rings 1–3, or select Start attempt.",
+          message: this.demonstrationMessage(),
         };
         return this.snapshot;
       }
@@ -415,8 +436,8 @@ export class ExerciseController {
 
     if (this.snapshot.phase === "demonstration") {
       const grabbed = simulation.object.heldBy !== null || events.some(event => event.kind === "grab");
-      this.demonstrationMs = Math.min(EXERCISE_THRESHOLDS.demonstrationDurationMs, this.demonstrationMs + stepMs);
-      const demoProgress = clamp(this.demonstrationMs / EXERCISE_THRESHOLDS.demonstrationDurationMs, 0, 1);
+      this.demonstrationMs = Math.min(this.demonstrationDurationMs(), this.demonstrationMs + stepMs);
+      const demoProgress = clamp(this.demonstrationMs / this.demonstrationDurationMs(), 0, 1);
       if (!grabbed && demoProgress < 1) {
         this.snapshot = {
           ...this.snapshot,
@@ -424,7 +445,7 @@ export class ExerciseController {
           sourceTMs: source,
           canProgress: true,
           modeHooks: buildModeHooks(this.mode, this.manualGhost, this.autoGhost),
-          message: "Learn demonstration: watch the target path through Rings 1–3, or select Start attempt.",
+          message: this.demonstrationMessage(),
         };
         return this.snapshot;
       }
@@ -446,6 +467,10 @@ export class ExerciseController {
 
     if (this.frames.length > 0) {
       this.elapsedActiveMs += stepMs;
+    }
+
+    if (this.skill.id === "peg-transfer") {
+      return this.updatePegTransfer(controls, simulation, source, stepMs);
     }
 
     const leftTip = simulation.left.tipPosition;
@@ -512,7 +537,7 @@ export class ExerciseController {
     }
 
     let segmentProgress = this.snapshot.segmentProgress;
-    let activeTargetId: ActiveTargetId = this.snapshot.activeTargetId;
+    let activeTargetId: string | null = this.snapshot.activeTargetId;
     let needleDropped = false;
     let liveInstruction = segmentMeta.instructions;
     let shouldAdvance = false;
@@ -727,6 +752,254 @@ export class ExerciseController {
       dangerZoneCount: this.dangerZoneCount,
       dangerZoneDurationMs: Math.round(this.dangerZoneDurationMs),
       needleDropped,
+      elapsedActiveMs: Math.round(this.elapsedActiveMs),
+      demonstrationProgress: 1,
+      modeHooks,
+      readyForEvaluation: false,
+      readyForReplay: false,
+      frameCount: this.frames.length,
+      sourceTMs: source,
+      canProgress: true,
+      message: this.formatMessage(segmentMeta.title, liveInstruction),
+    };
+    return this.snapshot;
+  }
+
+  private updatePegTransfer(
+    controls: ControlSnapshot,
+    simulation: SimulationSnapshot,
+    source: number,
+    stepMs: number,
+  ): ExerciseSnapshot {
+    const leftTip = simulation.left!.tipPosition;
+    const rightTip = simulation.right!.tipPosition;
+    const peg = simulation.object.position;
+    const heldTool =
+      simulation.object.heldBy === "left-tool"
+        ? simulation.left
+        : simulation.object.heldBy === "right-tool"
+          ? simulation.right
+          : null;
+    const otherTip = simulation.object.heldBy === "left-tool"
+      ? rightTip
+      : simulation.object.heldBy === "right-tool"
+        ? leftTip
+        : null;
+
+    const inDangerZone =
+      pointInBox(leftTip, BOARD_EDGE_ZONE) ||
+      pointInBox(rightTip, BOARD_EDGE_ZONE) ||
+      (heldTool !== null && pointInBox(peg, BOARD_EDGE_ZONE));
+    if (inDangerZone) {
+      if (!this.wasInDangerZone) this.dangerZoneCount++;
+      this.dangerZoneDurationMs += stepMs;
+    }
+    this.wasInDangerZone = inDangerZone;
+
+    const corridorPoint = heldTool ? peg : pointDistance(leftTip, PEG_HOME) <= pointDistance(rightTip, PEG_HOME) ? leftTip : rightTip;
+    const corridorDeviation = pegCorridorDeviation(corridorPoint);
+    let segmentIndex = this.snapshot.segmentIndex;
+    let segmentMeta = this.segmentMeta(segmentIndex);
+    const inCorridorSegment = segmentMeta.id === "lift" || segmentMeta.id === "transfer" || segmentMeta.id === "place";
+    if (inCorridorSegment && heldTool && corridorDeviation > PEG_TRANSFER_THRESHOLDS.corridorToleranceUnits) {
+      this.sustainedDeviationMs += stepMs;
+      if (this.mode === "practice" && this.sustainedDeviationMs >= PEG_TRANSFER_THRESHOLDS.sustainedDeviationMs && this.manualGhost === null) {
+        this.autoGhost = true;
+      }
+    } else {
+      this.sustainedDeviationMs = 0;
+    }
+    const modeHooks = buildModeHooks(this.mode, this.manualGhost, this.autoGhost);
+
+    let segmentProgress = this.snapshot.segmentProgress;
+    let activeTargetId: string | null = this.snapshot.activeTargetId;
+    let pegDropped = false;
+    let liveInstruction = segmentMeta.instructions;
+    let shouldAdvance = false;
+    const nearestTipDist = Math.min(pointDistance(leftTip, peg), pointDistance(rightTip, peg));
+    const distSource = pointDistance(peg, SOURCE_POST.position);
+    const distTransfer = pointDistance(peg, TRANSFER_ZONE.position);
+    const distTarget = pointDistance(peg, TARGET_POST.position);
+    const lifted = peg.y >= pegLiftHeight();
+    const assistMet = simulation.singleHand || (otherTip !== null && pointDistance(otherTip, peg) <= PEG_TRANSFER_THRESHOLDS.assistMeetRadius);
+
+    if (segmentMeta.id === "reach") {
+      activeTargetId = PEG_ID;
+      const hadReachFrame = (this.segmentFrames.get("reach") ?? 0) > 0;
+      segmentProgress = clamp(1 - Math.max(0, nearestTipDist - PEG_TRANSFER_THRESHOLDS.reachRadius) / 0.45, 0, 1);
+      liveInstruction = "Move an open instrument tip to the peg on the left post.";
+      shouldAdvance = !inDangerZone && hadReachFrame && nearestTipDist <= PEG_TRANSFER_THRESHOLDS.reachRadius;
+    } else if (segmentMeta.id === "grasp") {
+      activeTargetId = heldTool ? SOURCE_POST.id : PEG_ID;
+      if (!heldTool) {
+        segmentProgress = nearestTipDist <= PEG_TRANSFER_THRESHOLDS.graspRadius ? 0.45 : 0.15;
+        liveInstruction = "Pinch to grasp the peg on the left post. Reaching the right post does not skip the grasp.";
+      } else {
+        segmentProgress = distSource <= PEG_TRANSFER_THRESHOLDS.graspRadius ? 0.9 : 0.4;
+        liveInstruction = "Peg held — keep it over the left post to finish the grasp.";
+        shouldAdvance = !inDangerZone && distSource <= PEG_TRANSFER_THRESHOLDS.graspRadius;
+        if (shouldAdvance && !this.completedTargets.includes(SOURCE_POST.id)) {
+          this.completedTargets = [...this.completedTargets, SOURCE_POST.id];
+        }
+      }
+    } else if (segmentMeta.id === "lift") {
+      activeTargetId = SOURCE_POST.id;
+      if (!heldTool) {
+        pegDropped = true;
+        activeTargetId = PEG_ID;
+        liveInstruction = "Peg released early — pick it up again to continue Lift.";
+      } else {
+        segmentProgress = clamp((peg.y - SOURCE_POST.position.y) / PEG_TRANSFER_THRESHOLDS.liftClearance, 0, 1);
+        liveInstruction = lifted
+          ? "Peg is clear of the left post. Carry it to the midline."
+          : "Lift the peg straight up off the left post before crossing the board.";
+        shouldAdvance = !inDangerZone && lifted;
+      }
+    } else if (segmentMeta.id === "transfer") {
+      activeTargetId = TRANSFER_ZONE.id;
+      if (!heldTool) {
+        pegDropped = true;
+        activeTargetId = PEG_ID;
+        liveInstruction = "Peg released early — pick it up again and meet at the midline.";
+      } else {
+        const meetScore = assistMet ? 1 : 0.35;
+        segmentProgress = 0.5 * clamp(1 - Math.max(0, distTransfer - PEG_TRANSFER_THRESHOLDS.transferRadius) / 0.28, 0, 1) + 0.5 * meetScore;
+        liveInstruction = distTransfer > PEG_TRANSFER_THRESHOLDS.transferRadius
+          ? "Carry the peg through the midline ring. The right post does not count yet."
+          : assistMet
+            ? "Both instruments are at the midline. Continue to the right post."
+            : "Bring the other instrument tip to the peg at the midline.";
+        shouldAdvance = !inDangerZone && distTransfer <= PEG_TRANSFER_THRESHOLDS.transferRadius && assistMet;
+        if (shouldAdvance && !this.completedTargets.includes(TRANSFER_ZONE.id)) {
+          this.completedTargets = [...this.completedTargets, TRANSFER_ZONE.id];
+        }
+      }
+    } else if (segmentMeta.id === "place") {
+      activeTargetId = TARGET_POST.id;
+      if (!heldTool) {
+        pegDropped = true;
+        activeTargetId = PEG_ID;
+        liveInstruction = "Peg released early — pick it up and lower it onto the right post.";
+      } else {
+        const lowEnough = peg.y <= TARGET_POST.position.y + PEG_TRANSFER_THRESHOLDS.placeHeightSlack;
+        segmentProgress = 0.5 * clamp(1 - Math.max(0, distTarget - PEG_TRANSFER_THRESHOLDS.placeRadius) / 0.25, 0, 1)
+          + 0.5 * (lowEnough ? 1 : clamp(1 - (peg.y - TARGET_POST.position.y) / 0.2, 0, 0.8));
+        liveInstruction = lowEnough && distTarget <= PEG_TRANSFER_THRESHOLDS.placeRadius
+          ? "Peg is on the right post. Open your pinch to release it."
+          : "Lower the peg onto the right post. Releasing in the air does not place it.";
+        shouldAdvance = !inDangerZone && distTarget <= PEG_TRANSFER_THRESHOLDS.placeRadius && lowEnough;
+        if (shouldAdvance && !this.completedTargets.includes(TARGET_POST.id)) {
+          this.completedTargets = [...this.completedTargets, TARGET_POST.id];
+        }
+      }
+    } else if (segmentMeta.id === "release") {
+      activeTargetId = TARGET_POST.id;
+      const onPost = distTarget <= PEG_TRANSFER_THRESHOLDS.placeRadius + 0.01
+        && peg.y <= TARGET_POST.position.y + PEG_TRANSFER_THRESHOLDS.placeHeightSlack + 0.02;
+      if (heldTool) {
+        segmentProgress = onPost ? 0.7 : 0.25;
+        liveInstruction = onPost
+          ? "Open your thumb and index finger to release the peg on the right post."
+          : "Move the peg back onto the right post before opening your hand.";
+      } else if (onPost && !inDangerZone) {
+        segmentProgress = 1;
+        shouldAdvance = true;
+      } else {
+        pegDropped = true;
+        activeTargetId = PEG_ID;
+        segmentProgress = 0.2;
+        liveInstruction = "Peg released off the right post — pick it up and release it on the post.";
+      }
+    }
+
+    if (inDangerZone) {
+      liveInstruction = "Danger zone: lift both instruments off the board edge.";
+      shouldAdvance = false;
+    }
+
+    const hadSegmentFrame = (this.segmentFrames.get(segmentMeta.id) ?? 0) > 0;
+    if (shouldAdvance && !hadSegmentFrame) {
+      this.recordFrame(segmentMeta.id, this.computeOverallProgress(segmentIndex, 0.9), simulation, controls);
+      this.elapsedActiveMs += 1;
+    }
+
+    if (shouldAdvance) {
+      const nextIndex = Math.min(this.skill.segments.length - 1, segmentIndex + 1);
+      const nextMeta = this.segmentMeta(nextIndex);
+      this.transitions.push({
+        from: segmentMeta.id,
+        to: nextMeta.id,
+        attemptTMs: Math.round(this.elapsedActiveMs * 1000) / 1000,
+        sourceTMs: source,
+      });
+      segmentIndex = nextIndex;
+      segmentMeta = nextMeta;
+      if (segmentMeta.id === "complete") {
+        this.recordFrame("complete", 1, simulation, controls);
+        this.snapshot = {
+          skillId: this.skill.id,
+          mode: this.mode,
+          phase: "complete",
+          segmentId: "complete",
+          segmentIndex,
+          segmentCount: this.skill.segments.length,
+          segmentTitle: segmentMeta.title,
+          segmentInstructions: segmentMeta.instructions,
+          segmentProgress: 1,
+          overallProgress: 1,
+          activeTargetId: null,
+          completedTargetIds: [...this.completedTargets],
+          corridorDeviation,
+          orientationErrorDeg: 0,
+          rotationDeltaDeg: 0,
+          inDangerZone: false,
+          activeDangerZoneIds: [],
+          dangerZoneCount: this.dangerZoneCount,
+          dangerZoneDurationMs: Math.round(this.dangerZoneDurationMs),
+          needleDropped: false,
+          elapsedActiveMs: Math.round(this.elapsedActiveMs),
+          demonstrationProgress: 1,
+          modeHooks,
+          readyForEvaluation: true,
+          readyForReplay: !this.recordingTruncated,
+          frameCount: this.frames.length,
+          sourceTMs: source,
+          canProgress: true,
+          message: this.formatMessage(segmentMeta.title, segmentMeta.instructions),
+        };
+        return this.snapshot;
+      }
+      segmentProgress = 0.1;
+      liveInstruction = segmentMeta.instructions;
+      if (segmentMeta.id === "grasp") activeTargetId = heldTool ? SOURCE_POST.id : PEG_ID;
+      else if (segmentMeta.id === "lift") activeTargetId = SOURCE_POST.id;
+      else if (segmentMeta.id === "transfer") activeTargetId = TRANSFER_ZONE.id;
+      else if (segmentMeta.id === "place" || segmentMeta.id === "release") activeTargetId = TARGET_POST.id;
+    }
+
+    const overallProgress = this.computeOverallProgress(segmentIndex, segmentProgress);
+    this.recordFrame(segmentMeta.id, overallProgress, simulation, controls);
+    this.snapshot = {
+      skillId: this.skill.id,
+      mode: this.mode,
+      phase: "active",
+      segmentId: segmentMeta.id,
+      segmentIndex,
+      segmentCount: this.skill.segments.length,
+      segmentTitle: segmentMeta.title,
+      segmentInstructions: segmentMeta.instructions,
+      segmentProgress,
+      overallProgress,
+      activeTargetId,
+      completedTargetIds: [...this.completedTargets],
+      corridorDeviation,
+      orientationErrorDeg: 0,
+      rotationDeltaDeg: 0,
+      inDangerZone,
+      activeDangerZoneIds: inDangerZone ? [BOARD_EDGE_ZONE.id] : [],
+      dangerZoneCount: this.dangerZoneCount,
+      dangerZoneDurationMs: Math.round(this.dangerZoneDurationMs),
+      needleDropped: pegDropped,
       elapsedActiveMs: Math.round(this.elapsedActiveMs),
       demonstrationProgress: 1,
       modeHooks,

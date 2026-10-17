@@ -38,6 +38,13 @@ describe("S1 asynchronous attempt cache", () => {
     expect(fake.entries.size).toBe(1);
     expect((await cache.getLatestSavedAttempt("needle-passing"))?.result.id).toBe("one");
     expect(await cache.getLatestSavedAttempt("suturing")).toBeNull();
+    await cache.markCloudSyncStatus("one", "failed");
+    expect(fake.entries.size).toBe(1);
+    expect((await cache.getSavedAttempt("one"))?.cloudSyncStatus).toBe("failed");
+    await cache.markCloudSyncStatus("one", "synced");
+    expect((await cache.getSavedAttempt("one"))?.cloudSyncStatus).toBe("synced");
+    await cache.markCloudSyncStatus("missing", "failed");
+    expect(fake.entries.size).toBe(1);
   });
   it("serializes concurrent writes, retains the newest 20, and clears durable and memory state", async () => {
     const cache = await import("@/lib/storage/attempt-cache");

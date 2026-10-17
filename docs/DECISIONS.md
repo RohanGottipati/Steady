@@ -2,6 +2,24 @@
 
 Record architectural and product decisions here as they are made.
 
+### 2026-10-17 - A7/S integration review ownership and build acceptance
+- Context: Four unpublished worktrees contained overlapping task implementations,
+  including stash conflicts, a review response that was discarded, and separate
+  coaching/replay audio managers. The sparse Peg Transfer adapter reference also
+  disagreed with the scene's segment gates.
+- Decision: Assemble on integration/a7-s-completion while preserving source worktrees
+  and stashes. Let the runtime own one validated review per webcam attempt, using
+  the same focus selection as replay, with immediate deterministic fallback. Share
+  one audio manager. Fixtures never use live review/speech/upload endpoints. Author
+  the Peg Transfer scene guide through the shared engine, preserving the raw adapter
+  fixture and all scoring thresholds. Models explain supplied evidence only.
+- Decision: Use Webpack for default dev/build after Turbopack's CSS worker failed
+  its port operation even with escalation. Reuse the installed Tailwind loader in
+  Next's CSS chains; no dependencies added. Keep dev:turbo as an alternative.
+- Consequences: Full B9 retrieval, B10 history/progress and B12 analytics remain
+  separate. Real-camera performance/soak, live rehearsal, and isolated PostgreSQL
+  acceptance remain pending. See the demo runbook for exact steps.
+
 ### 2026-10-17 - A6 initial review uses a three-second pickup lead-in
 - Context: Long preparation periods made the start of replay unhelpful. The user
   selected an initial position three seconds before the first successful pickup.
@@ -11,6 +29,7 @@ Record architectural and product decisions here as they are made.
   start at zero. Re-grabs do not replace the first pickup anchor.
 - Consequences: Full recording/scoring, manual seeking, issue markers, and renderer
   retry behavior are preserved. This changes the opening cursor, not recorded data.
+  S2 plays forward from this anchor and pauses on the worst stored marker.
 
 ### 2026-10-17 - A6 replay builds on merged S1 runtime
 - Context: S1 PR #12 was merged while A6 was being planned. The public trainer

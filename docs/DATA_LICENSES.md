@@ -10,7 +10,7 @@ attribution text.
 | Dataset | License / Terms | Source URL | Raw stored locally? | Derived deployable? | Attribution | Status |
 |---------|-----------------|-----------|---------------------|---------------------|-------------|--------|
 | JIGSAWS | Academic research use only, **not for commercial use** (JHU IRB-approved) | Access form: https://www.cs.jhu.edu/~los/jigsaws/info.php (emails same-day download links); info: https://cirl.lcsr.jhu.edu/research/hmm/datasets/jigsaws_release/ | Yes — git-ignored `datasets/jigsaws/` only, never committed | Yes, for this non-commercial prototype — derived motion committed with attribution; must be removed if Steady is ever commercialized | Gao et al. 2014 (see Citation below) | **Acquired; Needle Passing available as an optional attributed ghost; scoring remains synthetic** |
-| LASK | CC BY 4.0 (project-stated, unverified) | _to confirm_ | _to confirm_ | Pending — CC BY 4.0 would allow it **with attribution**, but confirm URL + exact attribution text first | _to confirm_ | Not acquired; adapter used only for the synthetic peg-transfer fixture |
+| LASK | CC BY 4.0 (project-stated, unverified) | _to confirm_ | _to confirm_ | Pending — CC BY 4.0 would allow it **with attribution**, but confirm URL + exact attribution text first | _to confirm_ | Not acquired. A7 wires only the synthetic LASK-format fixture as the Peg Transfer trainer reference |
 | SHANDS | TBD | _to confirm_ | TBD | TBD | _to confirm_ | Optional future source |
 
 Adapters: `scripts/data/jigsaws/adapter.py`, `scripts/data/lask/adapter.py`.
@@ -34,8 +34,12 @@ selects the S1 scoring reference. Suturing and Knot Tying remain data-only. They
 source scale (metres, ~0.04–0.13), which do not match the skill-definition phase
 labels or the scene workspace. A5 maps/fits the optional Needle Passing ghost at runtime without changing these
 committed data files. The **evaluation references stay synthetic**: needle-passing uses the
-scene-scale synthetic `needle-passing-reference-v1.json`, and peg-transfer uses the
-synthetic LASK-format fixture.
+scene-aligned synthetic guide with id `needle-passing-reference-v1`. Peg Transfer (A7)
+uses a fixed internally authored demonstration passed through the scene engine for
+consistent segment boundaries, at Z=0. It is not derived from user performance.
+`public/references/peg-transfer/peg-transfer-reference-v1.json` remains unchanged as
+the sparse synthetic LASK-adapter fixture, not an acquired LASK recording.
+The product label is “Synthetic reference (not expert data)”.
 
 Trials are the highest-GRS **expert** (`E`) demonstration per task. Only the
 patient-side (Slave) manipulator channels are used — the actual instrument tips

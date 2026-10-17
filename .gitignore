@@ -10,6 +10,7 @@ node_modules/
 
 # Build / Next.js
 .next/
+.next-e2e/
 out/
 build/
 dist/
@@ -37,6 +38,7 @@ next-env.d.ts
 coverage/
 playwright-report/
 test-results/
+artifacts/demo/
 blob-report/
 playwright/.cache/
 

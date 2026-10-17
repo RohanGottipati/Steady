@@ -6,9 +6,9 @@ import { seed } from "../../scripts/tiger/seed.mjs";
 
 // B0 acceptance (plan 26): migrations apply, core tables + hypertables exist,
 // and one synthetic attempt can be inserted and queried back.
-// Requires a reachable Tiger service; skipped when TIGER_DATABASE_URL is unset
-// so teammates/CI without credentials do not fail.
-const url = getDatabaseUrl();
+// Requires explicit STEADY_TIGER_INTEGRATION=1 and an isolated reachable service.
+// The default offline suite never applies migrations or seeds to a live database.
+const url = process.env.STEADY_TIGER_INTEGRATION === "1" ? getDatabaseUrl() : "";
 const describeDb = url ? describe : describe.skip;
 
 describeDb("B0 Tiger Data bootstrap", () => {

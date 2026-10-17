@@ -99,7 +99,7 @@ export class HandCalibrationController {
     this.state = {
       stage: "ready",
       progress: 1,
-      message: "1-Hand Quick Start active. Hold up ONE hand (Left or Right) to control the instrument.",
+      message: "One hand is enough. Keep that hand in view to control its instrument.",
     };
     this.samples = emptySamples();
   }
@@ -213,7 +213,7 @@ export class HandCalibrationController {
         };
       }
       this.profile = { dimensions: { ...this.dimensions }, ...hands };
-      this.state = { stage: "ready", progress: 1, message: "Calibration ready. Move, rotate and pinch to inspect both control targets." };
+      this.state = { stage: "ready", progress: 1, message: "Calibration ready. Move, rotate, and pinch to drive the instruments." };
       this.samples = emptySamples();
     }
   }

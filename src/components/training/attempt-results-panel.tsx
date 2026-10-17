@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { metricLabel as formatMetricName } from "@/lib/evaluation/metric-labels";
 import type { CompletedAttemptBundle } from "@/lib/exercise/attempt-evaluator";
+import type { CloudSyncResult } from "@/lib/storage/cloud-sync";
 import type { AiReview, CategoryScores, ReplayMarker } from "@/types";
 
 const CATEGORY_LABELS: Record<keyof CategoryScores, string> = {
@@ -22,12 +24,30 @@ function scoreToneClass(score: number): string {
   return "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100";
 }
 
+function saveMessage(
+  saveStatus: "idle" | "saving" | "demo" | "indexeddb" | "memory",
+  cloudStatus: "idle" | "syncing" | CloudSyncResult,
+): string {
+  if (saveStatus === "demo") return "Demonstration results — excluded from your saved attempt history.";
+  if (saveStatus === "memory") return "Available until you reload. Device storage is unavailable, so this attempt stays in this tab.";
+  if (saveStatus === "saving") return "Saving this attempt on this device…";
+  if (cloudStatus === "synced") return "Saved on this device and synced to history.";
+  if (cloudStatus === "skipped") return "Saved on this device. Cloud sync is off, so this attempt stays local.";
+  if (cloudStatus === "local-only") return "Saved on this device. Cloud history is unavailable, so you can keep training and retry sync later.";
+  if (cloudStatus === "syncing") return "Saved on this device. Syncing to cloud history…";
+  return "Saved on this device. Cloud sync has not finished.";
+}
+
 export function AttemptResultsPanel({
   bundle,
   review,
   onTryAgain,
   onReviewMoment,
   saveStatus,
+  cloudStatus = "idle",
+  onRetrySync,
+  reviewSource = "deterministic",
+  reviewNotice = null,
 }: {
   bundle: CompletedAttemptBundle;
   review: AiReview;
@@ -35,10 +55,17 @@ export function AttemptResultsPanel({
   /** When provided, worst-moment markers become buttons that open the replay at that issue. */
   onReviewMoment?: (marker: ReplayMarker) => void;
   saveStatus: "idle" | "saving" | "demo" | "indexeddb" | "memory";
+  cloudStatus?: "idle" | "syncing" | CloudSyncResult;
+  onRetrySync?: () => void;
+  reviewSource?: "deterministic" | "model";
+  reviewNotice?: string | null;
 }) {
   const { attemptResult, evaluation, strongestMetric, weakestMetric } = bundle;
   const durationSeconds = Math.max(0.1, attemptResult.durationMs / 1000).toFixed(1);
   const explanationById = new Map<string, string>(evaluation.explanations.map(item => [item.id, item.text]));
+  const [dismissedNote, setDismissedNote] = useState<string | null>(null);
+  const noteKey = `${attemptResult.id}:${reviewNotice}`;
+  const aiNote = dismissedNote === noteKey ? null : reviewNotice;
 
   return (
     <section
@@ -49,7 +76,7 @@ export function AttemptResultsPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold tracking-wider text-emerald-700 uppercase dark:text-emerald-400">
-            {saveStatus === "demo" ? "Demo Complete" : "Attempt Complete"} · Deterministic Kinematic Evaluation
+            {saveStatus === "demo" ? "Sample pass complete" : "Attempt complete"}
           </p>
           <h3 className="mt-0.5 text-xl font-semibold text-zinc-950 dark:text-zinc-50">
             Performance Summary
@@ -69,11 +96,20 @@ export function AttemptResultsPanel({
       </div>
 
       <p data-testid="attempt-save-status" className="text-xs text-zinc-500" aria-live="polite">
-        {saveStatus === "demo" ? "Demonstration results — excluded from your saved attempt history."
-          : saveStatus === "saving" ? "Saving this attempt on this device…"
-          : saveStatus === "indexeddb" ? "Saved on this device. Cloud sync is not connected yet."
-          : "Available until you reload. Device storage is unavailable."}
+        {saveMessage(saveStatus, cloudStatus)}
+        {cloudStatus === "local-only" && saveStatus === "indexeddb" && onRetrySync && (
+          <button type="button" data-testid="retry-cloud-sync" className="ml-2 underline" onClick={onRetrySync}>
+            Retry sync
+          </button>
+        )}
       </p>
+      <p data-testid="deterministic-review" className="sr-only">{review.summary}</p>
+      {aiNote && (
+        <div role="status" data-testid="ai-review-fallback" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+          <p>{aiNote}</p>
+          <button type="button" data-testid="dismiss-ai-review" className="rounded border border-amber-400 px-2 py-1" onClick={() => setDismissedNote(noteKey)}>Dismiss</button>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-6">
         <div
           className={`flex flex-col justify-between rounded-lg border p-3.5 sm:col-span-2 ${scoreToneClass(attemptResult.overallScore)}`}
@@ -86,7 +122,7 @@ export function AttemptResultsPanel({
             <span className="text-sm opacity-75">/ 100</span>
           </div>
           <span className="mt-1 text-xs opacity-80">
-            Weighted across 20 deterministic motion metrics
+            Combined from 20 motion measures
           </span>
         </div>
 
@@ -125,7 +161,7 @@ export function AttemptResultsPanel({
           <p className="mt-0.5 font-semibold text-zinc-950 dark:text-zinc-50">
             {formatMetricName(strongestMetric.id)} ({strongestMetric.score}/100)
           </p>
-          <p className="mt-0.5 font-mono text-xs text-zinc-600 dark:text-zinc-400">
+          <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
             {strongestMetric.explanation}
           </p>
         </div>
@@ -140,7 +176,7 @@ export function AttemptResultsPanel({
           <p className="mt-0.5 font-semibold text-zinc-950 dark:text-zinc-50">
             {formatMetricName(weakestMetric.id)} ({weakestMetric.score}/100)
           </p>
-          <p className="mt-0.5 font-mono text-xs text-zinc-600 dark:text-zinc-400">
+          <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
             {weakestMetric.explanation}
           </p>
         </div>
@@ -159,7 +195,7 @@ export function AttemptResultsPanel({
             data-testid="ai-review-source"
             className="rounded-full border border-indigo-300 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:border-indigo-800 dark:text-indigo-300"
           >
-            Deterministic summary
+            {reviewSource === "model" ? "Model explanation" : "Deterministic summary"}
           </span>
         </div>
         <p data-testid="ai-review-summary" className="text-zinc-800 dark:text-zinc-200">
@@ -184,7 +220,8 @@ export function AttemptResultsPanel({
           </div>
         </div>
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-          Generated from the deterministic metrics above. Live AI narration is added when the review service is enabled.
+          {reviewSource === "model" ? "Explains the measured results above. Scores are calculated by the motion evaluator."
+            : "Generated from the deterministic metrics above. Available even when the review service is offline."}
         </p>
       </section>
 
@@ -237,7 +274,7 @@ export function AttemptResultsPanel({
         className="rounded-lg border border-zinc-200 p-3 text-xs dark:border-zinc-800"
       >
         <summary className="cursor-pointer font-semibold text-zinc-800 dark:text-zinc-200">
-          All 20 Kinematic Metrics ({evaluation.metrics.length})
+          All 20 measures ({evaluation.metrics.length})
         </summary>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {evaluation.metrics.map(metric => (
@@ -263,7 +300,7 @@ export function AttemptResultsPanel({
       </details>
 
       <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-        Educational simulation prototype — scores measure kinematic similarity against the reference trajectory and do not represent clinical competence or certification.
+        Practice score only. It compares this pass with the scene guide and is not a clinical grade.
       </p>
     </section>
   );

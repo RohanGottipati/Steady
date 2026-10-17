@@ -1,7 +1,6 @@
 import { needlePassingSkill } from "@/data/skills/needle-passing";
 import { evaluateAttempt, toAttemptResult } from "@/lib/evaluation/evaluate";
 import type { EvaluationResult, MetricExplanation, RecordedMotion } from "@/lib/evaluation/types";
-import { NEEDLE_ID } from "@/lib/simulation/tool-simulation";
 import {
   attemptResultSchema,
   motionFrameSchema,
@@ -17,6 +16,7 @@ import {
 } from "@/types";
 import { DEFAULT_NEEDLE_PASSING_REFERENCE, normalizeToolWithGripOffset } from "./ghost-reference";
 import { TISSUE_WALL_ZONE } from "./needle-passing-config";
+import { BOARD_EDGE_ZONE } from "./peg-transfer-config";
 
 export interface CompletedAttemptEvaluationInput {
   recorded: RecordedMotion;
@@ -51,8 +51,8 @@ export function detectActiveSide(recorded: RecordedMotion): "left" | "right" {
   let leftClosed = 0;
   let rightClosed = 0;
   for (const frame of recorded.frames) {
-    if (frame.leftTool.heldObjectId === NEEDLE_ID) leftHeld++;
-    if (frame.rightTool.heldObjectId === NEEDLE_ID) rightHeld++;
+    if (frame.leftTool.heldObjectId) leftHeld++;
+    if (frame.rightTool.heldObjectId) rightHeld++;
     if (frame.leftTool.jawClosed) leftClosed++;
     if (frame.rightTool.jawClosed) rightClosed++;
   }
@@ -160,7 +160,7 @@ export function evaluateCompletedAttempt({
   const evaluation = evaluateAttempt(recorded, adaptedReference, {
     metricWeights: skill.metricWeights,
     scene: {
-      dangerBoxes: [TISSUE_WALL_ZONE],
+      dangerBoxes: [skill.id === "peg-transfer" ? BOARD_EDGE_ZONE : TISSUE_WALL_ZONE],
       collisionRadius: 0.05,
     },
   });

@@ -53,6 +53,14 @@ Continuous aggregates:
 - After completion, compact numerical telemetry is batch uploaded.
 - Raw webcam frames are never stored.
 - IndexedDB is the offline/pending-sync buffer.
+- S3 upload is one idempotent row in `attempts` plus one `attempt_scores` vector,
+  using the browser's stable anonymous user ID and the existing AttemptUploadPayload
+  contract. Identity fields must match the nested result. Server-owned skill metadata
+  makes both trainable skills uploadable. `ON CONFLICT (id) DO NOTHING` serializes
+  same-ID inserts; only the transaction that inserts the attempt writes a score.
+  Duplicates return before writing to the score hypertable. Motion-sample
+  hypertables are not filled here. If Tiger is unconfigured or the write fails, the
+  route returns 503 and the browser keeps the local attempt.
 - Recent telemetry stays queryable for replay/history.
 - Older telemetry converts to Hypercore columnstore according to policy.
 - Retention policy:
@@ -105,4 +113,6 @@ Record only useful, current information:
 - Free-plan limitations:
 - Pending migration issues:
 - Query/index issues:
-- Demo fallbacks:
+- Demo fallbacks: training, deterministic scores, and replay stay in the browser when
+  Tiger is down. Fixture sessions are not uploaded. S3 did not run a live cloud sync
+  smoke test; the route tests use a fake client.
