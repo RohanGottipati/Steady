@@ -1,8 +1,8 @@
 # Project Context
 
-Last updated: 2026-10-17 18:45 UTC
-Updated by: Person A — Task A5 (Ghost renderer, sub-frame 30 Hz interpolation, 0.5x/1x speed, progress-coupled sync, 1-Hand Mode, and JIGSAWS G8/G2 gesture mapping fix; rebased on main after B5 PR #8)
-Current branch: person-a/a5-ghost-renderer
+Last updated: 2026-10-17 19:00 UTC
+Updated by: Person B — Task B6 (live coaching event engine; rebased on main after A5 PR #9)
+Current branch: person-b/b6-live-coaching-engine
 Current milestone: M0–M4 implemented in dev preview; M1/M2/M3 physical acceptance pending
 Demo-critical status: YELLOW
 
@@ -96,6 +96,18 @@ truth for the current project state — it records what exists and where it is.
   workspace fitting + gesture-to-segment mapping for B4's JIGSAWS `Needle_Passing_E005`
   expert trial (`needle-passing-jigsaws-expert-v1.json`) with Gao et al. (2014)
   attribution. `/train/[skillId]` integration (`S1`) and 3D replay (`A6`) remain next.
+- Live coaching engine (B6): `src/lib/coaching/coaching-engine.ts` turns a compact
+  per-tick `CoachingSignals` snapshot (path/corridor deviation, danger zone, tool/
+  assisting-hand speed, grip slip, rotation lateness, overshoot) into deterministic
+  `CoachingEvent`s with 0–1 severity, obeying the shared `COACHING_MESSAGE_POLICY`:
+  a commit-delay queue lets a self-corrected issue cancel its queued message; per-type
+  8 s repeat suppression stops a sustained issue from spamming; a global 4 s cooldown +
+  4-message cap bound spoken audio. Recording keeps every event ≥ the 0.65 minimum;
+  `voiceCoachingLevel` (`full`/`high-severity`/`none`) sets a separate speak gate, so
+  Practice records medium-severity events for review but speaks only high-severity ones
+  and Assessment stays fully silent. `COACHING_MESSAGES` holds the §14.3 clip text (keys
+  the B7 ElevenLabs assets). The engine never scores — authoritative scoring stays in
+  B3/B5. Live-loop wiring into the exercise/control streams is deferred to S1.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -146,6 +158,17 @@ truth for the current project state — it records what exists and where it is.
   `attribution`, `speed`, `syncMode`, `activeBehavior`, `tMs`, `normalizedProgress`,
   `segmentId`, `segmentProgress`, `stalled`, `leftTool`, `rightTool`, `leftPose`,
   `rightPose`, `needlePose`, `needleHeldBy`).
+- B6 live coaching engine (`src/lib/coaching/coaching-engine.ts`) consumes a compact
+  `CoachingSignals` per tick (`tMs`, `active`, `segmentId`, `voiceCoachingLevel`,
+  `corridorDeviation`/`inCorridor`, `inDangerZone`, `toolSpeed`, `assistingHandSpeed`,
+  `gripSlipping`, `rotationBehindDeg`, `overshoot`) and returns `CoachingTick`
+  (`recorded: CoachingEvent[]`, `spoken: {event,text}|null`, `canceledPending`).
+  Recording gate is the 0.65 minimum severity; `voiceCoachingLevel` (mapped straight
+  from A4 `modeHooks`) sets the separate **speak** gate (Practice speaks only
+  high-severity but still records medium events; Assessment records/speaks nothing). S1 owns
+  the adapter that derives per-tick speeds/grip-slip from `ControlSnapshot` +
+  `SimulationSnapshot` + the `ExerciseSnapshot`; the shared `CoachingEvent` schema and
+  `COACHING_MESSAGE_POLICY` in `src/types/coaching.ts` are unchanged.
 
 ## 4. Current Task Ownership
 Person A - Realtime Vision and 3D Simulation:
@@ -165,8 +188,8 @@ Person A - Realtime Vision and 3D Simulation:
   (3D replay renderer) are next; A1/A2/M2/M3 physical performance acceptance remains pending.
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
-- S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4), B4 external data conversion (merged to main via #6) done; B5 full 20-metric evaluator done on branch b5
-- B6 live coaching event engine next (depends on B3/B5); B10 Tiger persistence can proceed in parallel against the frozen `PERFORMANCE_VECTOR_ORDER`/`vector(20)` + `AttemptUploadPayload` contracts
+- S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4), B4 external data conversion (merged to main via #6), B5 full 20-metric evaluator (merged to main via #8) done
+- B6 live coaching event engine implemented (live telemetry only, so it did not block on B5; live wiring deferred to S1). B7 ElevenLabs integration next (B6's `COACHING_MESSAGES` key its clips). B10 Tiger persistence can proceed in parallel against the frozen `PERFORMANCE_VECTOR_ORDER`/`vector(20)` + `AttemptUploadPayload` contracts
 
 ## 5. Completed Tasks
 - Partial S0 - repository structure and docs seeded
@@ -247,6 +270,17 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   display smoothing, and runtime JIGSAWS `Needle_Passing_E005` workspace fitting +
   gesture mapping (`src/lib/exercise/ghost-reference.ts`) with Gao et al. (2014)
   attribution. Unit, scene-lifecycle, and Chromium E2E tests pass.
+- B6 - live coaching event engine (`src/lib/coaching/coaching-engine.ts`): deterministic
+  threshold rules → `CoachingEvent`s (path_deviation, danger_zone_near, moving_too_fast,
+  unstable_grip, left_hand_unstable, rotation_late, overshoot) with 0–1 severity;
+  commit-delay queue with self-correction cancel, per-type 8 s repeat suppression,
+  global 4 s cooldown, 4-message spoken cap, a 0.65 recording gate plus a separate
+  `voiceCoachingLevel` speak gate (Practice records medium events but speaks only
+  high-severity; Assessment silent), event recording, and §14.3 message selection
+  (`COACHING_MESSAGES`). 17 unit tests in `tests/unit/coaching-engine.test.ts` cover the
+  three acceptance criteria (one event per large deviation, no spam while sustained,
+  cancel-on-correction) plus cooldown/cap, record-vs-speak gating (incl. the Practice
+  overshoot regression), `CoachingEvent` schema validity, and reset. Live wiring deferred to S1.
 
 ## 6. In Progress
 - A3 usability acceptance - synthetic depth-drift pickup, assistance switching and
@@ -325,6 +359,18 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
+Latest verification for B6 (2026-10-17, on `person-b/b6-live-coaching-engine` rebased on main `100c97b` / A5 PR #9):
+- `npm run typecheck`: passed.
+- `npm run lint`: passed without warnings.
+- `npx vitest run --exclude "**/b0-tiger-bootstrap.test.ts"`: 24 files / 216 tests
+  passing, including 17 new B6 tests in `tests/unit/coaching-engine.test.ts` (one event
+  per large deviation, no spam while sustained, cancel-on-correction, cooldown/cap,
+  record-vs-speak `voiceCoachingLevel` gating incl. the Practice overshoot regression,
+  `CoachingEvent` schema validity, reset). The B0
+  Tiger integration test was excluded to avoid cloud writes (passes idempotently alone).
+  Production build not re-run (engine is pure TS, no new deps/routes; host still hits the
+  known Turbopack CSS-worker restriction).
+
 Latest verification on `person-a/a5-ghost-renderer` (2026-10-17, on top of main `296e8b5` / B5 PR #8):
 - `npm run typecheck`: passed.
 - `npm run lint`: passed without warnings.
@@ -387,11 +433,14 @@ no production build success claimed.
 ## 11. Next Recommended Actions
 1. Both (Person A + Person B): Implement **S1 — First end-to-end integration** on `/train/[skillId]` (connecting webcam, calibration/1-hand quick start, 3D scene, A4 exercise engine, A5 ghost renderer, B5 20-metric evaluator with `tissue-wall` danger zone options, and deterministic `?fixture=` fallback), or Person A proceeds to **A6 — Attempt recording and 3D replay renderer** (dual user/expert replay, offline replay smoothing, deviation connectors, and seekable replay cursor API).
 2. Person A: Run target-Mac physical-camera QA from `docs/HAND_TRACKING.md` and `docs/SIMULATION.md`.
-3. Person B: B2 + B3 + B4 + B5 done → **B6** live coaching event engine (depends on
-   B3/B5). B10 Tiger persistence can run in parallel now (frozen 20-vector +
-   `AttemptUploadPayload` contracts; only B10 touches the DB). Deferred analytics/search
-   work belongs to B10/B12.
-4. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
+3. Person B: B2 + B3 + B4 + B5 + B6 done → **B7** ElevenLabs integration (pre-generate the
+   `COACHING_MESSAGES` clips, `/api/speech`, audio manager, browser-speech fallback; now
+   unblocked since B6 exists). B10 Tiger persistence can run in parallel now (frozen
+   20-vector + `AttemptUploadPayload` contracts; only B10 touches the DB). At **S1**, wire
+   the B6 engine into the live loop via a `CoachingSignals` adapter over `ControlSnapshot`
+   + `SimulationSnapshot` + `ExerciseSnapshot`. Deferred analytics/search work belongs to B10/B12.
+4. Keep `npm run verify:ai` green after key rotation. B6 now exists → B7 unblocked; B8/B9
+   still pending (B8 needs A6 + B5).
 
 ## 12. Manual Demo Notes
 - Target browser: latest Chrome on macOS.
