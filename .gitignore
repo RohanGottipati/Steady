@@ -67,6 +67,8 @@ public/mediapipe/*.tmp
 *.webm
 *.wav
 *.mp3
+# B7: pre-generated coaching voice clips are committed assets (small, demo-critical).
+!public/audio/coach/*.mp3
 
 # Python
 .venv/

@@ -1,9 +1,9 @@
 # Project Context
 
-Last updated: 2026-10-17 19:59 UTC
-Updated by: Joint S1 integration — publication and user-reviewed preview
-Current branch: integration/s1-training-results (branched from origin/main 097d3d4 / B6 PR #10; S1 publication branch targeting main)
-Current milestone: S1 training/results integrated; physical M1/M2/M3 and production-build acceptance pending
+Last updated: 2026-10-17 21:20 UTC
+Updated by: Person B — Task B7 (ElevenLabs voice integration; rebased onto main after S1 PR #12)
+Current branch: person-b/b7-elevenlabs-voice
+Current milestone: S1 training/results integrated; B7 voice layer added; physical M1/M2/M3 and production-build acceptance pending
 Demo-critical status: YELLOW
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -108,6 +108,25 @@ truth for the current project state — it records what exists and where it is.
   and Assessment stays fully silent. `COACHING_MESSAGES` holds the §14.3 clip text (keys
   the B7 ElevenLabs assets). The engine never scores — authoritative scoring stays in
   B3/B5. S1 now wires these signals into text coaching and the completed result events.
+- ElevenLabs voice layer (B7): `src/lib/voice/` + `src/app/api/speech/route.ts`.
+  The 7 common coaching clips (keyed by `CoachingEventType`) are pre-generated as
+  committed static MP3s under `public/audio/coach/<type>.mp3` (run `npm run audio:coach`;
+  idempotent, `--force` to regenerate, `--dry-run` to preview). `coach-clips.ts` is the
+  dependency-free canonical clip manifest (text mirrors B6 `COACHING_MESSAGES`; a unit
+  test guards no drift). `AudioManager` (`audio-manager.ts`) drives coaching voice through
+  `coach(type)` with a live-first fallback chain: (1) live ElevenLabs via `POST /api/speech`,
+  (2) the committed pre-generated clip, (3) browser `speechSynthesis` (see `docs/DECISIONS.md`
+  2026-10-17). `speak(text)` handles dynamic/review phrases (live→browser); `playClip(type)`
+  is a clip-only primitive. One voice line at a time (normal dropped while busy, high-priority
+  interrupts, `cancel()` stops + invalidates in-flight); exposes `isSpeaking`. `/api/speech`
+  validates text via the shared
+  `speechRequestSchema` and calls ElevenLabs through the `server-only` `tts-server.ts`, so
+  the API key only ever reaches ElevenLabs via the `xi-api-key` header — never the browser
+  bundle or any response body. Public-deploy hardening (PR #11 review): the route is a 503
+  no-op unless `SPEECH_ENABLED=true` and is per-IP rate limited (`SPEECH_RATE_LIMIT`/min,
+  default 20, in-memory fixed window in `rate-limit.ts`); a 503/429 is safe because the
+  client degrades to clips + browser speech. S1/S2 wire `AudioManager` into the live coaching
+  loop and review narration.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -169,6 +188,12 @@ truth for the current project state — it records what exists and where it is.
   the adapter that derives per-tick speeds/grip-slip from `ControlSnapshot` +
   `SimulationSnapshot` + the `ExerciseSnapshot`; the shared `CoachingEvent` schema and
   `COACHING_MESSAGE_POLICY` in `src/types/coaching.ts` are unchanged.
+- B7 voice layer (`src/lib/voice/`): `coach-clips.ts` (`COACH_CLIPS`, `COACH_CLIP_BY_TYPE`,
+  `coachClipPath(type)`) is client/server/script-safe (type-only import). `speech-contract.ts`
+  (`speechRequestSchema`, `MAX_SPEECH_TEXT_LENGTH`) is the shared `/api/speech` request
+  contract. `tts-server.ts` is `server-only` (`synthesizeSpeech`, `SpeechConfigError` → 503,
+  `SpeechUpstreamError` → 502). `AudioManager` takes injectable `createAudio`/`fetchFn`/
+  `fallbackSpeak` for testability. Shared `src/types/` contracts are unchanged.
 
 ## 4. Current Task Ownership
 Person A - Realtime Vision and 3D Simulation:
@@ -189,7 +214,8 @@ Person A - Realtime Vision and 3D Simulation:
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4), B4 external data conversion (merged to main via #6), B5 full 20-metric evaluator (merged to main via #8) done
-- B6 live coaching event engine implemented (live telemetry only, so it did not block on B5; S1 live text/event wiring implemented). B7 ElevenLabs integration next (B6's `COACHING_MESSAGES` key its clips). B10 Tiger persistence can proceed in parallel against the frozen `PERFORMANCE_VECTOR_ORDER`/`vector(20)` + `AttemptUploadPayload` contracts
+- B6 live coaching event engine implemented (live telemetry only, so it did not block on B5; S1 live text/event wiring implemented). B10 Tiger persistence can proceed in parallel against the frozen `PERFORMANCE_VECTOR_ORDER`/`vector(20)` + `AttemptUploadPayload` contracts
+- B7 ElevenLabs voice layer implemented: pre-generation script + 7 committed common clips, `/api/speech`, `AudioManager` (overlap-safe) with live-ElevenLabs-first → clip → `speechSynthesis` fallback chain (`coach(type)`). Next: wire `AudioManager` voice into the live loop (S1/S2), B8 results UI (needs A6 + B5), B9 Backboard/Gemini review (needs B8), S2 narrated replay (needs A6+B7+B9).
 
 ## 5. Completed Tasks
 - S1 implementation — one scene-driven `TrainingRuntime` connects camera or fixed
@@ -298,6 +324,18 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   three acceptance criteria (one event per large deviation, no spam while sustained,
   cancel-on-correction) plus cooldown/cap, record-vs-speak gating (incl. the Practice
   overshoot regression), `CoachingEvent` schema validity, and reset. S1 now wires live text/events.
+- B7 - ElevenLabs voice integration (`src/lib/voice/` + `src/app/api/speech/route.ts` +
+  `scripts/audio/generate-coach-clips.mjs`, `npm run audio:coach`): dependency-free clip
+  manifest (`coach-clips.ts`), shared request contract (`speech-contract.ts`), `server-only`
+  ElevenLabs helper (`tts-server.ts`), overlap-safe `AudioManager` whose `coach(type)` runs a
+  live-ElevenLabs-first → pre-generated-clip → `speechSynthesis` fallback chain (see
+  `docs/DECISIONS.md` 2026-10-17), 7 committed common clips under `public/audio/coach/`
+  (ID3/valid mp3, 28–49 KB; `.gitignore` `*.mp3` exception added), and `/api/speech`
+  public-deploy hardening (`SPEECH_ENABLED` kill-switch → 503; per-IP `rate-limit.ts` → 429).
+  38 unit tests across `coach-clips`, `speech-contract`, `audio-manager`, `tts-server`,
+  `rate-limit`, `speech-route` cover the four acceptance criteria plus the live→clip→browser
+  chain, blob-revoke-on-cancel/interrupt, fallback overlap, kill-switch 503 and per-IP 429.
+  Live-loop + narration wiring is S1/S2.
 
 ## 6. In Progress
 - A3 usability acceptance - synthetic depth-drift pickup, assistance switching and
@@ -358,6 +396,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - Hand Landmarker float16 v1 and MediaPipe 1.1.1 WASM: acquired, checksum verified;
   source/license/attribution recorded in `docs/ASSET_LICENSES.md`. Generated binaries are ignored.
 - Reference motions: S1 evaluates the runtime canonical synthetic Needle Passing scene guide (the raw committed JSON remains unchanged). The optional JIGSAWS expert ghost is display-only; other expert-derived skills remain data-only. Synthetic peg-transfer remains available as adapter/evaluator data.
+- Coaching audio (B7): 7 committed ElevenLabs-generated common clips under `public/audio/coach/<type>.mp3` (voice Alice / `eleven_flash_v2_5`). Regenerate with `npm run audio:coach -- --force`. `.gitignore` exempts these from the global `*.mp3` rule.
 
 ## 9. External Service Status
 - Tiger Cloud service created: yes (project `p2r9lzrn7s`, service `ort1b0mw86` "db-21893", free plan, us-east-1, Postgres 18.6 / TimescaleDB 2.30.2; connection verified via `tiger db ping`). `TIGER_DATABASE_URL`/`TIGER_PROJECT_ID`/`TIGER_SERVICE_ID` set in encrypted `.env.local`. Details in `docs/TIGER_DATA.md`.
@@ -367,7 +406,8 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - Tiger cloud sync smoke test: not-run
 - Tiger optional fork workflow available: unknown
 - Backboard model ID verified: yes (`BACKBOARD_MODEL_PROVIDER=google`, `BACKBOARD_MODEL_NAME=gemini-2.5-flash`)
-- ElevenLabs voice ID configured: yes (`ELEVENLABS_VOICE_ID=Xb7hH8MSUJpSbSDYk0k2`, voice name Alice — clear educator; TTS model `eleven_flash_v2_5` smoke-tested)
+- ElevenLabs voice ID configured: yes (`ELEVENLABS_VOICE_ID=Xb7hH8MSUJpSbSDYk0k2`, voice name Alice — clear educator; TTS model `eleven_flash_v2_5`). B7 generated the 7 common coaching clips live and committed them; dynamic `/api/speech` route wired (server-only key).
+- Dynamic TTS kill-switch: `/api/speech` only synthesizes when `SPEECH_ENABLED=true` (server-only env; set in local `.env.local`, must also be set in the public/Vercel deploy to enable live voice). Optional `SPEECH_RATE_LIMIT` (default 20) / `SPEECH_RATE_WINDOW_MS` (default 60000) bound per-IP calls. With the switch off, coaching uses committed clips + browser speech.
 - Vercel env configured: no
 
 ## 10. Commands That Must Pass
@@ -393,7 +433,19 @@ Latest S1 verification (2026-10-17, implementation carried to `integration/s1-tr
   Turbopack `globals.css` CSS-worker port `Operation not permitted` failure even with
   an elevated retry. No production-build or physical-camera signoff is claimed.
 
-Latest verification for B6 (2026-10-17, on `person-b/b6-live-coaching-engine` rebased on main `100c97b` / A5 PR #9):
+Latest verification for B7 (2026-10-17, on `person-b/b7-elevenlabs-voice` rebased onto main `a1f1c2a` / S1 PR #12):
+- `npm run typecheck`: passed.
+- `npm run lint`: passed without warnings.
+- `npx vitest run --exclude "**/b0-tiger-bootstrap.test.ts"`: 38 B7 tests across
+  `coach-clips`, `speech-contract`, `audio-manager` (live→clip→browser `coach()` chain +
+  blob-revoke-on-cancel/interrupt + browser-fallback overlap), `tts-server`, `rate-limit`,
+  and `speech-route` (kill-switch 503 + per-IP 429) pass. Full suite to be re-confirmed
+  post-rebase (see note below). B0 Tiger test excluded to avoid cloud writes.
+- `npm run audio:coach`: generated 7 valid (ID3) mp3 clips live via ElevenLabs; idempotent
+  re-run skips all 7. Production build not re-run (host still hits the known Turbopack
+  CSS-worker restriction; B7 adds one pure-TS route + lib + static assets, no new deps).
+
+Prior verification for B6 (2026-10-17, on `person-b/b6-live-coaching-engine` rebased on main `100c97b` / A5 PR #9):
 - `npm run typecheck`: passed.
 - `npm run lint`: passed without warnings.
 - `npx vitest run --exclude "**/b0-tiger-bootstrap.test.ts"`: 24 files / 216 tests
@@ -467,13 +519,18 @@ no production build success claimed.
 ## 11. Next Recommended Actions
 1. Person A: A6 dual user/expert 3D replay (seekable cursor, smoothing and deviation
    connectors); S1 now supplies validated saved tool-motion frames and results.
-2. Person B: B7 audio consumes B6's existing message/event seam. B8 can add dedicated
-   results/history/replay navigation once A6 exists; B9 follows B8. S1's inline
-   results and text coaching must remain usable without these services.
+2. Person B: B7 voice layer done (live-first `AudioManager.coach()` + clips + fallback,
+   `/api/speech` hardened). Next: wire `AudioManager` voice into S1's live loop (it already
+   exposes the B6 message/event seam) and the final review narration (S2). B8 adds dedicated
+   results/history/replay navigation once A6 exists; B9 follows B8. S1's inline results and
+   text coaching must remain usable without these services.
 3. Person B: B10 cloud synchronization uses the existing pending `SavedAttempt` /
    `AttemptUploadPayload` and frozen 20-vector contracts. Keep demo attempts out of
    uploaded history and preserve asynchronous local evaluation/cache behavior.
-4. Run the normal production build on an unrestricted host and collect the target-Mac
+4. Set `SPEECH_ENABLED=true` (and optional `SPEECH_RATE_LIMIT`) in the Vercel deploy to
+   enable live voice; keep `npm run verify:ai` green after key rotation and regenerate
+   coaching clips with `npm run audio:coach -- --force` if the voice changes.
+5. Run the normal production build on an unrestricted host and collect the target-Mac
    physical checks in `docs/HAND_TRACKING.md` / `docs/SIMULATION.md`. The build-port
    restriction and measured hardware acceptance remain open.
 
