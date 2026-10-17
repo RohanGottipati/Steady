@@ -1,8 +1,8 @@
 # Project Context
 
 Last updated: 2026-10-17 05:40 UTC
-Updated by: B2 rebased on main (A1 + B0 + B1)
-Current branch: b2
+Updated by: main fast-forwarded to origin (A1 + B0 + B1 + B2); local A2 work restored
+Current branch: main
 Current milestone: M0
 Demo-critical status: YELLOW
 
@@ -45,7 +45,17 @@ truth for the current project state — it records what exists and where it is.
 - `/api/health` reports `{ ok, service, db }` where `db` is `up`/`down`/`unconfigured` and never throws on DB outage (server-only client in `src/lib/db/`).
 - `/library` lists all four skills (data-driven from `src/data/skill-catalog.ts`) with difficulty/source/license badges, availability, and client-side search; `/train/[skillId]` is a STUB (shared file) with a mode selector and a placeholder where Person A adds the 3D trainer. Every card links to `/train/[id]`; coming-soon skills reach a friendly notice there instead of breaking navigation.
 - Reference-motion framework (B2): `src/lib/references/load-reference.ts` loads + Zod-validates `ReferenceMotion` JSON (browser-usable); stdlib Python adapters (`scripts/data/{jigsaws,lask}/adapter.py` + `scripts/data/common/reference_builder.py`) convert synthetic CSVs into canonical references (coordinate transform → 30 Hz resample → segment-normalize). Committed fixtures: `public/references/{needle-passing,peg-transfer}/*.json`.
-- Calibration, pinch/rotation control, 3D tools, and evaluation are not implemented.
+- A2 implementation available in the same development preview: automatic
+  neutral/open → pinch → workspace calibration, canonical target visualization,
+  One Euro position filtering, bounded palm rotation/depth, debounced pinch,
+  grip-preserving tracking loss and gated recovery. Shared contracts are unchanged.
+- Workspace now guides one hand/direction at a time with visible arrow checkmarks.
+  Confirmed directions survive tracking interruptions; its 45-second timeout offers
+  workspace-only retry that preserves open/pinch measurements and completed arrows.
+- Control filtering now uses a 3 Hz base cutoff / beta 0.75 for position and
+  quaternion response. Synthetic phase-delay and stationary-jitter tests guard
+  responsiveness; the generic One Euro defaults, pinch and recovery gates are unchanged.
+- 3D instruments and evaluation are not implemented.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -64,12 +74,26 @@ truth for the current project state — it records what exists and where it is.
 - Zod schemas co-located with types; parse before trusting external/AI JSON
 - A1's internal `RawTrackedHand`/`TrackingSnapshot` interfaces live in `src/lib/vision/types.ts`.
   Observations use unmirrored SDK coordinates with nullable left/right slots and
-  monotonic millisecond timestamps. Shared `HandFrame` stays unchanged until A2
-  derives real control values. See `docs/HAND_TRACKING.md` for the complete handoff.
+  monotonic millisecond timestamps. Shared `HandFrame` schema is unchanged.
+- A2-owned `CalibrationProfile`, `ToolControlTarget`, and `ControlSnapshot` live in
+  `src/lib/vision/control-types.ts`. `useHandControls(tracking)` composes with one
+  tracker and exposes a ref snapshot plus calibration actions and a 4 Hz UI sample.
+  HandFrame palm center/landmarks retain SDK coordinates; palm rotation is the
+  calibrated, clamped and filtered canonical target rotation. Pinch ratio is the
+  measured world-space thumb/index distance divided by MCP width; confidence is
+  assigned-label probability, not landmark accuracy.
+- A3 target handoff: canonical position/rotation/jaw state only; A3 owns tips,
+  instrument geometry and held objects. Honor `canProgress`; missing hands do not
+  create release events or fresh observations. See `docs/HAND_TRACKING.md` for the
+  full coordinate, timing, calibration and lifecycle contract.
 
 ## 4. Current Task Ownership
 Person A - Realtime Vision and 3D Simulation:
 - A1 webcam, two-hand detection, identity helper, and development preview
+- A2 implemented: calibration and ref-backed control targets in vision/filters,
+  camera preview, related tests, and handoff documentation. Shared contracts and
+  Person B subsystems remain unchanged. The existing development route is the
+  integration surface; its copy now describes calibration and control targets.
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - S0 bootstrap, B0 Tiger bootstrap, B1 skill library (merged) done; B2 reference-motion adapters done on this branch
@@ -97,8 +121,30 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   stdlib Python JIGSAWS/LASK adapters + shared builder (`scripts/data/`), synthetic
   sample CSVs, committed canonical fixtures under `public/references/`. Tests:
   `reference-loader.test.ts`, `reference-adapter.test.ts` (adapter run auto-skips without Python).
+- A2 implementation - deterministic automatic calibration, canonical XY/depth and
+  neutral-relative rotation targets, One Euro filtering, calibrated pinch
+  hysteresis, 200 ms loss status and three-frame recovery without synthetic grip
+  release. Development preview includes calibration/retry/cancel, target canvas,
+  diagnostics and planar depth fallback. Unit/browser regression coverage and
+  README, handoff, decisions and canonical plan updated. Physical acceptance is
+  pending; A3 implementation is unblocked, but M1 is not declared complete.
+- A2 workspace usability fix - replaced an all-or-nothing sweep window with
+  independent sustained direction captures and actionable per-hand prompts.
+  Stationary-stage quality gates are unchanged; invalid/missing observations earn
+  no credit. Tests cover preserved progress, sequential hands, single-frame spikes,
+  suspension and workspace-only timeout/retry. Documentation updated.
 
 ## 6. In Progress
+- A2 manual verification - Person A confirmed calibration completes and pinching
+  opens/closes the controls (2026-10-17). After receiving the recovery, rotation,
+  depth, crossings and two-minute checklist, Person A reported everything seems
+  mostly good, then clarified that movement feels slightly laggy throughout.
+  Control-specific smoothing was tuned in response; Person A retested and accepted
+  the result for now (2026-10-17). A3 is ready to start.
+  This is qualitative feedback, not a measured soak signoff.
+- A2 acceptance - measured calibration duration, FPS/latency, React profiler and
+  detailed physical test outcomes remain unrecorded. Use the checklist in
+  `docs/HAND_TRACKING.md` when collecting formal performance evidence. A3 is unblocked.
 - S0 - bootstrap acceptance commands must stay green; remaining product shell dirs can grow with A1/B0
 - A1 acceptance - target Mac physical-camera two-minute soak, anatomical labels,
   measured FPS/latency, React profiler, lighting/overlap and disconnect QA remain manual.
@@ -108,8 +154,20 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - B0 - deferred to B10/B12: continuous aggregates, vector/BM25 indexes, retention/columnstore, Tiger MCP (intentionally skipped; agents use CLI + `.env.local`)
 
 ## 7. Known Issues / Risks
+- Person A reported slight movement lag. The initial filter added about 119–121 ms
+  of synthetic position phase lag at 20/30 FPS. Revised position/rotation settings
+  pass a <70 ms filter-delay bound plus jitter checks. This excludes camera and
+  inference time. Person A accepted the revised responsiveness for now; measured
+  end-to-end latency and HUD FPS/inference figures remain unrecorded.
+- Person A reported confusing workspace instructions and repeated timeouts in the
+  initial A2 preview. The revised arrow guidance and recoverable capture pass
+  automated checks, and Person A confirmed calibration and pinch open/close work
+  on retry, followed by broadly positive feedback on the remaining checklist.
+  Detailed physical outcomes and measured performance remain unrecorded.
 - Production build remains blocked by the existing Turbopack CSS worker local-port
-  restriction (`Operation not permitted`), including an escalated retry on 2026-10-17.
+  restriction (`Operation not permitted`), reproduced by A2's escalated normal-build
+  retry on 2026-10-17. The sandboxed build first failed to fetch existing Google
+  Fonts; the unrestricted retry reached the known CSS worker port restriction.
   Verify the normal build on an unrestricted host before release; no production success claimed.
 - Full hand overlap can be ambiguous. A1 emits missing observations rather than
   manufacturing identity; restart or remove/re-show hands if initialization was incorrect.
@@ -143,17 +201,33 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
-Latest verification on b2 rebased on main (2026-10-17): typecheck and lint clean;
+Latest verification on main after B2 (2026-10-17): typecheck and lint clean;
 full suite passes (A1 vision, B0 database integration/health, B1 skill catalog,
 B2 reference loader + adapter round-trip). DB-backed tests auto-skip without
 `TIGER_DATABASE_URL`; the Python adapter test auto-skips without Python on PATH.
-Production build passed in this environment; A1 previously reported the build
+Production build passed in that environment; A1 previously reported the build
 blocked by a Turbopack CSS-worker port restriction on a restricted host — confirm
 on an unrestricted host before release.
+Latest A2 verification (2026-10-17): typecheck and lint passed; 80 local unit tests
+passed across 12 files using `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`.
+B0's integration test was intentionally excluded: it applies migrations and seed
+writes to the configured cloud service, outside A2's scope. Existing health unit
+tests passed; no current cloud/database integration success is claimed.
+Seven Chromium browser tests passed, including the new sequential workspace arrow
+capture across tracking loss, A2 guided calibration, movement,
+pinch/loss/recovery, planar fallback, cancellation/retry and restart, plus actual
+local MediaPipe worker inference/offline continuation and main-thread fallback.
+Pinned/checksummed model preparation and cached reuse passed. Unit coverage also
+includes invalid/overflowing geometry, stale/reordered/duplicate timestamps,
+filter resets, pinch chatter, orientation limits, independent profiles, Strict
+Mode/Activity cleanup, visibility/stream changes, backend suspension and absence
+of frame-driven React rendering. Physical-camera accuracy and performance acceptance remain pending.
 
 ## 11. Next Recommended Actions
-1. Person A runs A1's physical-camera QA from `docs/HAND_TRACKING.md`, then begins A2 calibration/pinch/rotation/smoothing using the raw snapshot interface.
-2. Person B: B2 done → B3 deterministic evaluation engine next (path/orientation metrics against the reference), then B5 full 20-metric evaluator.
+1. Person A runs A1/A2's physical-camera QA from `docs/HAND_TRACKING.md` and records
+   actual outcomes. Proceed with A3 instruments using A2 control targets; honor
+   freshness/progression gates and keep held-object ownership in simulation.
+2. Person B: B2 done → B3 deterministic evaluation engine next (path/orientation metrics against the reference), then B5 full 20-metric evaluator. Deferred analytics/search work belongs to B10/B12.
 3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
 ## 12. Manual Demo Notes
@@ -164,4 +238,13 @@ on an unrestricted host before release.
 - Stop and route/effect cleanup release the camera. Background tabs suspend inference while retaining the stream.
 - Use bright frontal lighting.
 - Keep both hands fully visible during calibration.
+- Select Calibrate controls after Start camera. Hold open hands, pinch both, then
+  reopen and follow the arrow checklist above the webcam. Move one hand at a time
+  left/right/up/down from neutral and hold briefly until each arrow checks off.
+  Completed arrows are saved through interruptions. Workspace allows 45 seconds;
+  Retry workspace keeps earlier calibration and confirmed arrows. Three seconds
+  is the minimum valid observation time; guided movement/transitions take longer.
+- Calibration is memory-only and resets with camera stream/format changes. Tabs
+  and backend fallback preserve profiles but require three-frame recovery.
+- Debug mode shows calibrated pinch thresholds and a planar depth fallback.
 - Backup fixture mode: not implemented yet.

@@ -9,6 +9,52 @@ Record architectural and product decisions here as they are made.
 - Decision:
 - Consequences:
 
+### 2026-10-17 - A2 control smoothing favors responsiveness within jitter bounds
+- Context: Person A reported slight lag throughout movement. A deterministic
+  0.5 Hz motion test showed roughly 119–121 ms of position-filter phase delay at
+  20/30 FPS with the original 1 Hz / beta 0.5 control settings, before camera and
+  inference costs.
+- Decision: Give position/quaternion controls a separate 3 Hz base cutoff and
+  beta 0.75, retaining derivative smoothing, shortest-path slerp, rotation limits,
+  grip debounce and recovery gates. Keep generic One Euro defaults unchanged.
+- Consequences: Tests require less than 70 ms filter phase lag for position and
+  rotation at 20/30 FPS and less than 45% RMS amplitude for injected stationary
+  jitter at 30 FPS. These are synthetic filter checks, not measured end-to-end
+  latency; real-camera response and HUD FPS/inference figures remain outstanding.
+
+### 2026-10-17 - A2 workspace uses confirmed directions and recoverable progress
+- Context: Person A reported unclear sweep instructions and repeated workspace
+  timeouts. The first implementation erased the entire workspace window whenever
+  either hand briefly lost tracking, while its timeout continued running.
+- Decision: Show an arrow checklist and prompt one hand/direction at a time.
+  Capture each direction independently with a sustained 120 ms excursion and at
+  least three valid observations; derive travel from the median of that hold.
+  Preserve confirmed directions across invalid observations/suspension and require
+  at least 1,500 ms of valid observation per hand before completion. Workspace
+  allows 45 foreground seconds; workspace-only retry retains captured directions
+  and neutral/pinch measurements. Full reset remains available.
+- Consequences: Missing/closed/ambiguous hands earn no credit, single-frame spikes
+  cannot complete directions, and stationary-stage quality gates stay unchanged.
+  Automated tests cover sequential capture, loss and retry. Person A's physical
+  retry remains necessary before claiming the reported experience is resolved.
+
+### 2026-10-17 - A2 local calibration and explicit control freshness
+- Context: A3 needs deterministic hand-to-tool targets while A1's observations
+  intentionally remain raw and the shared schemas belong to Person B.
+- Decision: Keep A2 profile/control types in Person A's vision subsystem. Compose
+  one tracker with a ref-backed controller and three-stage automatic calibration.
+  HandFrame palm center/landmarks remain SDK data; palm rotation is calibrated,
+  clamped, filtered canonical control rotation. Tool targets contain no fabricated
+  tips or object ownership. Reflect points and reconstruct a right-handed palm
+  basis, then use `current * inverse(neutral)` for scene-relative rotation.
+- Consequences: Shared schemas and data version stay unchanged. A3 computes tips,
+  owns held objects, interpolates display poses, and honors control freshness.
+  Missing input immediately inhibits progression and holds targets/grip; 200 ms
+  marks sustained loss, and recovery requires three valid frames plus fresh pinch
+  debounce. Camera sessions/formats own memory-only profiles; tab/backend
+  suspension retains them. Synthetic tests cannot establish target-Mac accuracy
+  or latency; physical acceptance remains explicitly pending.
+
 ### 2026-10-17 - A1 raw snapshots, local assets, and worker compatibility
 - Context: Person A needs webcam tracking before A2, but shared `HandFrame` requires
   calibrated pinch/rotation. The installed SDK is MediaPipe Tasks Vision 1.1.1.

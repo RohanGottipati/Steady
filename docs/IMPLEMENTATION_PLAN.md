@@ -1227,6 +1227,16 @@ Use a hand-lock layer:
 
 Calibration duration target: 2-4 seconds.
 
+A2 implements automatic neutral/open (750 ms), closed pinch (750 ms), and
+open-hand workspace sweep (at least 1,500 ms) stages. Those durations count valid
+samples; pose transitions, insufficient motion and retries extend elapsed time.
+Neutral/pinch time out after 15 foreground seconds each; workspace allows 45.
+Workspace now guides one hand at a time with per-direction checkmarks. Each
+direction needs a sustained valid excursion; completed directions survive tracking
+gaps. Workspace-only retry preserves those captures and the neutral/pinch stages.
+See `docs/HAND_TRACKING.md` for
+quality gates, recovery, configurable mapping and physical acceptance.
+
 Collect:
 
 - neutral palm center,
@@ -1241,18 +1251,20 @@ Store a `CalibrationProfile` in memory for the attempt.
 
 ```ts
 export type CalibrationProfile = {
-  leftScale: number;
-  rightScale: number;
-  leftNeutralPosition: Vec3;
-  rightNeutralPosition: Vec3;
-  leftNeutralRotation: Quat;
-  rightNeutralRotation: Quat;
-  leftOpenPinchRatio: number;
-  leftClosedPinchRatio: number;
-  rightOpenPinchRatio: number;
-  rightClosedPinchRatio: number;
+  dimensions: { width: number; height: number };
+  left: HandCalibration;
+  right: HandCalibration;
 };
 ```
+
+The actual A2-owned `HandCalibration`/`CalibrationProfile` definitions live in
+`src/lib/vision/control-types.ts`: each hand stores neutral image center, apparent
+palm scale, canonical neutral rotation, open/closed pinch ratios, calibrated
+enter/release thresholds and directional XY ranges. Profiles are memory-only and
+invalidated by camera stream or capture-format changes. Shared `src/types/` remain
+unchanged; HandFrame palm center/landmarks retain SDK coordinates, while its palm
+rotation is the calibrated control rotation. A3 consumes canonical target poses,
+not raw image centers or local world-coordinate translations.
 
 ## 8.7 Palm center
 
@@ -1286,6 +1298,11 @@ Require the state to remain stable for roughly 80-120 ms before toggling.
 
 Tune these values per calibration and expose them in debug mode.
 
+A2 measures the ratio in local world coordinates and derives per-hand thresholds:
+`closed + 0.28 * (open - closed)` to enter, and
+`closed + 0.40 * (open - closed)` to release, with a 100 ms debounce.
+The example 0.28/0.40 values above are not fixed raw-ratio thresholds in A2.
+
 ## 8.9 Wrist/palm rotation
 
 Construct a palm basis:
@@ -1305,6 +1322,11 @@ Then:
 
 Do not allow unrestricted 360-degree instrument flips.
 
+A2 reconstructs the orthonormal basis after transforming points to the canonical
+convention, uses `current * inverse(neutral)`, limits relative rotation to 90°,
+and smooths with adaptive quaternion slerp. Assigned-label confidence below 0.5
+holds rotation; it is not treated as a geometric accuracy estimate.
+
 ## 8.10 Depth
 
 A single webcam does not provide controller-grade absolute depth.
@@ -1317,6 +1339,10 @@ relative scale larger -> nearer
 ```
 
 Map it to a narrow tool workspace.
+
+A2's initial depth range is ±0.15 normalized scene units around neutral, with a
+debug planar fallback. XY travel is ±0.75 around per-hand rest positions. These
+are tunable simulator defaults, not physical centimeter measurements.
 
 Fallback if unstable:
 
@@ -1353,8 +1379,16 @@ Rules:
 
 - under ~200 ms loss: hold last stable tool transform,
 - do not auto-release a gripped object,
-- after sustained loss: fade tool control indicator and pause exercise progression,
-- resume only after several consecutive valid frames.
+- inhibit progression immediately on missing/invalid input; after 200 ms mark
+  sustained loss and fade the control indicator,
+- resume after three consecutive valid frames (gaps at most 120 ms), resetting
+  filter derivatives and pending pinch evidence while preserving grip.
+
+A2 exposes this gate as `ControlSnapshot.canProgress`; a held target is never
+published as a fresh HandFrame. Backend/tab suspension preserves calibration but
+requires recovery. Camera restart, errors, stream/format changes and effect
+teardown require recalibration. No A2 control event can detach a held object;
+that ownership belongs to A3/A4.
 
 ## 8.13 PuppetMaster patterns to reuse
 
@@ -3096,6 +3130,13 @@ owned by Person A. See `docs/HAND_TRACKING.md` for setup, interfaces and manual 
 - depth proxy,
 - tracking-loss grace,
 - hand-to-tool target transforms.
+
+Implementation surface: reusable `useHandControls(tracking)` and deterministic
+vision/filter modules, with guided calibration and target visualization in the
+existing development-only `/dev/hand-tracking?debug=1` preview. Shared schemas are
+unchanged. A3 owns real instrument meshes, tips, held objects and display-frame
+interpolation. Setup, interface semantics and physical QA are maintained in
+`docs/HAND_TRACKING.md`.
 
 ### Acceptance
 

@@ -30,8 +30,17 @@ preparation step and include the resulting `public/mediapipe/` assets.
 Person A's webcam preview is available during development at
 [`http://localhost:3000/dev/hand-tracking?debug=1`](http://localhost:3000/dev/hand-tracking?debug=1).
 Click **Start camera** to grant access; **Stop camera** releases it. The preview is
-404 in production. See [`docs/HAND_TRACKING.md`](docs/HAND_TRACKING.md) for the raw
-tracking interface, fallbacks, privacy details, and manual acceptance checklist.
+404 in production. Click **Calibrate controls**, hold both open hands still, pinch
+both thumb/index pairs, then follow the workspace arrow checklist. Move one open
+hand at a time left/right/up/down and hold briefly until each arrow is checked.
+Completed arrows survive tracking interruptions; **Retry workspace** keeps the
+earlier open/pinch measurements. Calibration needs at least three seconds of valid samples;
+pose transitions and retries take additional time. The lower canvas previews
+calibrated position, palm orientation, grip and tracking recovery; 3D instruments
+are the next task (A3). Debug mode includes calibrated pinch thresholds and a planar
+depth fallback. Calibration stays in memory and must be repeated after restarting
+the camera. See [`docs/HAND_TRACKING.md`](docs/HAND_TRACKING.md) for the raw and
+calibrated interfaces, fallbacks, privacy details, and manual acceptance checklist.
 
 After unlocking, commit and push `.env.local` changes normally; git-crypt encrypts
 them when staged. Keep the tracked file and its encryption rules in place. Do not

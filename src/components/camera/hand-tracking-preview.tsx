@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { HAND_CONNECTIONS, previewPoint } from "@/lib/vision/preview-coordinates";
 import { useHandTracking } from "@/lib/vision/use-hand-tracking";
+import { useHandControls } from "@/lib/vision/use-hand-controls";
 import type { TrackingDiagnostics } from "@/lib/vision/types";
+import { HandControlPanel, WorkspaceGuide } from "./hand-control-panel";
 
 export function HandTrackingPreview() {
-  const { videoRef, snapshotRef, diagnosticsRef, state, start, stop } = useHandTracking();
+  const tracking = useHandTracking();
+  const { videoRef, snapshotRef, diagnosticsRef, state, start, stop } = tracking;
+  const controls = useHandControls(tracking);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [debug, setDebug] = useState(false);
   const [hud, setHud] = useState<TrackingDiagnostics & { left: string; right: string }>({ backend: "none", trackingFps: 0, inferenceMs: 0, processedFrames: 0, left: "missing", right: "missing" });
@@ -63,11 +67,13 @@ export function HandTrackingPreview() {
         <button className="rounded-md border px-4 py-2 disabled:opacity-50" disabled={!active && state.status !== "starting"} onClick={stop}>Stop camera</button>
       </div>
       <p role="status" aria-live="polite">Status: {state.status}{state.message ? ` — ${state.message}` : ""}</p>
+      <WorkspaceGuide calibration={controls.ui.calibration} />
       <div className="relative overflow-hidden rounded-lg bg-zinc-950">
         <video ref={videoRef} muted playsInline className="block aspect-video w-full -scale-x-100 object-contain" aria-label="Mirrored webcam preview" />
         <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full object-contain" aria-hidden="true" />
       </div>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">Video and hand landmarks are processed in this browser and are not uploaded or recorded. Stop releases the camera. Cyan: left hand. Amber: right hand.</p>
+      <HandControlPanel controls={controls} running={state.status === "running"} debug={debug} />
       {debug && <dl aria-label="Tracking diagnostics" className="grid grid-cols-2 gap-2 rounded-lg border p-4 font-mono text-sm">
         <dt>Backend</dt><dd>{hud.backend}</dd>
         {hud.fallbackReason && <><dt>Fallback reason</dt><dd>{hud.fallbackReason}</dd></>}
