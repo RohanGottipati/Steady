@@ -65,3 +65,26 @@ test("S1 fixture replays and seeks issues in actual WebGL without a camera, pres
   await page.getByRole("link", { name: "← Library" }).click();
   await expect(page).toHaveURL(/\/library$/); expect(errors).toEqual([]);
 });
+
+test("B8: a results worst-moment opens the replay seeked to that issue", async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  await page.goto("/train/needle-passing?fixture=needle-pass-late-rotation&debug=1");
+  await expect(page.getByTestId("attempt-results-panel")).toBeVisible({ timeout: 20_000 });
+
+  // B8 deterministic AI-review fallback renders in the results.
+  await expect(page.getByTestId("ai-review")).toBeVisible();
+  await expect(page.getByTestId("ai-review-summary")).toContainText("Overall kinematic similarity");
+
+  // Jumping to the top issue from the results page lands on the same cursor as the
+  // in-replay marker 0 (both seek worstMoments[0]), proving the results-to-replay seek.
+  const state = async () => JSON.parse(await page.getByTestId("replay-state").innerText());
+  await page.getByTestId("worst-moment-0").click();
+  await expect(page.getByTestId("replay-status")).toContainText("Replay ready");
+  const fromResults = (await state()).timeMs;
+  await page.getByLabel("Replay timeline").focus(); await page.keyboard.press("Home");
+  await expect.poll(async () => (await state()).timeMs).toBe(0);
+  await page.getByTestId("replay-marker-0").click();
+  expect((await state()).timeMs).toBe(fromResults);
+  expect(fromResults).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});

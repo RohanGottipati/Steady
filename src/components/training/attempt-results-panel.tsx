@@ -1,7 +1,8 @@
 "use client";
 
+import { metricLabel as formatMetricName } from "@/lib/evaluation/metric-labels";
 import type { CompletedAttemptBundle } from "@/lib/exercise/attempt-evaluator";
-import type { CategoryScores, PerformanceMetricId } from "@/types";
+import type { AiReview, CategoryScores, ReplayMarker } from "@/types";
 
 const CATEGORY_LABELS: Record<keyof CategoryScores, string> = {
   precision: "Precision",
@@ -10,33 +11,6 @@ const CATEGORY_LABELS: Record<keyof CategoryScores, string> = {
   coordination: "Coordination",
   efficiencySafety: "Efficiency & Safety",
 };
-
-const METRIC_LABELS: Record<PerformanceMetricId, string> = {
-  pathSimilarity: "Path Similarity",
-  targetAccuracy: "Target Accuracy",
-  depthConsistency: "Depth Consistency",
-  instrumentOrientationAccuracy: "Instrument Orientation Accuracy",
-  movementSmoothness: "Movement Smoothness",
-  pathEfficiency: "Path Efficiency",
-  motionStability: "Motion Stability",
-  overshootControl: "Overshoot Control",
-  correctionEfficiency: "Correction Efficiency",
-  rotationControlAccuracy: "Rotation Control Accuracy",
-  pinchStability: "Pinch Stability",
-  gripTiming: "Grip Timing",
-  handWorkspaceControl: "Hand Workspace Control",
-  bimanualCoordination: "Bimanual Coordination",
-  segmentTiming: "Segment Timing",
-  speedProfileControl: "Speed Profile Control",
-  idleTimeControl: "Idle Time Control",
-  toolCollisionAvoidance: "Tool Collision Avoidance",
-  dangerZoneAvoidance: "Danger Zone Avoidance",
-  proceduralSequencing: "Procedural Sequencing",
-};
-
-function formatMetricName(id: string): string {
-  return METRIC_LABELS[id as PerformanceMetricId] ?? id;
-}
 
 function scoreToneClass(score: number): string {
   if (score >= 80) {
@@ -50,16 +24,21 @@ function scoreToneClass(score: number): string {
 
 export function AttemptResultsPanel({
   bundle,
+  review,
   onTryAgain,
+  onReviewMoment,
   saveStatus,
 }: {
   bundle: CompletedAttemptBundle;
+  review: AiReview;
   onTryAgain: () => void;
+  /** When provided, worst-moment markers become buttons that open the replay at that issue. */
+  onReviewMoment?: (marker: ReplayMarker) => void;
   saveStatus: "idle" | "saving" | "demo" | "indexeddb" | "memory";
 }) {
   const { attemptResult, evaluation, strongestMetric, weakestMetric } = bundle;
   const durationSeconds = Math.max(0.1, attemptResult.durationMs / 1000).toFixed(1);
-  const explanationById = new Map(evaluation.explanations.map(item => [item.id, item.text]));
+  const explanationById = new Map<string, string>(evaluation.explanations.map(item => [item.id, item.text]));
 
   return (
     <section
@@ -167,24 +146,88 @@ export function AttemptResultsPanel({
         </div>
       </div>
 
+      <section
+        data-testid="ai-review"
+        aria-label="Coach review"
+        className="space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/50 p-3.5 text-sm dark:border-indigo-900/60 dark:bg-indigo-950/25"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold tracking-wider text-indigo-800 uppercase dark:text-indigo-300">
+            Coach Review
+          </p>
+          <span
+            data-testid="ai-review-source"
+            className="rounded-full border border-indigo-300 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:border-indigo-800 dark:text-indigo-300"
+          >
+            Deterministic summary
+          </span>
+        </div>
+        <p data-testid="ai-review-summary" className="text-zinc-800 dark:text-zinc-200">
+          {review.summary}
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">What went well</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-zinc-600 dark:text-zinc-400">
+              {review.strengths.map((item, idx) => (
+                <li key={`strength-${idx}`}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">Focus next</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-zinc-600 dark:text-zinc-400">
+              {review.improvements.map((item, idx) => (
+                <li key={`improvement-${idx}`}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          Generated from the deterministic metrics above. Live AI narration is added when the review service is enabled.
+        </p>
+      </section>
+
       {attemptResult.worstMoments.length > 0 && (
         <div data-testid="worst-moments" className="space-y-1.5 rounded-lg border border-zinc-200 p-3 text-xs dark:border-zinc-800">
           <p className="font-semibold text-zinc-700 dark:text-zinc-300">
-            Top Deviation Markers (Replay Evidence)
+            {onReviewMoment ? "Jump to the top issues in replay" : "Top Deviation Markers (Replay Evidence)"}
           </p>
           <ul className="grid gap-1.5 sm:grid-cols-3">
-            {attemptResult.worstMoments.map((marker, idx) => (
-              <li
-                key={`${marker.segmentId}-${marker.tMs}-${idx}`}
-                className="rounded border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-900"
-              >
-                <span className="font-semibold capitalize">{marker.segmentId}</span> ·{" "}
-                <span className="font-mono">{Math.round(marker.tMs)} ms</span>
-                <div className="mt-0.5 text-zinc-600 dark:text-zinc-400">
-                  {formatMetricName(marker.metricId)} (severity {Math.round(marker.severity * 100)}%)
-                </div>
-              </li>
-            ))}
+            {attemptResult.worstMoments.map((marker, idx) => {
+              const detail = (
+                <>
+                  <span className="font-semibold capitalize">{marker.segmentId}</span> ·{" "}
+                  <span className="font-mono">{Math.round(marker.tMs)} ms</span>
+                  <div className="mt-0.5 text-zinc-600 dark:text-zinc-400">
+                    {formatMetricName(marker.metricId)} (severity {Math.round(marker.severity * 100)}%)
+                  </div>
+                </>
+              );
+              const key = `${marker.segmentId}-${marker.tMs}-${idx}`;
+              return onReviewMoment ? (
+                <li key={key}>
+                  <button
+                    type="button"
+                    data-testid={`worst-moment-${idx}`}
+                    onClick={() => onReviewMoment(marker)}
+                    className="w-full rounded border border-zinc-200 bg-zinc-50 p-2 text-left hover:border-indigo-400 hover:bg-indigo-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/40"
+                  >
+                    <span className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">
+                      Issue {idx + 1} — review in replay →
+                    </span>
+                    <div>{detail}</div>
+                  </button>
+                </li>
+              ) : (
+                <li
+                  key={key}
+                  className="rounded border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  {detail}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -208,7 +251,7 @@ export function AttemptResultsPanel({
                   {formatMetricName(metric.id)}
                 </span>
                 <p className="font-mono text-[11px] text-zinc-500">
-                  {explanationById.get(metric.id as PerformanceMetricId) ?? `${metric.score}/100`}
+                  {explanationById.get(metric.id) ?? `${metric.score}/100`}
                 </p>
               </div>
               <span className="font-mono text-sm font-semibold text-zinc-950 dark:text-zinc-50">

@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Component, useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { needlePassingSkill } from "@/data/skills/needle-passing";
+import { buildDeterministicReview } from "@/lib/ai/deterministic-review";
 import { type CompletedAttemptBundle } from "@/lib/exercise/attempt-evaluator";
 import { TrainingRuntime } from "@/lib/exercise/training-runtime";
 import { FIXTURE_CATALOG, type FixtureId } from "@/lib/exercise/fixture-playback";
@@ -12,7 +13,7 @@ import { loadReference } from "@/lib/references/load-reference";
 import { pickupFeedback } from "@/lib/simulation/tool-simulation";
 import type { ControlSnapshot } from "@/lib/vision/control-types";
 import type { SceneDiagnostics } from "@/components/scene/training-scene";
-import type { ReferenceMotion, SkillDefinition, TrainingMode } from "@/types";
+import type { ReferenceMotion, ReplayMarker, SkillDefinition, TrainingMode } from "@/types";
 import { AttemptResultsPanel } from "./attempt-results-panel";
 import { preloadReplayScene, ThreeDReplayPreview } from "./3d-replay-preview";
 
@@ -67,6 +68,7 @@ export function ThreeDTrainingPreview({
   const [status, setStatus] = useState<"loading" | "ready" | "lost" | "error">("loading");
   const [generation, setGeneration] = useState(0);
   const [replaying, setReplaying] = useState(false);
+  const [replayMarker, setReplayMarker] = useState<ReplayMarker | null>(null);
   const [assisted, setAssisted] = useState(true);
   const [localSingleHand, setLocalSingleHand] = useState(controlledSingleHand ?? false);
   const singleHand = controlledSingleHand ?? localSingleHand;
@@ -108,6 +110,12 @@ export function ThreeDTrainingPreview({
   }, [runtime, controller, exercise, ghost]);
   const reset = useCallback(() => { runtime.reset(); setSample(null); setUiTick(value => value + 1); }, [runtime]);
   const retry = useCallback(() => { reset(); setStatus("loading"); setGeneration(value => value + 1); }, [reset]);
+  const openReplay = useCallback((marker: ReplayMarker | null = null) => {
+    runtime.suspend("Reviewing completed attempt.");
+    setReplayMarker(marker);
+    setReplaying(true);
+  }, [runtime]);
+  const closeReplay = useCallback(() => { runtime.reset(); setReplaying(false); setReplayMarker(null); setStatus("loading"); }, [runtime]);
   const selectMode = (nextMode: TrainingMode) => {
     setLocalMode(nextMode); onModeChange?.(nextMode);
   };
@@ -163,14 +171,15 @@ export function ThreeDTrainingPreview({
   const ghostSnapshot = ghost.snapshot;
   const activeEvaluationBundle = runtime.bundle;
   const feedback = snapshot ? pickupFeedback(snapshot) : null;
+  const review = activeEvaluationBundle ? buildDeterministicReview(activeEvaluationBundle) : null;
   if (replaying && runtime.lastReplay) return <ThreeDReplayPreview key={runtime.lastReplay.attemptId}
-    replay={runtime.lastReplay} debug={debug} onClose={() => { runtime.reset(); setReplaying(false); setStatus("loading"); }} />;
+    replay={runtime.lastReplay} debug={debug} initialMarker={replayMarker ?? undefined} onClose={closeReplay} />;
   return <section aria-label="Virtual instrument preview" className="space-y-3 rounded-xl border p-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h2 className="text-lg font-semibold">Virtual instruments</h2>
       <div className="flex flex-wrap gap-2">
         {runtime.lastReplay && <button type="button" data-testid="open-attempt-replay" className="rounded-md border px-4 py-2"
-          onClick={() => { runtime.suspend("Reviewing completed attempt."); setReplaying(true); }}>Replay latest attempt</button>}
+          onClick={() => openReplay()}>Replay latest attempt</button>}
         <button
           type="button"
           data-testid="quick-single-hand-start"
@@ -391,8 +400,14 @@ export function ThreeDTrainingPreview({
       <p>{runtime.error}</p><button type="button" onClick={reset} className="mt-2 rounded border px-3 py-1">Restart attempt</button>
     </div>}
     {runtime.message && mode !== "assessment" && <p role="status" data-testid="live-coaching" className="rounded-lg border border-sky-400 p-3">{runtime.message}</p>}
-    {activeEvaluationBundle && (
-      <AttemptResultsPanel bundle={activeEvaluationBundle} onTryAgain={reset} saveStatus={runtime.saveStatus} />
+    {activeEvaluationBundle && review && (
+      <AttemptResultsPanel
+        bundle={activeEvaluationBundle}
+        review={review}
+        onTryAgain={reset}
+        onReviewMoment={runtime.lastReplay ? marker => openReplay(marker) : undefined}
+        saveStatus={runtime.saveStatus}
+      />
     )}
     <p data-testid="pickup-guidance" aria-live="polite" className={`rounded-lg border p-3 font-medium ${feedback?.ready ? "border-green-500 bg-green-50 text-green-950" : "border-slate-300"}`}>{feedback?.message ?? "Calibrate both hands to begin."}</p>
     <p data-testid="needle-ownership">Needle: {snapshot?.object.heldBy ?? "free"}</p>
