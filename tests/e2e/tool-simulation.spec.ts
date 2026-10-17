@@ -146,3 +146,104 @@ test("unavailable WebGL has an actionable retry while the tracking preview remai
   await expect(page.getByLabel("Simulation diagnostics")).toHaveCount(0);
   await page.getByRole("button", { name: "Stop camera" }).click();
 });
+
+async function guideLeftTip(
+  page: Page,
+  targetX: number,
+  targetY: number,
+  pose: { x: number; y: number },
+  options: { ratio?: number; rotationZ?: number } = {},
+) {
+  let { x, y } = pose;
+  let lastSource: number | null = null;
+  await setHands(page, { x, y, ...options });
+  await expect
+    .poll(
+      async () => {
+        const observed = await instrument(page, "left");
+        if (!observed.tool || observed.sourceTMs === lastSource) return Infinity;
+        lastSource = observed.sourceTMs;
+        const errX = observed.tool.tipPosition.x - targetX;
+        const errY = observed.tool.tipPosition.y - targetY;
+        const dist = Math.hypot(errX, errY);
+        if (dist >= 0.045) {
+          x += errX * 0.025;
+          y += errY * 0.035;
+          await setHands(page, { x, y, ...options });
+        }
+        return dist;
+      },
+      { timeout: 12_000, intervals: [250] },
+    )
+    .toBeLessThan(0.045);
+  return { x, y };
+}
+
+test("completes Needle Passing across all 8 segments, guards early release, and enforces mode hooks", async ({ page }) => {
+  test.setTimeout(60_000);
+  await start(page);
+
+  // Verify Learn, Assessment, and Practice mode hooks in UI
+  await page.getByTestId("mode-learn").click();
+  await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: demonstration");
+  await expect(page.getByTestId("exercise-ghost-status")).toHaveText("Ghost: visible");
+  await expect(page.getByTestId("ghost-toggle")).toHaveCount(0);
+  await page.getByTestId("start-attempt").click();
+  await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: active");
+
+  await page.getByTestId("mode-assessment").click();
+  await expect(page.getByTestId("exercise-ghost-status")).toHaveText("Ghost: disabled in assessment");
+  await expect(page.getByTestId("ghost-toggle")).toHaveCount(0);
+  await expect(page.getByTestId("exercise-instruction")).toHaveText("Segment: Approach");
+
+  await page.getByTestId("mode-practice").click();
+  await expect(page.getByTestId("ghost-toggle")).toHaveText("Show ghost");
+  await page.getByTestId("ghost-toggle").click();
+  await expect(page.getByTestId("exercise-ghost-status")).toHaveText("Ghost: visible");
+  await page.getByTestId("ghost-toggle").click();
+  await expect(page.getByTestId("exercise-ghost-status")).toHaveText("Ghost: hidden");
+
+  // 1. Approach -> Grip at needle (0, 0.35)
+  let pose = await guideLeftTip(page, 0, 0.35, { x: 0.7, y: 0.5 });
+  await expect(page.getByTestId("exercise-segment")).toContainText("Segment: grip");
+
+  // Grab needle
+  await setHands(page, { ...pose, ratio: 0.1 });
+  await expect(page.getByTestId("needle-ownership")).toHaveText("Needle: left-tool");
+
+  // 2. Grip -> Align -> Entry at Ring 1 (-0.16, 0.24)
+  pose = await guideLeftTip(page, -0.16, 0.24, pose, { ratio: 0.1 });
+  await expect(page.getByTestId("exercise-segment")).toContainText("Segment: entry");
+
+  // Guardrail: early needle release during entry does not complete or skip to release
+  await setHands(page, { ...pose, ratio: 0.9 });
+  await expect(page.getByTestId("needle-ownership")).toHaveText("Needle: free");
+  await expect(page.getByTestId("exercise-segment")).toContainText("Segment: entry");
+  await expect(page.getByTestId("exercise-instruction")).toContainText("released early");
+
+  // Re-acquire needle and continue
+  await setHands(page, { ...pose, ratio: 0.1 });
+  await expect(page.getByTestId("needle-ownership")).toHaveText("Needle: left-tool");
+
+  // 3. Entry -> Rotation at Ring 2 (0, 0.18) with wrist rotation
+  pose = await guideLeftTip(page, 0, 0.18, pose, { ratio: 0.1, rotationZ: -0.35 });
+  await expect(page.getByTestId("exercise-segment")).toContainText("Segment: rotation");
+
+  // 4. Rotation -> Exit at Ring 3 (0.16, 0.24)
+  pose = await guideLeftTip(page, 0.16, 0.24, pose, { ratio: 0.1, rotationZ: -0.35 });
+  await expect(page.getByTestId("exercise-segment")).toContainText("Segment: exit");
+
+  // 5. Exit -> Release at Release Zone (0.2, 0.36)
+  pose = await guideLeftTip(page, 0.2, 0.36, pose, { ratio: 0.1, rotationZ: 0 });
+  await expect(page.getByTestId("exercise-segment")).toContainText("Segment: release");
+
+  // 6. Release -> Complete by opening jaws inside release zone
+  await setHands(page, { ...pose, ratio: 0.9, rotationZ: 0 });
+  await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: complete");
+  await expect(page.getByTestId("exercise-segment")).toContainText("Segment: complete — Complete (100%)");
+  const finalState = JSON.parse(await page.getByTestId("exercise-state").innerText()) as { readyForEvaluation: boolean; completedTargetIds: string[] };
+  expect(finalState.readyForEvaluation).toBe(true);
+  expect(finalState.completedTargetIds).toEqual(["ring-1", "ring-2", "ring-3"]);
+
+  await page.getByRole("button", { name: "Stop camera" }).click();
+});
