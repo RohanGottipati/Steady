@@ -337,12 +337,11 @@ export function mapJigsawsGesturesToSegments(reference: ReferenceMotion): Refere
   }
 
   const mappedSegmentByFrame = new Array<NeedlePassingSegment>(frames.length).fill("approach");
-  let seenG8 = false;
 
   for (let r = 0; r < runs.length; r++) {
     const run = runs[r];
     const len = run.endIndex - run.startIndex + 1;
-    const nextGesture = runs[r + 1]?.gesture;
+    const prevGesture = runs[r - 1]?.gesture;
 
     for (let i = run.startIndex; i <= run.endIndex; i++) {
       const localU = len > 1 ? (i - run.startIndex) / (len - 1) : 0;
@@ -355,15 +354,13 @@ export function mapJigsawsGesturesToSegments(reference: ReferenceMotion): Refere
           seg = "grip";
           break;
         case "G8":
-          seenG8 = true;
           seg = "align";
           break;
         case "G2":
-          if (seenG8 && nextGesture === "G3") {
-            seg = localU < 0.5 ? "align" : "entry";
-          } else {
-            seg = localU < 0.5 ? "align" : "entry";
-          }
+          // When G8 ("orienting needle") immediately precedes G2, G8 already covers "align",
+          // so G2 ("positioning needle tip at entry") maps directly to "entry". On subsequent
+          // passes without G8 (e.g. G4 -> G2 -> G3), G2 supplies both "align" and "entry".
+          seg = prevGesture === "G8" ? "entry" : localU < 0.5 ? "align" : "entry";
           break;
         case "G3":
           seg = localU < 0.35 ? "entry" : "rotation";

@@ -12,6 +12,7 @@ import {
   DEFAULT_NEEDLE_PASSING_REFERENCE,
   DEFAULT_WORKSPACE_BOUNDS,
   extractGhostTrailPoints,
+  mapJigsawsGesturesToSegments,
   NEEDLE_PASSING_SEGMENT_ORDER,
   RAW_DEFAULT_NEEDLE_PASSING_REFERENCE,
   SCENE_ALIGNED_NEEDLE_PASSING_REFERENCE,
@@ -291,6 +292,23 @@ describe("A5 JIGSAWS expert workspace fitting and 7-frame display smoothing", ()
     expect(midRot.segmentId).toBe("rotation");
     const atEnd = sampleReferenceAtProgress(prepared, 1);
     expect(atEnd.normalizedProgress).toBeCloseTo(1, 5);
+
+    // G2 preceded by G8 maps directly to "entry" (since G8 already covers "align"),
+    // whereas G2 after G4 (on subsequent passes without G8) splits into "align" then "entry".
+    const syntheticGestures = ["G8", "G8", "G2", "G2", "G4", "G4", "G2", "G2", "G2", "G2", "G11"];
+    const baseFrame = RAW_DEFAULT_NEEDLE_PASSING_REFERENCE.frames[0];
+    const mapped = mapJigsawsGesturesToSegments({
+      ...RAW_DEFAULT_NEEDLE_PASSING_REFERENCE,
+      frames: syntheticGestures.map((segmentId, idx) => ({
+        ...baseFrame,
+        tMs: idx * 33.333,
+        normalizedProgress: idx / (syntheticGestures.length - 1),
+        segmentId,
+      })),
+    });
+    expect(mapped.frames.slice(0, 2).map(f => f.segmentId)).toEqual(["align", "align"]);
+    expect(mapped.frames.slice(2, 4).map(f => f.segmentId)).toEqual(["entry", "entry"]);
+    expect(mapped.frames.slice(6, 10).map(f => f.segmentId)).toEqual(["align", "align", "entry", "entry"]);
   });
 
   it("reduces high-frequency trajectory jitter via 7-frame centered display smoothing while preserving endpoints", () => {

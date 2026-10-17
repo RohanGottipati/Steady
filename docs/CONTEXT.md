@@ -1,7 +1,7 @@
 # Project Context
 
-Last updated: 2026-10-17 18:35 UTC
-Updated by: Person A — Task A5 (Ghost renderer, sub-frame 30 Hz interpolation, 0.5x/1x speed, progress-coupled sync, 1-Hand Mode, and JIGSAWS workspace fitting; rebased on main after B5 PR #8)
+Last updated: 2026-10-17 18:45 UTC
+Updated by: Person A — Task A5 (Ghost renderer, sub-frame 30 Hz interpolation, 0.5x/1x speed, progress-coupled sync, 1-Hand Mode, and JIGSAWS G8/G2 gesture mapping fix; rebased on main after B5 PR #8)
 Current branch: person-a/a5-ghost-renderer
 Current milestone: M0–M4 implemented in dev preview; M1/M2/M3 physical acceptance pending
 Demo-critical status: YELLOW
@@ -333,7 +333,7 @@ Latest verification on `person-a/a5-ghost-renderer` (2026-10-17, on top of main 
   (120 Hz sub-frame interpolation over 30 Hz frames, opposite-hemisphere quaternion
   `slerp`, grip-to-tip invariant, JSON trail + 5-checkpoint scene alignment, `0.5x` vs
   `1x` speed scaling, progress-coupled 12% lead and stall step-sweep, `Assessment` mode
-  hiding, JIGSAWS `Needle_Passing_E005` workspace fitting + 8-segment gesture mapping,
+  hiding, JIGSAWS `Needle_Passing_E005` workspace fitting + `G8`/`G2` gesture mapping,
   7-frame centered display smoothing, and 1-Hand Mode completion) plus extended
   `GhostLayer` scene lifecycle tests in `tests/unit/training-scene.test.tsx` and all
   B5 20-metric tests. B0 migration/seed tests were excluded to avoid cloud writes.
