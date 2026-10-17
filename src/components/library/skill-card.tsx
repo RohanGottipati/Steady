@@ -33,7 +33,7 @@ export function SkillCard({ skill }: { skill: SkillCatalogEntry }) {
       className={`flex h-full flex-col gap-4 rounded-xl border p-5 transition ${
         available
           ? "border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
-          : "border-zinc-200 bg-zinc-50 opacity-80 dark:border-zinc-800 dark:bg-zinc-900"
+          : "border-zinc-200 bg-zinc-50 opacity-80 hover:opacity-100 dark:border-zinc-800 dark:bg-zinc-900"
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -64,21 +64,29 @@ export function SkillCard({ skill }: { skill: SkillCatalogEntry }) {
           </span>{" "}
           · {skill.sourceLicense}
         </span>
-        {available ? (
-          <span className="font-medium text-emerald-700 dark:text-emerald-400">
-            Train →
-          </span>
-        ) : null}
+        <span
+          className={
+            available
+              ? "font-medium text-emerald-700 dark:text-emerald-400"
+              : "font-medium text-amber-700 dark:text-amber-400"
+          }
+        >
+          {available ? "Train →" : "Details →"}
+        </span>
       </div>
     </div>
   );
 
-  if (!available) {
-    return <div aria-disabled="true">{body}</div>;
-  }
-
+  // Every card links to /train/[id]. Coming-soon skills reach a friendly notice
+  // there instead of being dead ends on the grid.
   return (
-    <Link href={`/train/${skill.id}`} className="block focus:outline-none">
+    <Link
+      href={`/train/${skill.id}`}
+      aria-label={
+        available ? `Train ${skill.title}` : `${skill.title} — coming soon`
+      }
+      className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-950"
+    >
       {body}
     </Link>
   );

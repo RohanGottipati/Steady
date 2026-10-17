@@ -1,22 +1,33 @@
+import { needlePassingSkill } from "@/data/skills/needle-passing";
 import type { SkillCatalogEntry } from "@/lib/skills/types";
+import type { SkillDefinition } from "@/types/skill";
+
+// For skills that have a full definition, derive the library's shared fields
+// from it so metadata cannot drift. The catalog only adds listing-specific
+// fields (source license, availability).
+function availableEntry(
+  def: SkillDefinition,
+  sourceLicense: string,
+): SkillCatalogEntry {
+  return {
+    id: def.id,
+    title: def.title,
+    description: def.description,
+    category: def.category,
+    difficulty: def.difficulty,
+    estimatedMinutes: def.estimatedMinutes,
+    availableModes: def.availableModes,
+    sourceLabel: def.sourceLabel,
+    sourceLicense,
+    status: "available",
+  };
+}
 
 // Ordered Surgical Skills Library. Only needle-passing has a reference motion
 // today; the rest are "coming-soon" until their datasets/references land
 // (plan 1.4). Keep this data-driven — the UI renders whatever is listed here.
 export const SKILL_CATALOG: readonly SkillCatalogEntry[] = [
-  {
-    id: "needle-passing",
-    title: "Needle Passing",
-    description:
-      "Pass a needle through target rings with precise bimanual control and smooth wrist rotation.",
-    category: "suturing",
-    difficulty: "beginner",
-    estimatedMinutes: 6,
-    availableModes: ["learn", "practice", "assessment"],
-    sourceLabel: "Internal reference",
-    sourceLicense: "Internal recording",
-    status: "available",
-  },
+  availableEntry(needlePassingSkill, "Internal recording"),
   {
     id: "suturing",
     title: "Suturing",

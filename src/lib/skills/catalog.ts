@@ -24,3 +24,7 @@ export function getSkillDefinition(id: string): SkillDefinition | undefined {
 export function isSkillAvailable(id: string): boolean {
   return getCatalogEntry(id)?.status === "available";
 }
+
+export function getDefinedSkillIds(): string[] {
+  return Object.keys(SKILL_DEFINITIONS);
+}
