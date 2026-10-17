@@ -58,23 +58,18 @@ function expectCanonicalInvariants(ref: ReturnType<typeof parseReference>) {
 }
 
 describe("committed reference fixtures", () => {
-  it("needle-passing fixture validates and holds canonical invariants", () => {
-    const ref = loadFixture("public/references/needle-passing/needle-passing-reference-v1.json");
-    expect(ref.skillId).toBe("needle-passing");
-    expectCanonicalInvariants(ref);
-  });
-
-  it("needle-passing applies the JIGSAWS y/z axis swap", () => {
-    const ref = loadFixture("public/references/needle-passing/needle-passing-reference-v1.json");
-    // CSV row 0 left tool source (-0.40, 0.30, 0.10) with basis (x=right, y=toward
-    // camera, z=up) -> canonical (x, z, y) = (-0.40, 0.10, 0.30).
-    const p = ref.frames[0].leftTool.position;
-    expect(p.x).toBeCloseTo(-0.4, 9);
-    expect(p.y).toBeCloseTo(0.1, 9);
-    expect(p.z).toBeCloseTo(0.3, 9);
-    expect(ref.frames[0].leftTool.jawClosed).toBe(false); // grip 0.80 -> open
-    expect(ref.frames.find((fr) => fr.segmentId === "grip")!.leftTool.jawClosed).toBe(true);
-  });
+  // needle-passing, knot-tying and suturing are real JIGSAWS expert trials
+  // (academic/non-commercial, derived motion only; see docs/DATA_LICENSES.md).
+  for (const skill of ["needle-passing", "knot-tying", "suturing"]) {
+    it(`${skill} JIGSAWS fixture validates and holds canonical invariants`, () => {
+      const ref = loadFixture(`public/references/${skill}/${skill}-reference-v1.json`);
+      expect(ref.skillId).toBe(skill);
+      expect(ref.sourceType).toBe("dataset");
+      expect(ref.sourceName).toMatch(/JIGSAWS/);
+      expect(ref.frames.length).toBeGreaterThan(100);
+      expectCanonicalInvariants(ref);
+    });
+  }
 
   it("peg-transfer fixture validates and applies the LASK z flip", () => {
     const ref = loadFixture("public/references/peg-transfer/peg-transfer-reference-v1.json");
@@ -101,16 +96,6 @@ describe("committed reference fixtures", () => {
     ]);
   });
 
-  it("rotations are mapped into the canonical basis, not left in the source frame", () => {
-    const ref = loadFixture("public/references/needle-passing/needle-passing-reference-v1.json");
-    // Source orientations rotate about source-Y; the JIGSAWS Y/Z axis swap must
-    // carry them to canonical-Z. A non-identity frame must no longer be about Y.
-    const fr = ref.frames.find((f) => Math.abs(f.leftTool.rotation.w) < 0.999);
-    expect(fr).toBeDefined();
-    const r = fr!.leftTool.rotation;
-    expect(Math.abs(r.y)).toBeLessThan(1e-9);
-    expect(Math.abs(r.z)).toBeGreaterThan(1e-3);
-  });
 });
 
 const py = pythonCmd();
@@ -136,6 +121,22 @@ describePy("dataset adapters produce valid references from a synthetic CSV", () 
     expect(
       ref.frames.every((f) => f.normalizedProgress >= 0 && f.normalizedProgress <= 1),
     ).toBe(true);
+
+    // CSV row 0 left tool source (-0.40, 0.30, 0.10) with basis (x=right, y=toward
+    // camera, z=up) -> canonical (x, z, y) = (-0.40, 0.10, 0.30).
+    const p = ref.frames[0].leftTool.position;
+    expect(p.x).toBeCloseTo(-0.4, 9);
+    expect(p.y).toBeCloseTo(0.1, 9);
+    expect(p.z).toBeCloseTo(0.3, 9);
+    expect(ref.frames[0].leftTool.jawClosed).toBe(false); // grip 0.80 -> open
+    expect(ref.frames.find((fr) => fr.segmentId === "grip")!.leftTool.jawClosed).toBe(true);
+
+    // Source orientations rotate about source-Y; the JIGSAWS Y/Z axis swap must
+    // carry them to canonical-Z. A non-identity frame must no longer be about Y.
+    const rot = ref.frames.find((f) => Math.abs(f.leftTool.rotation.w) < 0.999);
+    expect(rot).toBeDefined();
+    expect(Math.abs(rot!.leftTool.rotation.y)).toBeLessThan(1e-9);
+    expect(Math.abs(rot!.leftTool.rotation.z)).toBeGreaterThan(1e-3);
   });
 
   it("LASK adapter output validates", () => {
