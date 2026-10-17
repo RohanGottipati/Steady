@@ -15,6 +15,40 @@ Record architectural and product decisions here as they are made.
   no cloud/audio/AI/replay implementation is implied. Physical acceptance and the
   restricted-host production-build blocker remain separately tracked.
 
+### 2026-10-17 - B7 coaching audio is live-ElevenLabs-first with pre-generated clip fallback
+- Context: Plan §14/§15 originally specced common coaching cues to play from local
+  pre-generated clips first (for near-zero latency during a live attempt), with
+  `/api/speech` only for rare/dynamic phrases. The user instead wants the live
+  ElevenLabs voice to be the primary coaching voice, using the committed clips as a
+  resilience fallback.
+- Decision: `AudioManager.coach(type)` is the primary coaching entry and runs a
+  three-tier fallback chain: (1) live ElevenLabs via `POST /api/speech` with the
+  event's canonical text, (2) the committed pre-generated clip `public/audio/coach/<type>.mp3`,
+  (3) browser `speechSynthesis`. `speak(text)` (dynamic/review phrases) uses live→browser;
+  `playClip(type)` remains a clip-only primitive. One voice line at a time is preserved
+  (drop-normal / interrupt-high / cancel invalidates in-flight).
+- Consequences: Each common cue now waits on an ElevenLabs round-trip during the attempt
+  (higher latency than the plan's clip-first design), accepted in exchange for a consistently
+  natural dynamic voice; the committed clips guarantee the demo still talks when the API is
+  slow/unreachable/offline. S1 wired live text coaching/events; wiring `coach(type)` into the
+  live loop is an S1/S2 follow-up. Revisit if live latency hurts the live-coaching feel on the target Mac.
+
+### 2026-10-17 - B7 /api/speech public-deploy hardening (PR #11 review)
+- Context: The app will be deployed publicly for the hackathon. `POST /api/speech` is
+  unauthenticated and backed by a live `ELEVENLABS_API_KEY`, so an open URL lets anyone
+  burn quota. Common clips under `public/audio/coach/` are static and not a concern.
+- Decision: Gate the route on a server-only `SPEECH_ENABLED=true` kill-switch (503 otherwise)
+  and a simple in-memory per-IP fixed-window rate limiter (`SPEECH_RATE_LIMIT`/`SPEECH_RATE_WINDOW_MS`,
+  default 20/60s) returning 429. Both 503 and 429 are safe: the client `AudioManager` degrades
+  to the committed clips and then browser speech. Also fixed two overlap/leak correctness issues
+  the review flagged: revoke the live blob URL when `cancel()`/high-priority interrupt stops
+  playback, and keep the audio slot held (and cancel browser speech on `cancel()`) during the
+  `speechSynthesis` fallback. Full auth/BotID is deferred post-hackathon.
+- Consequences: In-memory limiting is best-effort per serverless instance — acceptable for a
+  demo, not production abuse protection. `SPEECH_ENABLED=true` must be set in `.env.local` and
+  in the Vercel deploy to enable live voice; without it the live-first chain starts at the
+  clip tier.
+
 ### 2026-10-17 - A5 ghost renderer, sub-frame interpolation, and JIGSAWS workspace fitting
 - Context: Task A5 requires translucent expert tool playback, a reference tool-tip path trail, smooth interpolation over 30 Hz `ReferenceMotion` data without visible stepping, `0.5x`/`1x` playback speeds, demonstration and progress-coupled synchronization, and workspace fitting + gesture mapping for B4's data-only JIGSAWS expert trial (`needle-passing-jigsaws-expert-v1.json`) without mutating Person B's committed reference fixtures or shared contracts.
 - Decision: Implement `ghost-reference.ts` and `ghost-playback.ts` in `src/lib/exercise/` and `GhostLayer` in `src/components/scene/ghost-layer.tsx`. Derive ghost instrument grip positions as `tipPosition - applyQuaternion(TIP_OFFSET, rotation)` so jaw tips always match `tipPosition` on the path trail. Preload `needle-passing-reference-v1.json` synchronously as the default canonical reference and support runtime loading of `needle-passing-jigsaws-expert-v1.json` (`Needle_Passing_E005`, 3,233 frames) via `prepareGhostReference` (mapping `G1..G11` to the 8 Needle Passing segments, fitting raw metre coordinates into canonical workspace bounds above `tissue-wall`, applying 7-frame centered display smoothing, and displaying the Gao et al. 2014 attribution). Step `GhostPlaybackController` at display rate in `useFrame` with `0.5x`/`1x` speeds, a 12%-lead progress-coupled mode with 600 ms stall micro-looping, and strict hiding in `Assessment` mode.
