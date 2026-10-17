@@ -1,9 +1,9 @@
 # Project Context
 
-Last updated: 2026-10-17 20:53 UTC
-Updated by: Person A — A6 publication after refreshing main
-Current branch: person-a/a6-attempt-replay (from latest main 57468be / B7 PR #11; targeting main)
-Current milestone: S1 training/results, B7 voice layer, and A6 canonical replay implemented; physical M1/M2/M3 and production-build acceptance pending
+Last updated: 2026-10-17 22:10 UTC
+Updated by: Person B — Task B8 (replay controls + results UI; branched from main 6a70cf4 / A6 PR #13; targeting main)
+Current branch: person-b/b8-results-ui
+Current milestone: S1 training/results, B7 voice layer, A6 canonical replay, and B8 results/review UI implemented; physical M1/M2/M3 and production-build acceptance pending
 Demo-critical status: YELLOW
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -109,6 +109,20 @@ truth for the current project state — it records what exists and where it is.
   Replay is display-only; evaluation/shared schemas/local cache are unchanged.
   Exact reference/needle metadata is retained only for the latest completed attempt
   in memory. History/reload navigation and JIGSAWS replay remain subsequent work.
+- Results + review UI (B8): the inline `AttemptResultsPanel` (score summary, five
+  category scores, strongest/weakest, worst-moment markers, expandable 20 metrics)
+  now also renders a **Coach Review** section and makes the top-3 worst moments
+  actionable. `src/lib/ai/deterministic-review.ts` `buildDeterministicReview(bundle)`
+  composes a schema-valid `AiReview` (summary/strengths/improvements/largestDifference/
+  replayNarration) purely from the deterministic evaluation — no model call — so it
+  renders now and B9's Backboard/Gemini review can replace it or degrade to it
+  (disabled/offline/malformed) without the results losing their explanation. Clicking a
+  worst moment opens **Replay latest attempt** seeked to that issue (same cursor as the
+  in-replay marker button); `ThreeDReplayPreview` gained an additive optional
+  `initialMarker` prop that seeks via the A6 `ReplayController.seekMarker` and falls
+  back to task start. Human metric labels moved to shared
+  `src/lib/evaluation/metric-labels.ts` (used by the panel and the review). Shared
+  `src/types/` contracts are unchanged. History/reload navigation and live AI remain B10/B9.
 - Live coaching engine (B6): `src/lib/coaching/coaching-engine.ts` turns a compact
   per-tick `CoachingSignals` snapshot (path/corridor deviation, danger zone, tool/
   assisting-hand speed, grip slip, rotation lateness, overshoot) into deterministic
@@ -235,7 +249,8 @@ Person A - Realtime Vision and 3D Simulation:
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4), B4 external data conversion (merged to main via #6), B5 full 20-metric evaluator (merged to main via #8) done
 - B6 live coaching event engine implemented (live telemetry only, so it did not block on B5; S1 live text/event wiring implemented). B10 Tiger persistence can proceed in parallel against the frozen `PERFORMANCE_VECTOR_ORDER`/`vector(20)` + `AttemptUploadPayload` contracts
-- B7 ElevenLabs voice layer implemented: pre-generation script + 7 committed common clips, `/api/speech`, `AudioManager` (overlap-safe) with live-ElevenLabs-first → clip → `speechSynthesis` fallback chain (`coach(type)`). Next: wire `AudioManager` voice into the live loop (S1/S2), B8 results UI (needs A6 + B5), B9 Backboard/Gemini review (needs B8), S2 narrated replay (needs A6+B7+B9).
+- B7 ElevenLabs voice layer implemented: pre-generation script + 7 committed common clips, `/api/speech`, `AudioManager` (overlap-safe) with live-ElevenLabs-first → clip → `speechSynthesis` fallback chain (`coach(type)`).
+- B8 replay controls + results UI implemented: Coach Review section with a deterministic schema-valid `AiReview` fallback (`src/lib/ai/deterministic-review.ts`), results worst-moments now jump into the A6 replay seeked to each issue (`ThreeDReplayPreview initialMarker`). Next: wire `AudioManager` voice into the live loop (S1/S2), B9 Backboard/Gemini review (replaces/degrades to the B8 deterministic fallback), S2 narrated replay (needs A6+B7+B9), B10 persistence/history navigation.
 
 ## 5. Completed Tasks
 - A6 implementation — revised plan after pulling merged S1 (`a1f1c2a`), then
@@ -366,6 +381,20 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   `rate-limit`, `speech-route` cover the four acceptance criteria plus the live→clip→browser
   chain, blob-revoke-on-cancel/interrupt, fallback overlap, kill-switch 503 and per-IP 429.
   Live-loop + narration wiring is S1/S2.
+- B8 - replay controls + results UI (`src/lib/ai/deterministic-review.ts`,
+  `src/lib/evaluation/metric-labels.ts`, `src/components/training/attempt-results-panel.tsx`,
+  `3d-training-preview.tsx`, `3d-replay-preview.tsx`): `buildDeterministicReview(bundle)`
+  builds a schema-valid `AiReview` entirely from the deterministic evaluation (no model
+  call) — the B8 AI-review fallback that renders now and that B9 replaces or degrades to.
+  The results panel adds a **Coach Review** section and turns the top-3 worst moments into
+  buttons that open the A6 replay seeked to that issue via a new additive
+  `ThreeDReplayPreview initialMarker` prop (`ReplayController.seekMarker`, falls back to
+  task start). Shared metric labels were extracted to `metric-labels.ts`; shared
+  `src/types/` contracts are unchanged. 5 new unit tests
+  (`tests/unit/deterministic-review.test.ts`: schema-valid for perturbed + perfect
+  attempts, weakest-metric evidence in improvements, worst-moment segment as largest
+  difference, determinism) and 1 new Chromium e2e (`tests/e2e/replay-a6.spec.ts` B8:
+  results worst-moment opens the replay at the same cursor as the in-replay marker).
 
 ## 6. In Progress
 - A3 usability acceptance - synthetic depth-drift pickup, assistance switching and
@@ -584,15 +613,34 @@ reviewed. The production build still fails in globals.css on the Turbopack
 CSS-worker local-port restriction; verify on an unrestricted host before release —
 no production build success claimed.
 
+Latest B8 verification (2026-10-17, on `person-b/b8-results-ui` branched from main
+`6a70cf4` / A6 PR #13):
+- `npm run typecheck`: passed. `npm run lint`: passed without warnings.
+- `npx vitest run --exclude "**/b0-tiger-bootstrap.test.ts"`: 37 files / 320 tests
+  passed, including 5 new `tests/unit/deterministic-review.test.ts`. The Python
+  adapter `len==76`-guard traceback on stderr is the expected passing negative test.
+  B0 cloud-write test excluded as usual.
+- `npx playwright test --workers=1`: 19 Chromium e2e tests passed across 4 files,
+  including the new B8 case in `tests/e2e/replay-a6.spec.ts` (results worst-moment
+  opens the replay at the same cursor as the in-replay marker; Coach Review renders).
+  Playwright's Chromium binary was installed on this host to run e2e.
+- `npm run build`: not re-run; B8 adds only TS/TSX (one lib, shared label map, UI
+  edits — no new deps/config) and the host still hits the known Turbopack CSS-worker
+  restriction. No production-build success claimed.
+
 ## 11. Next Recommended Actions
 1. Person A: review the canonical A6 replay on the target Mac, including real-hand
    pickup/release, either working hand, visibility, seeking and rendering performance.
    A7 additional scene configs can follow separately; JIGSAWS replay remains deferred.
-2. Person B: B7 voice layer is merged (live-first `AudioManager.coach()` + clips +
-   fallback and hardened `/api/speech`). Next: wire it into S1's existing B6 seam
-   and S2 review narration. B8 can add results/history/replay navigation using the
-   A6 controller/renderer; B9 follows B8. S1's inline results and text coaching
-   must remain usable without these services.
+2. Person B: B8 results/review UI is implemented (Coach Review + deterministic
+   `AiReview` fallback, results worst-moments jump into the A6 replay at the issue).
+   Next: B9 Backboard/Gemini review — call the model with only supplied metrics +
+   Tiger-retrieved coaching context, Zod-validate against `aiReviewSchema`, and
+   degrade to `buildDeterministicReview` on disable/offline/malformed output (the
+   render path and `AiReview` shape are already in place). Also wire `AudioManager`
+   voice into S1's existing B6 seam and S2 review narration. B10 can add
+   persistence/history/reload navigation. S1's inline results, Coach Review fallback,
+   and text coaching must remain usable without any of these services.
 3. Person B: B10 cloud synchronization uses the existing pending `SavedAttempt` /
    `AttemptUploadPayload` and frozen 20-vector contracts. Keep demo attempts out of
    uploaded history and preserve asynchronous local evaluation/cache behavior.
@@ -609,6 +657,9 @@ no production build success claimed.
   / `?fixture=needle-pass-late-rotation` for camera-free animated demonstrations.
   Results appear inline; Try again starts a fresh attempt. `?fixture=off` forces webcam
   mode even when the public demo environment flag is enabled.
+- B8: the inline results include a **Coach Review** (deterministic summary until B9's
+  live AI is enabled) and clickable **top issues** — click one to open the replay seeked
+  to that moment. The full 20 metrics stay collapsed under "All 20 Kinematic Metrics".
 - A6: complete a pass, stop the camera if running, and select **Replay latest attempt**.
   Issue buttons jump in reference-time alignment; original timing preserves recorded
   active-attempt timestamps. Hidden tabs/context loss pause; retry keeps the cursor.

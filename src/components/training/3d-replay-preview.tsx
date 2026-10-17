@@ -3,6 +3,7 @@
 import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ReplayController, type ReplayMode, type ReplaySpeed } from "@/lib/simulation/replay-controller";
 import type { CompletedReplay } from "@/lib/simulation/replay-types";
+import type { ReplayMarker } from "@/types";
 import type { ReplayDiagnostics } from "@/components/scene/replay-scene";
 
 let replaySceneModule: Promise<typeof import("@/components/scene/replay-scene")> | undefined;
@@ -19,11 +20,12 @@ class ReplayBoundary extends Component<{ children: ReactNode; onFailure: () => v
 }
 
 /** Minimal A6 harness. B8 can use ReplayController/ReplayScene with its own UI. */
-export function ThreeDReplayPreview({ replay, onClose, debug = false }: { replay: CompletedReplay; onClose: () => void; debug?: boolean }) {
+export function ThreeDReplayPreview({ replay, onClose, debug = false, initialMarker }: { replay: CompletedReplay; onClose: () => void; debug?: boolean; initialMarker?: ReplayMarker }) {
   const [loaded] = useState(() => {
     try {
       const controller = new ReplayController(replay.input);
-      controller.seekToTaskStart();
+      // B8: when opened from a results worst-moment, land on that issue; else task start.
+      if (!initialMarker || !controller.seekMarker(initialMarker)) controller.seekToTaskStart();
       return { controller, error: null };
     }
     catch (error) { return { controller: null, error: error instanceof Error ? error.message : "This recording could not be loaded." }; }
