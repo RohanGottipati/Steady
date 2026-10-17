@@ -23,9 +23,11 @@ function availableEntry(
   };
 }
 
-// Ordered Surgical Skills Library. Only needle-passing has a reference motion
-// today; the rest are "coming-soon" until their datasets/references land
-// (plan 1.4). Keep this data-driven — the UI renders whatever is listed here.
+// Ordered Surgical Skills Library. Only needle-passing is product-wired (full
+// SkillDefinition + scene) today. Suturing and knot-tying have real JIGSAWS
+// expert reference data committed (data-only, see docs/DATA_LICENSES.md) but stay
+// "coming-soon" until their trainer scenes land (plan 1.4). Keep this data-driven
+// — the UI renders whatever is listed here.
 export const SKILL_CATALOG: readonly SkillCatalogEntry[] = [
   availableEntry(needlePassingSkill, "Internal recording"),
   {
@@ -38,7 +40,7 @@ export const SKILL_CATALOG: readonly SkillCatalogEntry[] = [
     estimatedMinutes: 8,
     availableModes: ["learn", "practice", "assessment"],
     sourceLabel: "JIGSAWS",
-    sourceLicense: "Academic license pending",
+    sourceLicense: "JIGSAWS (academic, non-commercial) — expert reference data ready; trainer wiring pending",
     status: "coming-soon",
   },
   {
@@ -51,7 +53,7 @@ export const SKILL_CATALOG: readonly SkillCatalogEntry[] = [
     estimatedMinutes: 7,
     availableModes: ["learn", "practice", "assessment"],
     sourceLabel: "JIGSAWS",
-    sourceLicense: "Academic license pending",
+    sourceLicense: "JIGSAWS (academic, non-commercial) — expert reference data ready; trainer wiring pending",
     status: "coming-soon",
   },
   {

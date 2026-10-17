@@ -4,6 +4,7 @@ import type { EvaluationResult } from "@/lib/evaluation/types";
 import {
   jitterAttempt,
   lateRotationAttempt,
+  loadJigsawsExpertReference,
   loadNeedleReference,
   perfectAttempt,
   translatedAttempt,
@@ -82,6 +83,15 @@ describe("evaluateAttempt", () => {
   it("wrong sequencing lowers procedural sequencing", () => {
     const w = evaluateAttempt(wrongSequenceAttempt(ref), ref);
     expect(score(w, "proceduralSequencing")).toBeLessThan(100);
+  });
+
+  it("procedural sequencing scores a perfect clone of a gesture-repeating reference at 100", () => {
+    // Real JIGSAWS references revisit gestures (e.g. four needle passes); the
+    // run-collapsed-LCS metric must not penalize a perfect clone for that.
+    const jig = loadJigsawsExpertReference("needle-passing");
+    expect(jig.segments.length).toBeGreaterThan(new Set(jig.segments.map((s) => s.id)).size);
+    const p = evaluateAttempt(perfectAttempt(jig), jig);
+    expect(score(p, "proceduralSequencing")).toBe(100);
   });
 
   it("is deterministic", () => {

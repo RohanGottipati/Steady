@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "suturing-reference-v1",
+  "id": "suturing-jigsaws-expert-v1",
   "skillId": "suturing",
   "sourceType": "dataset",
-  "sourceName": "JIGSAWS Suturing trial Suturing_E002 (expert, GRS 20/ max); derived tool motion, academic use \u2014 Gao et al. 2014",
+  "sourceName": "JIGSAWS Suturing Suturing_E002 (expert, GRS 20); derived patient-side tool motion, DATA-ONLY not product-wired, raw-scale pending A5 - academic use, Gao et al. 2014",
   "coordinateSystem": "scene-canonical-v1",
   "fps": 30,
   "segments": [

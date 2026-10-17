@@ -45,7 +45,7 @@ truth for the current project state — it records what exists and where it is.
 - `/api/health` reports `{ ok, service, db }` where `db` is `up`/`down`/`unconfigured` and never throws on DB outage (server-only client in `src/lib/db/`).
 - `/library` lists all four skills (data-driven from `src/data/skill-catalog.ts`) with difficulty/source/license badges, availability, and client-side search; `/train/[skillId]` is a STUB (shared file) with a mode selector and a placeholder where Person A adds the 3D trainer. Every card links to `/train/[id]`; coming-soon skills reach a friendly notice there instead of breaking navigation.
 - Reference-motion framework (B2): `src/lib/references/load-reference.ts` loads + Zod-validates `ReferenceMotion` JSON (browser-usable); stdlib Python adapters (`scripts/data/{jigsaws,lask}/adapter.py` + `scripts/data/common/reference_builder.py`) convert source motion into canonical references (coordinate transform → 30 Hz resample → segment-normalize).
-- External data conversion (B4): `needle-passing`, `knot-tying`, `suturing` references under `public/references/` are now **real JIGSAWS expert trials** (patient-side tool channels; highest-GRS `E` demo per task: Needle_Passing_E005, Knot_Tying_E003, Suturing_E002). `adapter.py` gained a `--format kinematics` mode (parses 76-col kinematics + transcription gesture segments; matrix→quat; gripper→jaw). `peg-transfer` stays a synthetic LASK-format fixture. Raw JIGSAWS lives only in git-ignored `datasets/jigsaws/`; derived JSON is committed with attribution. Acquisition helper: `scripts/data/jigsaws/fetch.py` (local-only). See `docs/DATA_LICENSES.md`.
+- External data conversion (B4): real JIGSAWS expert trials are committed as **data-only** refs at `public/references/<skill>/<skill>-jigsaws-expert-v1.json` for needle-passing/knot-tying/suturing (patient-side channels; highest-GRS `E` demo per task: Needle_Passing_E005, Knot_Tying_E003, Suturing_E002). `adapter.py` gained a `--format kinematics` mode (76-col kinematics + transcription gesture segments; matrix→quat; gripper→jaw; `len==76` guard). **These are NOT product-wired**: they carry JIGSAWS gesture ids (`G1`–`G15`) and raw metre scale, so segment-mapping + fit-to-workspace is deferred to A5. Product/eval references stay synthetic (`needle-passing-reference-v1.json` scene-scale with skill-phase segments; `peg-transfer` synthetic LASK). Raw JIGSAWS lives only in git-ignored `datasets/jigsaws/`; acquisition is the JHU access form, `scripts/data/jigsaws/fetch.py` only extracts the downloaded archives (local-only). See `docs/DATA_LICENSES.md`.
 - A2 implementation available in the same development preview: automatic
   neutral/open → pinch → workspace calibration, canonical target visualization,
   One Euro position filtering, bounded palm rotation/depth, debounced pinch,
@@ -167,13 +167,16 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   edge-triggered single-owner acquisition, grip-preserving global pause, fresh
   release, scene/session reset and renderer recovery. Numerical, scene lifecycle
   and actual WebGL browser coverage pass; target-Mac acceptance remains pending.
-- B4 - external data conversion: real JIGSAWS expert references for needle-passing,
-  knot-tying, suturing (patient-side tools, gesture segments); `adapter.py`
-  `--format kinematics` mode; local-only `fetch.py`; `proceduralSequencing` LCS fix
-  for repeated gestures; `DATA_LICENSES.md` rewritten with JIGSAWS terms + Gao et al.
-  citation + expert-trial table. Raw data git-ignored. Tests updated
-  (`reference-adapter.test.ts` validates the three real fixtures + folds the
-  synthetic axis-swap/rotation assertions onto the synthetic adapter run).
+- B4 - external data conversion: real JIGSAWS expert references committed data-only
+  (`*-jigsaws-expert-v1.json`) for needle-passing/knot-tying/suturing (patient-side
+  tools, gesture segments); `adapter.py` `--format kinematics` mode + `len==76`
+  guard; `fetch.py` extracts JHU-form archives (Kaggle mirror has no kinematics);
+  `proceduralSequencing` LCS fix for repeated gestures. Product/eval refs kept
+  synthetic (review follow-up). `DATA_LICENSES.md` rewritten (JIGSAWS terms, Gao
+  et al. citation, data-only status). Tests: synthetic needle-passing invariants +
+  axis swap, three data-only real refs validated, a 76-col kinematics parse fixture
+  (offsets/grip/matrix→quat/len guard), and an LCS perfect-clone-of-repeating-ref
+  regression.
 
 ## 6. In Progress
 - A3 usability acceptance - synthetic depth-drift pickup, assistance switching and
@@ -224,7 +227,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - New clones need git-crypt and the securely shared existing key to unlock tracked `.env.local`; maintain a secure recovery-key backup outside the repository.
 
 ## 8. Data / Asset Status
-- JIGSAWS: acquired via JHU access form (academic/non-commercial, IRB-approved). Raw in git-ignored `datasets/jigsaws/`; derived expert references for needle-passing/knot-tying/suturing committed with Gao et al. attribution. See `docs/DATA_LICENSES.md`.
+- JIGSAWS: acquired via JHU access form (academic/non-commercial, IRB-approved). Raw in git-ignored `datasets/jigsaws/`; derived expert references committed **data-only** (`*-jigsaws-expert-v1.json`, not product-wired) with Gao et al. attribution. See `docs/DATA_LICENSES.md`.
 - LASK: not acquired (CC BY 4.0; adapter ready, used only for synthetic peg-transfer fixture). See `docs/DATA_LICENSES.md`.
 - SHANDS: optional future source.
 - 3D assets: repository-authored A3 room, instruments, target pad/grid, tip
@@ -232,7 +235,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   Source/asset decision recorded in `docs/ASSET_LICENSES.md`.
 - Hand Landmarker float16 v1 and MediaPipe 1.1.1 WASM: acquired, checksum verified;
   source/license/attribution recorded in `docs/ASSET_LICENSES.md`. Generated binaries are ignored.
-- Reference motions: needle-passing/knot-tying/suturing are real JIGSAWS expert-derived references; peg-transfer remains synthetic (LASK format). All under `public/references/`.
+- Reference motions: product/eval refs are synthetic (needle-passing scene-scale; peg-transfer LASK format). Real JIGSAWS expert-derived refs are committed data-only alongside them (`*-jigsaws-expert-v1.json`) pending A5 product wiring. All under `public/references/`.
 
 ## 9. External Service Status
 - Tiger Cloud service created: yes (project `p2r9lzrn7s`, service `ort1b0mw86` "db-21893", free plan, us-east-1, Postgres 18.6 / TimescaleDB 2.30.2; connection verified via `tiger db ping`). `TIGER_DATABASE_URL`/`TIGER_PROJECT_ID`/`TIGER_SERVICE_ID` set in encrypted `.env.local`. Details in `docs/TIGER_DATA.md`.
@@ -251,12 +254,14 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
-Latest verification on b4 (2026-10-17, rebased on main after A3 PR #5):
-`npm run typecheck` and `npm run lint` clean; `npm test` = 18 files / 120 tests
-passing, including the three real JIGSAWS reference fixtures, the repeat-safe
-`proceduralSequencing` fix, and the Python adapter run on the synthetic CSV
-(auto-skips without Python on PATH). The B0 Tiger integration test ran green against
-the cloud service (idempotent). Production build not re-run on this branch.
+Latest verification on b4 (2026-10-17, review follow-up after rebase on main):
+`npm run typecheck` and `npm run lint` clean; `npm test` = 21 files / 163 tests
+passing, including the synthetic product references, the three data-only JIGSAWS
+expert refs, the 76-col kinematics parse fixture + `len==76` guard, the repeat-safe
+`proceduralSequencing` LCS fix (guarded by a perfect-clone-of-a-repeating-ref test),
+and the Python adapter runs (auto-skip without Python on PATH). The B0 Tiger
+integration test ran green against the cloud service (idempotent). Production build
+not re-run on this branch.
 
 A3 PR #5 verification (2026-10-17): typecheck and lint passed; 155 unit tests across
 20 files (B0 cloud-write test excluded) plus 11 Chromium e2e tests (A1/A2 regressions

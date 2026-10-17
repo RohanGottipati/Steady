@@ -1,72 +1,73 @@
 #!/usr/bin/env python3
-"""Local-only JIGSAWS fetch helper (NOT part of the committed build).
+"""Local-only JIGSAWS extraction helper (NOT part of the committed build).
 
-Reads KAGGLE_API_TOKEN from .env.local, authenticates kagglehub, downloads the
-JIGSAWS mirror, and prints the local path + a shallow layout so the adapter can
-be pointed at the kinematics files.
+JIGSAWS is academic/non-commercial licensed (JHU-ISI, Gao et al. 2014). The
+authoritative source is the JHU access form:
 
-JIGSAWS is academic/non-commercial licensed. This script only *acquires* raw
-data into kagglehub's local cache (and optionally mirrors it under the
-git-ignored datasets/ tree). Do NOT commit raw data or wire this into the build.
+  https://www.cs.jhu.edu/~los/jigsaws/info.php
+
+Fill it in (name/email/organization), accept the academic-use terms, and the
+server emails same-day download links for Knot-Tying, Needle-Passing, Suturing
+and Experimental-setup. Download the three task archives (they contain the
+`kinematics/AllGestures/*.txt` files this adapter needs) to a local folder.
+
+NOTE: do NOT use a Kaggle mirror for the kinematics — the commonly-indexed mirror
+(`aditya9790/jigsaws-skill-assessment-working-set`) ships only the
+Experimental_setup split files, no kinematics.
+
+This script only extracts those already-downloaded archives into the git-ignored
+`datasets/jigsaws/` tree. It never downloads anything, never commits raw data, and
+is not wired into the build.
 
 Usage:
-  python scripts/data/jigsaws/fetch.py
+  python scripts/data/jigsaws/fetch.py [--source DIR]
 
-Requires:
-  pip install kagglehub
+  --source DIR   Folder containing Knot_Tying.zip, Needle_Passing.zip,
+                 Suturing.zip (default: your Downloads folder).
 """
-import os
+import argparse
 import sys
+import zipfile
 from pathlib import Path
 
-DATASET = "aditya9790/jigsaws-skill-assessment-working-set"
 REPO_ROOT = Path(__file__).resolve().parents[3]
-ENV_LOCAL = REPO_ROOT / ".env.local"
-
-
-def load_token_from_env_local(path: Path) -> str | None:
-    """Minimal .env parser: returns KAGGLE_API_TOKEN if present (unquoted)."""
-    if not path.exists():
-        return None
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, val = line.partition("=")
-        if key.strip() == "KAGGLE_API_TOKEN":
-            return val.strip().strip('"').strip("'")
-    return None
+DEST = REPO_ROOT / "datasets" / "jigsaws"
+ARCHIVES = ["Knot_Tying.zip", "Needle_Passing.zip", "Suturing.zip"]
 
 
 def main() -> int:
-    # Prefer an already-exported env var; fall back to .env.local.
-    token = os.environ.get("KAGGLE_API_TOKEN") or load_token_from_env_local(ENV_LOCAL)
-    if not token:
+    ap = argparse.ArgumentParser(description="Extract JHU-form JIGSAWS archives locally.")
+    ap.add_argument(
+        "--source",
+        type=Path,
+        default=Path.home() / "Downloads",
+        help="Folder containing the JIGSAWS task .zip archives.",
+    )
+    args = ap.parse_args()
+
+    missing = [a for a in ARCHIVES if not (args.source / a).exists()]
+    if missing:
         print(
-            "KAGGLE_API_TOKEN not found in environment or .env.local.\n"
-            "Add it to .env.local (KAGGLE_API_TOKEN=KGAT_...) or export it, then retry.",
+            "Missing archive(s) in "
+            f"{args.source}: {', '.join(missing)}.\n"
+            "Request them via the JHU access form "
+            "(https://www.cs.jhu.edu/~los/jigsaws/info.php) and download the task "
+            "archives there, then re-run with --source pointing at that folder.",
             file=sys.stderr,
         )
         return 1
-    os.environ["KAGGLE_API_TOKEN"] = token
 
-    try:
-        import kagglehub
-    except ImportError:
-        print("kagglehub is not installed. Run: pip install kagglehub", file=sys.stderr)
-        return 1
+    DEST.mkdir(parents=True, exist_ok=True)
+    for archive in ARCHIVES:
+        print(f"Extracting {archive} -> {DEST} ...")
+        with zipfile.ZipFile(args.source / archive) as zf:
+            zf.extractall(DEST)
 
-    print(f"Downloading {DATASET} (this is multi-GB; first run is slow)...")
-    path = Path(kagglehub.dataset_download(DATASET))
-    print(f"\nDataset cached at:\n  {path}\n")
-
-    print("Top-level layout (depth 2):")
-    for entry in sorted(path.rglob("*")):
-        depth = len(entry.relative_to(path).parts)
-        if depth > 2:
-            continue
-        marker = "/" if entry.is_dir() else ""
-        print(f"  {entry.relative_to(path)}{marker}")
+    print("\nDone. Task folders under datasets/jigsaws/:")
+    for task in sorted(p.name for p in DEST.iterdir() if p.is_dir()):
+        kin = DEST / task / "kinematics" / "AllGestures"
+        n = len(list(kin.glob("*.txt"))) if kin.exists() else 0
+        print(f"  {task}: {n} kinematics trials")
     return 0
 
 

@@ -148,6 +148,10 @@ def frames_from_kinematics(kin_path, transcription_path):
         frame_no = i + 1  # kinematics line i (0-based) == transcription frame i+1
         if frame_no < first_frame or frame_no > last_frame:
             continue  # drop pre/post-task setup frames outside the labeled span
+        if len(cols) != 76:
+            raise ValueError(
+                f"{kin_path} line {frame_no}: expected 76 kinematic columns, got {len(cols)}"
+            )
         vals = [float(c) for c in cols]
         last_gesture = _segment_for_frame(frame_no, spans, last_gesture)
         frames.append(

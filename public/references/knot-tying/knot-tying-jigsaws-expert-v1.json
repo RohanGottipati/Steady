@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "knot-tying-reference-v1",
+  "id": "knot-tying-jigsaws-expert-v1",
   "skillId": "knot-tying",
   "sourceType": "dataset",
-  "sourceName": "JIGSAWS Knot Tying trial Knot_Tying_E003 (expert, GRS 22/ max); derived tool motion, academic use \u2014 Gao et al. 2014",
+  "sourceName": "JIGSAWS Knot Tying Knot_Tying_E003 (expert, GRS 22); derived patient-side tool motion, DATA-ONLY not product-wired, raw-scale pending A5 - academic use, Gao et al. 2014",
   "coordinateSystem": "scene-canonical-v1",
   "fps": 30,
   "segments": [
