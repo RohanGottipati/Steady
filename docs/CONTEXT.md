@@ -1,7 +1,7 @@
 # Project Context
 
-Last updated: 2026-10-17 15:23 UTC
-Updated by: A3 publication integrated with latest main (B3 evaluation engine)
+Last updated: 2026-10-17 15:50 UTC
+Updated by: A3 PR #5 review follow-up (display guards and guidance provenance)
 Current branch: person-a/a3-virtual-instruments
 Current milestone: M0; A3 implementation available, M1/M2 physical acceptance pending
 Demo-critical status: YELLOW
@@ -69,6 +69,11 @@ truth for the current project state — it records what exists and where it is.
   and resets ownership without recalibration. Flat tweezers and an angular
   pistol-grip needle holder replace the old finger-loop silhouettes. A muted
   grid replaces decorative rings that looked like additional pickup targets.
+- A3 PR #5 review fix: nullable assisted display projection now retains the affected
+  instrument’s last pose/jaws and hides an instrument until its first usable pose.
+  Initial recovery seeds directly; pickup feedback guards absent tool slots without
+  non-null assertions. New unit regressions cover rejection and recovery. Root
+  AGENTS.md explicitly distinguishes generated framework guidance from project policy.
 - Exercise progression, ghosts and product-route integration are not implemented; B3 evaluation exists independently.
 
 ## 2. Architecture Invariants
@@ -242,10 +247,10 @@ Integration base: latest main `a304c70` (B3 evaluation engine, PR #4).
 The context conflict was reconciled to retain both B3 and A3 state. No B3 source
 changes were needed.
 
-Latest A3 integration verification (2026-10-17):
+Latest A3 PR #5 review verification (2026-10-17):
 - `npm run typecheck`: passed.
 - `npm run lint`: passed without warnings.
-- `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`: 152 tests passed
+- `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`: 155 tests passed
   across 20 files, including the newly merged B3 evaluation tests. An earlier
   restricted run could not reach Tiger for two existing health assertions; the escalated run passed, including those read-only health queries.
   B0 migration/seed tests were excluded to avoid cloud writes; no migration/seed
@@ -265,24 +270,25 @@ Latest A3 integration verification (2026-10-17):
   loss/stale/reordered/future input, reset without release events, display phase
   delay <30 ms at 20/30 source FPS and 60/120 render FPS, bounded timing, and scene
   lifecycle/display transforms under Strict Mode/Activity/visibility/context events,
-  including contexts restored while Activity listeners are detached. The 36 focused
-  A3 unit tests passed, including rotated-tip plane constraints, assisted radius
+  including contexts restored while Activity listeners are detached. The 39 focused
+  A3 unit tests pass, including rotated-tip plane constraints, assisted radius
   boundaries/snap, free-depth mismatch, mode reset, reopening after missed pickup,
-  and guidance priority when another in-range instrument is closed.
+  and guidance priority when another in-range instrument is closed. The review
+  regressions reject a display projection after a valid pose and on initialization,
+  verify graceful recovery, and handle absent tool poses with inconsistent readiness.
 - `test-results/a3-instruments.png` and `test-results/a3-ready.png`: generated
   and visually reviewed with the new instruments, single pickup halo and grid. This synthetic
   WebGL screenshot is not physical-camera or target-Mac performance evidence.
-- `npm run build` (preceding A3 implementation verification): asset preparation/
-  cached model verification passed; normal
-  production build remains blocked by the existing Turbopack CSS-worker port
-  restriction even in the escalated retry. Verify on a host that permits that
-  worker process before release. The UX follow-up did not rerun the known-blocked
-  production command or change build configuration. Upstream B3 context reported
-  a successful production build on its verification host; that does not establish
-  a successful A3 production build in this environment.
+- `npm run build` was retried outside the sandbox for PR review. Asset preparation/
+  cached model verification passed; the normal production build still fails in
+  globals.css because the existing Turbopack CSS worker cannot bind a local port
+  (`Operation not permitted`). Production build acceptance remains outstanding on
+  a host permitting that process. Upstream B3 reported a successful build on its
+  verification host; no A3 production build success is claimed here.
 - Shared contracts, dependencies, database schema and encrypted environment files
   were not changed. Next dev generated root `AGENTS.md` with installed Next.js
-  guidance; it is included. Publication is authorized on the A3 branch with a PR into main.
+  guidance; it is intentionally tracked with an explicit provenance note outside
+  the managed markers. The decision is recorded in DECISIONS. PR #5 targets main.
 
 ## 11. Next Recommended Actions
 1. Person A runs the A1/A2 and A3 physical-camera QA from `docs/HAND_TRACKING.md`

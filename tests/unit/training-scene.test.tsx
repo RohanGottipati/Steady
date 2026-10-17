@@ -37,6 +37,14 @@ vi.mock("@/components/scene/pickup-guides", async () => {
 });
 import { SceneContent } from "@/components/scene/training-scene";
 
+// Preserve the real simulation/geometry implementation; selectively reject only
+// the display projection to exercise a failure independent of input validation.
+vi.mock("@/lib/simulation/tool-simulation", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/lib/simulation/tool-simulation")>();
+  return { ...actual, toolFromTarget: vi.fn(actual.toolFromTarget) };
+});
+import { toolFromTarget } from "@/lib/simulation/tool-simulation";
+
 function sample(time: number): ControlSnapshot {
   const control = (side: "left" | "right") => ({ status: "tracking" as const, lastSeenMs: time, rotationHeld: false,
     hand: makeHandFrame(side === "left" ? "Left" : "Right"),
@@ -93,6 +101,31 @@ describe("scene frame and lifecycle integration", () => {
       h.controller.reset(); h.tick(120);
       expect(h.diagnosticsRef.current!.rendered.left!.position.x).toBe(0);
       h.tick(140, emptyControlSnapshot()); expect(h.diagnosticsRef.current!.rendered.left).toBeNull();
+    } finally { await h.dispose(); }
+  });
+  it("keeps the last rendered pose when display projection rejects, then recovers", async () => {
+    const h = await harness();
+    try {
+      h.tick(0); const before = structuredClone(h.diagnosticsRef.current!.rendered.left);
+      vi.mocked(toolFromTarget).mockReturnValueOnce(null);
+      const moved = sample(40); moved.left.target!.position.x = 1;
+      expect(() => h.tick(40, moved)).not.toThrow();
+      expect(h.diagnosticsRef.current!.rendered.left).toEqual(before);
+      expect(h.diagnosticsRef.current!.snapshot.left!.position.x).toBe(1);
+      const recovered = sample(80); recovered.left.target!.position.x = 1; h.tick(80, recovered);
+      expect(h.diagnosticsRef.current!.rendered.left!.position.x).toBeGreaterThan(0);
+      expect(h.diagnosticsRef.current!.frames).toBe(3);
+    } finally { await h.dispose(); }
+  });
+  it("does not expose an uninitialized instrument if its first projection rejects", async () => {
+    const h = await harness();
+    try {
+      vi.mocked(toolFromTarget).mockReturnValueOnce(null);
+      const first = sample(0); first.left.target!.position.x = 1;
+      expect(() => h.tick(0, first)).not.toThrow();
+      expect(h.diagnosticsRef.current!.rendered.left).toBeNull();
+      const recovered = sample(40); recovered.left.target!.position.x = 1; h.tick(40, recovered);
+      expect(h.diagnosticsRef.current!.rendered.left!.position.x).toBe(1);
     } finally { await h.dispose(); }
   });
   it("holds an attached object's visual pose through freeze and keeps release continuous", async () => {

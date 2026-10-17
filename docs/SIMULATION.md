@@ -120,6 +120,12 @@ reopening; free-depth mismatch feedback requests moving closer/farther or enabli
 Easy pickup. Decorative rings were replaced with a muted grid to avoid false
 pickup targets.
 
+If an assisted display projection is rejected, that instrument keeps its preceding
+visible pose/jaws. An instrument without a valid first pose stays hidden and
+initializes directly once projection succeeds. This fallback does not fabricate
+an authoritative pose or reset the renderer. Pickup feedback tolerates absent tool
+poses even if a consumer supplies inconsistent readiness.
+
 Mesh updates run through refs in `useFrame`; UI samples at 4 Hz. Debug mode reports
 actual rendered group poses separately from authoritative tool poses, tips/jaws,
 ownership, source timestamp, render FPS, median FPS and p95 frame interval. Timing

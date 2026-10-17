@@ -76,6 +76,14 @@ describe("deterministic acquisition and release", () => {
 });
 
 describe("easy pickup and actionable feedback", () => {
+  it("handles absent instrument poses even if a consumer supplies inconsistent readiness", () => {
+    const c = ready();
+    const missing = { ...c.snapshot, left: null, right: null, canProgress: true };
+    expect(pickupFeedback(missing)).toMatchObject({ ready: false, message: "Waiting for usable instrument poses." });
+    const single = { ...missing, right: c.snapshot.right };
+    expect(pickupFeedback(single).ready).toBe(false);
+    expect(() => pickupFeedback(single)).not.toThrow();
+  });
   it("locks actual tips to the working plane despite depth/tilt, then snaps into the jaws", () => {
     const c = new ToolSimulationController();
     const q = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), 0.4);

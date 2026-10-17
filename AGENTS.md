@@ -1,3 +1,11 @@
+# Repository guidance
+
+This file is intentionally tracked. The marked block below is maintained by
+`next dev` for the installed Next.js version; it is generated framework guidance,
+not a hand-authored project policy. Keep this provenance note outside the markers
+so framework updates can refresh their block. Project ownership and workflow
+rules live in `docs/CONTEXT.md` and `docs/IMPLEMENTATION_PLAN.md`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

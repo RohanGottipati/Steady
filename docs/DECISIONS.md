@@ -2,6 +2,15 @@
 
 Record architectural and product decisions here as they are made.
 
+### 2026-10-17 - Track Next.js guidance with explicit provenance
+- Context: PR #5 review asked whether the generated root AGENTS.md was intentional.
+  The A3 plan retained this file, and publication of that implementation was approved.
+- Decision: Keep AGENTS.md tracked, with a hand-authored provenance note outside
+  the framework-managed markers. The generated block describes the installed
+  framework; project ownership/workflow remain in CONTEXT and IMPLEMENTATION_PLAN.
+- Consequences: Next dev can refresh its block without removing the note. Generated
+  framework guidance is distinguishable from project policy during future reviews.
+
 ### 2026-10-17 - A3 pickup guidance and depth assistance
 - Context: The user could not reliably pick up the needle, found the interaction
   unclear and rejected the original instrument appearance. Projected alignment

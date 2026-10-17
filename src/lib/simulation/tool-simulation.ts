@@ -53,13 +53,15 @@ export function pickupFeedback(snapshot: SimulationSnapshot) {
   if (!snapshot.canProgress) return { radius, tools, ready: false, message: snapshot.reason };
   if (snapshot.object.heldBy) return { radius, tools, ready: false, message: `Needle held by ${snapshot.object.heldBy === "left-tool" ? "left" : "right"} instrument. Open your thumb and index finger to release.` };
   const byDistance = [...tools].sort((a, b) => a.distance - b.distance);
-  const nearest = byDistance.find(candidate => candidate.inRange && !candidate.tool!.jawClosed) ?? byDistance[0];
-  const ready = nearest.inRange && !nearest.tool!.jawClosed;
-  const depthMismatch = !snapshot.assisted && nearest.tool && Math.hypot(nearest.tool.tipPosition.x - snapshot.object.position.x, nearest.tool.tipPosition.y - snapshot.object.position.y) <= radius && Math.abs(nearest.tool.tipPosition.z - snapshot.object.position.z) > radius;
+  const nearest = byDistance.find(candidate => candidate.inRange && candidate.tool?.jawClosed === false) ?? byDistance[0];
+  if (!nearest?.tool) return { radius, tools, ready: false, message: "Waiting for usable instrument poses." };
+  const tool = nearest.tool;
+  const ready = nearest.inRange && !tool.jawClosed;
+  const depthMismatch = !snapshot.assisted && Math.hypot(tool.tipPosition.x - snapshot.object.position.x, tool.tipPosition.y - snapshot.object.position.y) <= radius && Math.abs(tool.tipPosition.z - snapshot.object.position.z) > radius;
   const message = nearest.inRange ? ready
     ? `${nearest.slot === "left" ? "Left" : "Right"} tip aligned — pinch thumb and index finger to pick up.`
     : "Open your thumb and index finger first, then pinch again to pick up."
-    : depthMismatch ? `Depth is off: move your hand ${nearest.tool!.tipPosition.z > snapshot.object.position.z ? "farther from" : "closer to"} the camera, or enable Easy pickup.`
+    : depthMismatch ? `Depth is off: move your hand ${tool.tipPosition.z > snapshot.object.position.z ? "farther from" : "closer to"} the camera, or enable Easy pickup.`
     : "Open your hand and move a colored tip ring inside the needle’s pickup circle.";
   return { radius, tools, ready, message };
 }

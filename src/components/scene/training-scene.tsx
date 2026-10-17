@@ -73,11 +73,15 @@ export function SceneContent({ controlsRef, controller, diagnosticsRef, onStatus
       if (needle.current) apply(needle.current, snapshot.object);
     } else if (snapshot.canProgress) {
       for (const slot of ["left", "right"] as const) {
-        const group = groups[slot], tool = snapshot[slot]!;
-        if (!group) continue;
+        const group = groups[slot], tool = snapshot[slot];
+        if (!group || !tool) continue;
+        const displayed = initialized.current && group.visible ? interpolatePose(poseOf(group), tool, interrupted.current ? 0 : delta) : tool;
+        const nextPose = snapshot.assisted ? toolFromTarget({ ...tool, ...displayed }, tool.id, true) : displayed;
+        // A rejected display projection must retain the last valid pose/jaws.
+        // On first initialization keep the instrument hidden until it is usable.
+        if (!nextPose) continue;
         group.visible = true;
-        const displayed = initialized.current ? interpolatePose(poseOf(group), tool, interrupted.current ? 0 : delta) : tool;
-        apply(group, snapshot.assisted ? toolFromTarget({ ...tool, ...displayed }, tool.id, true)! : displayed);
+        apply(group, nextPose);
         for (const [name, sign] of [["jaw-left", -1], ["jaw-right", 1]] as const) {
           const jaw = group.getObjectByName(name);
           if (jaw) { jaw.rotation.z = tool.jawClosed ? 0 : sign * -0.24; jaw.position.x = tool.jawClosed ? sign * 0.006 : 0; }
