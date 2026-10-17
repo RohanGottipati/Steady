@@ -14,7 +14,7 @@ describe("databaseStatus", () => {
     expect(await databaseStatus(failing)).toBe("down");
   });
 
-  const url = getDatabaseUrl();
+  const url = process.env.STEADY_TIGER_INTEGRATION === "1" ? getDatabaseUrl() : "";
   const itDb = url ? it : it.skip;
   let sql: ReturnType<typeof connect> | undefined;
   beforeAll(() => {
@@ -30,7 +30,7 @@ describe("databaseStatus", () => {
 });
 
 describe("/api/health route", () => {
-  const url = getDatabaseUrl();
+  const url = process.env.STEADY_TIGER_INTEGRATION === "1" ? getDatabaseUrl() : "";
   beforeAll(() => {
     if (url) process.env.TIGER_DATABASE_URL = url as string;
   });

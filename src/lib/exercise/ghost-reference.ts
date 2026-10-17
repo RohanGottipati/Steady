@@ -18,14 +18,14 @@ export interface GhostReferenceCatalogItem {
 export const GHOST_REFERENCE_SOURCES: readonly GhostReferenceCatalogItem[] = [
   {
     id: "synthetic-v1",
-    label: "Canonical Scene Guide (v1)",
+    label: "Scene guide",
     url: "/references/needle-passing/needle-passing-reference-v1.json",
     sourceType: "internal-recording",
     attribution: null,
   },
   {
     id: "jigsaws-expert-v1",
-    label: "JIGSAWS Expert E005 (GRS 17)",
+    label: "JIGSAWS expert example",
     url: "/references/needle-passing/needle-passing-jigsaws-expert-v1.json",
     sourceType: "dataset",
     attribution:
@@ -332,6 +332,12 @@ export function mapJigsawsGesturesToSegments(reference: ReferenceMotion): Refere
 
   const allCanonical = frames.every(f => NEEDLE_SEGMENT_SET.has(f.segmentId));
   if (allCanonical) {
+    return reference;
+  }
+
+  // Peg Transfer and other skill references keep their own segment ids.
+  // Only JIGSAWS gesture codes (G1–G15) are rewritten onto Needle Passing phases.
+  if (!frames.some(frame => /^G\d+$/.test(frame.segmentId))) {
     return reference;
   }
 

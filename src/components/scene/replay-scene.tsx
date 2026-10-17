@@ -7,8 +7,9 @@ import type { ReplayController, ReplaySnapshot, ReplayTrails } from "@/lib/simul
 import type { Pose } from "@/lib/simulation/tool-simulation";
 import type { Vec3 } from "@/types";
 import { Instrument } from "./instrument";
-import { OperatingRoom, PracticeNeedle } from "./operating-room";
+import { OperatingRoom, PracticeNeedle, PracticePeg } from "./operating-room";
 import { ExerciseTargets } from "./exercise-targets";
+import { PegTransferTargets } from "./peg-transfer-targets";
 
 export interface ReplayDiagnostics {
   user: { left: Pose | null; right: Pose | null };
@@ -19,6 +20,7 @@ export interface ReplaySceneProps {
   controller: ReplayController;
   diagnosticsRef?: RefObject<ReplayDiagnostics | null>;
   onStatus: (status: "ready" | "lost") => void;
+  skillId?: string;
 }
 function apply(group: Group, pose: Pose) {
   group.position.set(pose.position.x, pose.position.y, pose.position.z);
@@ -71,8 +73,22 @@ export function updateReplayLayer(root: Group | null, snapshot: ReplaySnapshot, 
         attr.setXYZ(0, a.x, a.y, a.z); attr.setXYZ(1, b.x, b.y, b.z); attr.needsUpdate = true;
         connector.geometry.computeBoundingSphere();
       }
+      if (connector.material instanceof LineBasicMaterial) {
+        connector.material.color.set(snapshot.divergenceEmphasis ? "#ffffff" : "#fb7185");
+      }
     }
   }
+}
+/** Frame the displayed difference while a narrated pause is active, then restore the overview. */
+export function applyReplayEmphasis(camera: OrthographicCamera, snapshot: ReplaySnapshot) {
+  if (snapshot.divergenceEmphasis && snapshot.focusPoint) {
+    camera.position.set(snapshot.focusPoint.x, snapshot.focusPoint.y, 4);
+    camera.lookAt(snapshot.focusPoint.x, snapshot.focusPoint.y, 0);
+  } else {
+    camera.position.set(0, 0.15, 4);
+    camera.lookAt(0, 0.15, 0);
+  }
+  camera.updateProjectionMatrix();
 }
 function ReplayInstrument({ side, expert }: { side: "left" | "right"; expert: boolean }) {
   const instrument = useRef<Group>(null);
@@ -133,7 +149,7 @@ export function ReplayLoop({ controller, diagnosticsRef, onStatus, onFrame }: Re
   });
   return null;
 }
-export function ReplaySceneContent({ controller, diagnosticsRef, onStatus }: ReplaySceneProps) {
+export function ReplaySceneContent({ controller, diagnosticsRef, onStatus, skillId = "needle-passing" }: ReplaySceneProps) {
   const root = useRef<Group>(null), needle = useRef<Group>(null);
   const { camera, size } = useThree();
   const renderFrame = (snapshot: ReplaySnapshot) => {
@@ -150,21 +166,23 @@ export function ReplaySceneContent({ controller, diagnosticsRef, onStatus }: Rep
         needle: needle.current?.visible ? { position: { x: needle.current.position.x, y: needle.current.position.y, z: needle.current.position.z },
           rotation: { x: needle.current.quaternion.x, y: needle.current.quaternion.y, z: needle.current.quaternion.z, w: needle.current.quaternion.w } } : null };
     }
+    if (camera instanceof OrthographicCamera) applyReplayEmphasis(camera, snapshot);
   };
   return <>
     <ReplayLoop controller={controller} diagnosticsRef={diagnosticsRef} onStatus={onStatus} onFrame={renderFrame} />
     {camera instanceof OrthographicCamera && <primitive object={camera} zoom={Math.min(size.width / 3.6, size.height / 2.6)} onUpdate={(value: OrthographicCamera) => value.updateProjectionMatrix()} />}
-    <OperatingRoom /><ExerciseTargets />
+    <OperatingRoom />
+    {skillId === "peg-transfer" ? <PegTransferTargets /> : <ExerciseTargets />}
     <group ref={root}>
       <ReplayInstrument side="left" expert={false} /><ReplayInstrument side="right" expert={false} />
       <ReplayInstrument side="left" expert /><ReplayInstrument side="right" expert /><ReplayLines />
     </group>
-    <PracticeNeedle ref={needle} />
+    {skillId === "peg-transfer" ? <PracticePeg ref={needle} /> : <PracticeNeedle ref={needle} />}
   </>;
 }
 export default function ReplayScene(props: ReplaySceneProps) {
   return <Canvas aria-label="3D attempt replay" orthographic camera={{ position: [0, 0.15, 4], zoom: 160, near: 0.05, far: 30 }}
-    dpr={[1, 1.5]} gl={{ antialias: true }} fallback={<p>3D replay is unavailable. Enable WebGL and retry.</p>}>
+    dpr={[1, 1.5]} gl={{ antialias: true }} fallback={<p className="p-4 text-sm text-slate-100">3D replay is unavailable. Enable WebGL and retry.</p>}>
     <ReplaySceneContent {...props} />
   </Canvas>;
 }

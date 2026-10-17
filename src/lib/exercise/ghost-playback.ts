@@ -70,8 +70,19 @@ const GHOST_ACTION_BY_SEGMENT: Record<string, string> = {
   complete: "Complete: Needle passed through all 3 rings and released cleanly.",
 };
 
-export function describeGhostAction(segmentId: string): string {
-  return GHOST_ACTION_BY_SEGMENT[segmentId] ?? `Showing ${segmentId} trajectory.`;
+const PEG_GHOST_ACTIONS: Record<string, string> = {
+  reach: "Reach the peg on the left post with an open instrument.",
+  grasp: "Pinch to grasp the peg on the left post.",
+  lift: "Lift the peg clear of the left post.",
+  transfer: "Carry the peg through the midline and meet it with the other instrument.",
+  place: "Lower the peg onto the right post.",
+  release: "Open the pinch to release the peg on the right post.",
+  complete: "Complete: peg moved from the left post to the right post.",
+};
+
+export function describeGhostAction(segmentId: string, referenceId?: string): string {
+  const table = referenceId === "peg-transfer-reference-v1" ? PEG_GHOST_ACTIONS : GHOST_ACTION_BY_SEGMENT;
+  return table[segmentId] ?? `Showing ${segmentId} trajectory.`;
 }
 
 export function lerpVec3(a: Vec3, b: Vec3, alpha: number): Vec3 {
@@ -360,6 +371,7 @@ export class GhostPlaybackController {
     this.syncMode = syncMode;
     this.leadOffset = clamp(leadOffset, 0.05, 0.15);
     this.cycleDurationMs = Math.max(500, cycleDurationMs);
+    this.coupledSegmentId = this.reference.frames[0]?.segmentId ?? "approach";
     this.snapshot = this.buildSnapshot(
       sampleReferenceAtProgress(this.reference, 0),
       false,
@@ -410,7 +422,7 @@ export class GhostPlaybackController {
   reset() {
     this.continuousProgress = 0;
     this.demoProgress = 0;
-    this.coupledSegmentId = "approach";
+    this.coupledSegmentId = this.reference.frames[0]?.segmentId ?? "approach";
     this.coupledSegmentProgress = 0;
     this.lastUserSegmentId = "";
     this.lastUserSegmentProgress = -1;
@@ -442,7 +454,7 @@ export class GhostPlaybackController {
       visible,
       showTrail,
       activeSide: this.activeSide,
-      actionLabel: visible ? describeGhostAction(sampled.segmentId) : "Ghost hidden",
+      actionLabel: visible ? describeGhostAction(sampled.segmentId, this.reference.id) : "Ghost hidden",
       referenceId: this.reference.id,
       referenceSourceId: this.referenceSourceId,
       sourceName: this.reference.sourceName,
@@ -559,7 +571,7 @@ export class GhostPlaybackController {
     if (stalled) {
       // If the user is still at the initial approach step and has not grabbed the needle yet,
       // play the full multi-step pass so they can see the entire Needle -> Ring 1..3 -> Release flow.
-      if (userSegId === "approach" && userSegProg < 0.45) {
+      if ((userSegId === "approach" || userSegId === "reach") && userSegProg < 0.45) {
         this.continuousProgress =
           (this.continuousProgress + (dtMs * this.speed) / this.cycleDurationMs) % 1;
         const fullPassSample = sampleReferenceAtProgress(this.reference, this.continuousProgress);

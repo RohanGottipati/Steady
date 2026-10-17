@@ -105,7 +105,7 @@ export function quatAngleDegrees(a: Quat, b: Quat): number {
   return 2 * Math.acos(dot) * (180 / Math.PI);
 }
 
-export function pointInBox(point: Vec3, box: DangerZoneBoxConfig): boolean {
+export function pointInBox(point: Vec3, box: { center: Readonly<Vec3>; halfExtents: Readonly<Vec3> }): boolean {
   return (
     Math.abs(point.x - box.center.x) <= box.halfExtents.x + 1e-9 &&
     Math.abs(point.y - box.center.y) <= box.halfExtents.y + 1e-9 &&

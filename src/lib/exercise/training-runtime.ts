@@ -1,36 +1,47 @@
+import { buildDeterministicReview } from "@/lib/ai/deterministic-review";
+import { requestAttemptReview, type AttemptReview } from "@/lib/ai/request-review";
 import { CoachingEngine, DEFAULT_COACHING_CONFIG } from "@/lib/coaching/coaching-engine";
 import { ToolSimulationController } from "@/lib/simulation/tool-simulation";
 import type { CompletedReplay } from "@/lib/simulation/replay-types";
 import { saveCompletedAttempt, type CachePersistence } from "@/lib/storage/attempt-cache";
+import { syncSavedAttempt, type CloudSyncResult } from "@/lib/storage/cloud-sync";
 import { emptyControlSnapshot, type ControlSnapshot } from "@/lib/vision/control-types";
 import { needlePassingSkill } from "@/data/skills/needle-passing";
-import type { SkillDefinition, TrainingMode } from "@/types";
+import type { CoachingEventType, SkillDefinition, TrainingMode } from "@/types";
 import { adaptReferenceForAttempt, evaluateCompletedAttempt, type CompletedAttemptBundle } from "./attempt-evaluator";
 import { CoachingSignalsAdapter } from "./coaching-signals";
 import { ExerciseController } from "./exercise-controller";
 import { buildFixtureControlFrames, type FixtureId } from "./fixture-playback";
 import { GhostPlaybackController } from "./ghost-playback";
-import { DEFAULT_NEEDLE_PASSING_REFERENCE } from "./ghost-reference";
 import { EXERCISE_THRESHOLDS } from "./needle-passing-config";
+import { PEG_HOME, PEG_ID, PEG_TRANSFER_THRESHOLDS } from "./peg-transfer-config";
+import { referenceForSkill } from "./peg-transfer-reference";
 
 const STEP_MS = 1000 / 30;
 export class TrainingRuntime {
-  readonly simulation = new ToolSimulationController();
+  readonly simulation: ToolSimulationController;
   readonly exercise: ExerciseController;
-  readonly ghost = new GhostPlaybackController();
-  readonly coaching = new CoachingEngine({
-    ...DEFAULT_COACHING_CONFIG,
-    thresholds: { ...DEFAULT_COACHING_CONFIG.thresholds, rotationBehindToleranceDeg: 3, rotationSeverityRangeDeg: 12 },
-  });
+  readonly ghost: GhostPlaybackController;
+  readonly coaching: CoachingEngine;
   private readonly signals = new CoachingSignalsAdapter();
   controls: ControlSnapshot = emptyControlSnapshot();
   bundle: CompletedAttemptBundle | null = null;
+  review: AttemptReview | null = null;
+  private reviewEpoch = 0;
   // Detached from the active exercise: resets/camera shutdown must not erase it.
   lastReplay: CompletedReplay | null = null;
   error: string | null = null;
   message: string | null = null;
   saveStatus: "idle" | "saving" | "demo" | CachePersistence = "idle";
+  cloudStatus: "idle" | "syncing" | CloudSyncResult = "idle";
+  /** Live speech is skipped for fixtures. A throw becomes silence; the text line stays. */
+  private speaker: ((type: CoachingEventType, allowLive: boolean) => void) | null = null;
+  attachSpeaker(speaker: (type: CoachingEventType, allowLive: boolean) => void) {
+    this.speaker = speaker;
+    return () => { if (this.speaker === speaker) this.speaker = null; };
+  }
   generation = 0;
+  private syncEpoch = 0;
   private listeners = new Set<() => void>();
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   getGeneration = () => this.generation;
@@ -44,24 +55,44 @@ export class TrainingRuntime {
   private lastCoachingMs = -Infinity;
   private messageUntilMs = 0;
   private attemptId: string | null = null;
-  private reference = structuredClone(DEFAULT_NEEDLE_PASSING_REFERENCE);
+  private reference: ReturnType<typeof referenceForSkill>;
   private singleHand = false;
   private assisted = true;
 
   constructor(readonly skill: SkillDefinition = needlePassingSkill, mode: TrainingMode = "learn") {
+    const corridorTolerance = skill.id === "peg-transfer"
+      ? PEG_TRANSFER_THRESHOLDS.corridorToleranceUnits
+      : EXERCISE_THRESHOLDS.corridorToleranceUnits;
+    this.simulation = new ToolSimulationController({
+      taskObject: skill.id === "peg-transfer" ? { id: PEG_ID, position: { ...PEG_HOME } } : undefined,
+    });
     this.exercise = new ExerciseController({ skill, mode });
+    this.reference = structuredClone(referenceForSkill(skill));
+    this.ghost = new GhostPlaybackController({ reference: this.reference });
+    this.coaching = new CoachingEngine({
+      ...DEFAULT_COACHING_CONFIG,
+      thresholds: {
+        ...DEFAULT_COACHING_CONFIG.thresholds,
+        corridorToleranceUnits: corridorTolerance,
+        rotationBehindToleranceDeg: skill.id === "peg-transfer" ? 8 : 3,
+        rotationSeverityRangeDeg: skill.id === "peg-transfer" ? 20 : 12,
+      },
+    });
   }
 
   reset(newSource = false) {
+    this.reviewEpoch++;
+    this.review = null;
     this.generation++;
+    this.syncEpoch++;
     this.simulation.reset(!newSource);
     this.exercise.reset(!newSource);
     this.ghost.reset();
     this.coaching.reset();
     this.signals.reset();
-    this.bundle = null; this.error = null; this.message = null; this.saveStatus = "idle";
+    this.bundle = null; this.error = null; this.message = null; this.saveStatus = "idle"; this.cloudStatus = "idle";
     this.attemptId = null; this.lastSource = null; this.lastCoachingMs = -Infinity; this.messageUntilMs = 0;
-    this.reference = structuredClone(DEFAULT_NEEDLE_PASSING_REFERENCE);
+    this.reference = structuredClone(referenceForSkill(this.skill));
     this.cursor = 0; this.accumulator = 0; this.fixtureInterrupted = false;
     this.controls = emptyControlSnapshot();
     this.fixtureFrames = this.fixtureId ? buildFixtureControlFrames(this.fixtureId) : [];
@@ -144,7 +175,11 @@ export class TrainingRuntime {
     if (signals.tMs - this.lastCoachingMs >= 1000 / 3 || snapshot.phase !== "active") {
       this.lastCoachingMs = signals.tMs;
       const tick = this.coaching.evaluate(signals);
-      if (tick.spoken) { this.message = tick.spoken.text; this.messageUntilMs = signals.tMs + 4000; }
+      if (tick.spoken) {
+        this.message = tick.spoken.text;
+        this.messageUntilMs = signals.tMs + 4000;
+        try { this.speaker?.(tick.spoken.event.type, !this.fixtureId); } catch { /* On-screen text remains. */ }
+      }
       else if (tick.canceledPending || snapshot.phase !== "active" || signals.tMs >= this.messageUntilMs) this.message = null;
     }
     if (snapshot.frameCount >= EXERCISE_THRESHOLDS.maxRecordedFrames) {
@@ -152,12 +187,33 @@ export class TrainingRuntime {
     }
     if (snapshot.phase === "complete" && snapshot.readyForEvaluation) this.finish();
   }
+  retryCloudSync() {
+    const attempt = this.bundle?.savedAttempt;
+    if (!attempt || this.fixtureId || this.cloudStatus === "syncing" || this.cloudStatus === "synced") return;
+    const epoch = this.syncEpoch;
+    this.cloudStatus = "syncing";
+    this.publish();
+    void syncSavedAttempt(attempt).then(result => {
+      if (this.syncEpoch !== epoch) return;
+      this.cloudStatus = result;
+      this.publish();
+    }).catch(() => {
+      if (this.syncEpoch !== epoch) return;
+      this.cloudStatus = "local-only";
+      this.publish();
+    });
+  }
+  private publish() {
+    this.generation++;
+    this.listeners.forEach(listener => listener());
+  }
   private finish() {
     try {
       const bundle = evaluateCompletedAttempt({ recorded: this.exercise.getRecordedMotion(), reference: this.reference,
         skill: this.skill, mode: this.exercise.snapshot.mode, singleHand: this.singleHand,
         attemptId: this.attemptId ?? crypto.randomUUID(), importantEvents: [...this.coaching.events] });
       const recording = this.exercise.getReplayRecording();
+      const review = buildDeterministicReview(bundle);
       this.lastReplay = {
         attemptId: bundle.attemptResult.id,
         source: this.fixtureId ? "fixture" : "webcam",
@@ -165,15 +221,45 @@ export class TrainingRuntime {
           truncated: recording.truncated,
           reference: structuredClone(adaptReferenceForAttempt(this.reference, recording, { singleHand: this.singleHand })) },
         markers: structuredClone(bundle.attemptResult.worstMoments),
+        mode: this.exercise.snapshot.mode,
+        review: { replayNarration: review.replayNarration },
       };
       this.bundle = bundle;
+      this.review = { source: "deterministic", review, notice: null };
       this.message = null;
-      if (this.fixtureId) { this.saveStatus = "demo"; return; }
+      if (this.fixtureId) { this.saveStatus = "demo"; this.cloudStatus = "idle"; return; }
+      const reviewEpoch = this.reviewEpoch;
+      void requestAttemptReview(bundle).then(accepted => {
+        if (this.reviewEpoch !== reviewEpoch || this.bundle !== bundle) return;
+        this.review = accepted;
+        if (this.lastReplay?.attemptId === bundle.attemptResult.id) {
+          this.lastReplay = { ...this.lastReplay, review: { replayNarration: accepted.review.replayNarration } };
+        }
+        this.generation++;
+        this.listeners.forEach(listener => listener());
+      });
       this.saveStatus = "saving";
-      const generation = this.generation;
+      const epoch = this.syncEpoch;
       void saveCompletedAttempt(this.bundle.savedAttempt).then(status => {
-        if (this.generation === generation) this.saveStatus = status;
-      }).catch(() => { if (this.generation === generation) this.saveStatus = "memory"; });
+        if (this.syncEpoch !== epoch) return;
+        this.saveStatus = status;
+        this.cloudStatus = "syncing";
+        this.publish();
+        void syncSavedAttempt(bundle.savedAttempt).then(result => {
+          if (this.syncEpoch !== epoch) return;
+          this.cloudStatus = result;
+          this.publish();
+        }).catch(() => {
+          if (this.syncEpoch !== epoch) return;
+          this.cloudStatus = "local-only";
+          this.publish();
+        });
+      }).catch(() => {
+        if (this.syncEpoch !== epoch) return;
+        this.saveStatus = "memory";
+        this.cloudStatus = "local-only";
+        this.publish();
+      });
     } catch {
       this.error = "The attempt could not be evaluated. Restart the attempt to record a complete pass.";
     }

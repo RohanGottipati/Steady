@@ -3605,6 +3605,11 @@ A judge can intentionally perform a bad movement and see/hear the system explain
 
 ## A7 - Additional skill scene configs
 
+Integration handoff (2026-10-17): Needle Passing and Peg Transfer share the runtime,
+exercise controller, evaluation, ghost, and replay surfaces. Peg Transfer uses a
+fixed synthetic scene demonstration; the sparse adapter fixture remains unchanged.
+See docs/CONTEXT.md for current verification and docs/DEMO_RUNBOOK.md for acceptance.
+
 **Owner:** Person A  
 **Depends on:** stable generic exercise engine  
 **Priority:** P1

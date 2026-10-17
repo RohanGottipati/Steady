@@ -72,8 +72,12 @@ scene tests. The runtime never writes into the webcam-owned control ref.
   landmark/debug observations. Writes/retention serialize and retain the newest 20 webcam
   attempts. Corrupt entries are ignored/pruned. Blocked opens time out after 1.5 s;
   quota, security, or unsupported-storage errors fall back to bounded memory. Saving
-  never delays result presentation. `cloudSyncStatus` stays `pending`; S1 uploads nothing.
-  Fixtures remain session-only and do not enter pending webcam history.
+  never delays result presentation. Webcam attempts then POST a compact payload to
+  `/api/attempts`. A failed or missing Tiger response keeps the IndexedDB row and
+  records `cloudSyncStatus` `failed` so a later retry uses the same attempt id.
+  Fixtures stay session-only, do not enter that queue, and do not call live speech,
+  review, or upload APIs. Speech failures leave the on-screen coaching line. A failed
+  replay chunk shows a retry that returns to training; scores already on the attempt stay.
 
 Manual S1 acceptance on Chrome/macOS:
 
@@ -181,6 +185,40 @@ and paths, compare recorded/smoothed views, hide/restore the tab, and lose/retry
 WebGL. The cursor should stay put through interruptions. Return to training and
 verify a fresh exercise, with the previous replay still available. Target-Mac
 performance measurements remain a separate physical acceptance step.
+
+## S2 narrated replay handoff
+
+S2 uses the A6 package. Models explain measurements; they never score motion or
+receive webcam video. The integration includes the live-review dependency needed
+for narration; broader Tiger retrieval remains separate.
+
+- `planReplayNarration` (`src/lib/simulation/replay-narration.ts`) chooses the
+  focus marker and the sentence. Marker order is highest severity, then earlier
+  `tMs`, then `metricId`, then `segmentId`. A non-empty
+  `CompletedReplay.review.replayNarration` replaces the sentence and still focuses
+  that marker. The deterministic sentence names the skill, segment, metric,
+  explanation data, and severity. Empty marker lists produce no speech.
+- `ReplayController.armFocusPause(marker)` plays from the current cursor,
+  including the A6 `seekToTaskStart()` lead-in, and pauses on the marker's
+  existing aligned pose. A cursor already at or past the marker pauses there
+  immediately. `seekTime`, `seekProgress`, `seekMarker`, and `setMode` clear the
+  arm so playback cannot snap back. `divergenceEmphasis` is true only during that
+  pause. `focusPoint` is the midpoint of the larger displayed tip difference.
+- `ReplayScene` turns the deviation connectors white and moves the orthographic
+  camera onto `focusPoint` while emphasis is on, then restores the overview camera.
+  Reference visibility is turned on at the pause so the existing comparison shows.
+- `ThreeDReplayPreview` shows the sentence immediately. After the scene is ready
+  it arms the focus pause, then calls `AudioManager.speak` once. Skip, play,
+  mode changes, timeline seeks, and unmount call `cancel()`. Speech does not call
+  `play()` or `seek`. Assessment's live `voiceCoachingLevel: "none"` path is
+  unchanged; the post-attempt line still speaks. Speech failure leaves the text up.
+- `TrainingRuntime` records `mode` and sets `review.replayNarration` from B8's
+  `buildDeterministicReview`. One optional review request per completed webcam attempt
+  replaces it only after schema/focus validation. Results and replay share the accepted
+  review; reset invalidates older responses. Review is frozen when opening replay so
+  a later response cannot change a sentence that is already being spoken.
+  `ThreeDReplayPreview initialMarker` still holds the clicked issue instead of
+  playing through it. B8's results chrome stays; narration is added on that surface.
 
 ## Interfaces and ownership
 
@@ -395,3 +433,52 @@ Before physical signoff on the target Mac/latest Chrome:
 
 Screenshots and synthetic browser tests do not establish physical-camera accuracy
 or target-Mac performance. See CONTEXT for actual automated outcomes/build blockers.
+
+## A7 Peg Transfer on the shared engine
+
+`/train/peg-transfer` uses the same `TrainingSession`, `TrainingRuntime`, and
+`ExerciseController` as Needle Passing. The second skill is config:
+
+- `SkillDefinition` in `src/data/skills/peg-transfer.ts` with segments
+  `reach → grasp → lift → transfer → place → release → complete`.
+- Scene checkpoints in `peg-transfer-config.ts`: left post `(-0.225, 0.20, 0)`,
+  midline `(0, 0.34, 0)`, right post `(0.25, 0.19, 0)`, and `board-edge`
+  centered at `(0, 0.02, 0)`.
+- Metric weights emphasize bimanual coordination, path similarity, and grip timing.
+  Corridor tolerance is `0.14` (Needle Passing stays `0.12`) and the practice
+  auto-ghost wait is `1600 ms`.
+- The committed adapter fixture is unchanged. Runtime scoring and the ghost use a
+  fixed internally authored Z=0 demonstration through the shared segment engine.
+  Merely projecting the sparse adapter file mismatched the scene gates and scored
+  a correct transfer poorly. The corrected reference matches those gates without
+  changing metric thresholds; perturbed paths still score worse. Segment ids are
+  not rewritten onto Needle Passing phases.
+- A grasp on the right post, an early release, or a move to the right post that
+  skips the midline does not advance. Assessment still forces the ghost, path,
+  and live coaching off.
+- `?fixture=peg-transfer-good` plays that path without a camera. Needle Passing
+  fixtures stay on `/train/needle-passing`. Suturing and knot-tying remain
+  coming-soon. Real LASK data is not included.
+
+## Integrated review, audio, and acceptance
+
+`TrainingRuntime.review` owns the deterministic or accepted model review for the
+current attempt. It makes at most one request per webcam completion, and no request
+for fixtures. The request includes measured metrics/explanations and complete top
+marker evidence. Backboard uses X-API-Key, Google Gemini 2.5 Flash, JSON output,
+memory off, and web search off. Invalid output, a different focus segment, or an
+unavailable provider retains the deterministic review and the original scores.
+
+Training and replay share one AudioManager. User playback clears automatic focus
+arming even if the cursor is already at zero; skip/seek/exit/reset cancel obsolete
+audio. Fixture narration uses browser speech without requesting live synthesis.
+A total audio failure leaves the explanation visible. Assessment's active attempt
+still has no ghost/path/coaching; post-attempt review remains available.
+
+The skill layout validates unknown IDs before the loading boundary streams, opting
+that small catalog guard out of instant-navigation validation. Webpack's default
+build/dev paths compile Tailwind through Next's existing CSS loader chains. The
+Playwright development server uses .next-e2e and its own TypeScript config so it
+can coexist with a running developer server without stopping it.
+
+See docs/DEMO_RUNBOOK.md for recording, judge steps, and pending physical sign-off.

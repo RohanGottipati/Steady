@@ -6,7 +6,7 @@ import { needlePassingSkill } from "@/data/skills/needle-passing";
 import { buildDeterministicReview } from "@/lib/ai/deterministic-review";
 import { type CompletedAttemptBundle } from "@/lib/exercise/attempt-evaluator";
 import { TrainingRuntime } from "@/lib/exercise/training-runtime";
-import { FIXTURE_CATALOG, type FixtureId } from "@/lib/exercise/fixture-playback";
+import { FIXTURE_CATALOG, fixtureMatchesSkill, type FixtureId } from "@/lib/exercise/fixture-playback";
 import { type GhostPlaybackSpeed, type GhostSyncMode } from "@/lib/exercise/ghost-playback";
 import { DEFAULT_NEEDLE_PASSING_REFERENCE, GHOST_REFERENCE_SOURCES, type GhostReferenceSourceId } from "@/lib/exercise/ghost-reference";
 import { loadReference } from "@/lib/references/load-reference";
@@ -14,15 +14,31 @@ import { pickupFeedback } from "@/lib/simulation/tool-simulation";
 import type { ControlSnapshot } from "@/lib/vision/control-types";
 import type { SceneDiagnostics } from "@/components/scene/training-scene";
 import type { ReferenceMotion, ReplayMarker, SkillDefinition, TrainingMode } from "@/types";
+import { AudioManager } from "@/lib/voice/audio-manager";
 import { AttemptResultsPanel } from "./attempt-results-panel";
 import { preloadReplayScene, ThreeDReplayPreview } from "./3d-replay-preview";
+import type { CompletedReplay } from "@/lib/simulation/replay-types";
+import { ViewportLoading } from "./viewport-loading";
 
-const TrainingScene = dynamic(() => import("@/components/scene/training-scene"), { ssr: false, loading: () => <p>Loading 3D workspace…</p> });
+const TrainingScene = dynamic(
+  () => import("@/components/scene/training-scene").catch(() => ({
+    default: function SceneLoadFailure({ onLoadFailure }: { onLoadFailure?: () => void }) {
+      useEffect(() => { onLoadFailure?.(); }, [onLoadFailure]);
+      return (
+        <div role="alert" data-testid="scene-load-error" className="p-4 text-sm text-amber-100">
+          <p>The 3D workspace could not be loaded. Scores and controls on this page still work.</p>
+          <button type="button" className="mt-2 rounded border px-3 py-1" onClick={() => window.location.reload()}>Reload training</button>
+        </div>
+      );
+    },
+  })),
+  { ssr: false, loading: () => <p>Loading 3D workspace…</p> },
+);
 class SceneBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
   componentDidCatch() { this.props.onFailure(); }
-  render() { return this.state.failed ? <p>3D rendering is unavailable. Enable WebGL and retry the scene.</p> : this.props.children; }
+  render() { return this.state.failed ? <p className="p-4 text-sm text-slate-100">3D rendering is unavailable. Enable WebGL and retry the scene.</p> : this.props.children; }
 }
 
 export function ThreeDTrainingPreview({
@@ -53,6 +69,9 @@ export function ThreeDTrainingPreview({
   onEvaluationComplete?: (bundle: CompletedAttemptBundle | null) => void;
 }) {
   const [runtime] = useState(() => new TrainingRuntime(skill, controlledMode ?? "learn"));
+  const [audio] = useState(() => new AudioManager());
+  const [replayPackage, setReplayPackage] = useState<CompletedReplay | null>(null);
+  useEffect(() => () => audio.cancel(), [audio]);
   useSyncExternalStore(runtime.subscribe, runtime.getGeneration, runtime.getGeneration);
   const controller = runtime.simulation, exercise = runtime.exercise, ghost = runtime.ghost;
   const referenceCacheRef = useRef<Partial<Record<GhostReferenceSourceId, ReferenceMotion>>>({
@@ -89,7 +108,15 @@ export function ThreeDTrainingPreview({
     void preloadReplayScene().catch(() => {});
   }, []);
 
-  useEffect(() => { runtime.configure(mode, fixtureId, singleHand, assisted); }, [runtime, mode, fixtureId, singleHand, assisted]);
+  useEffect(() => {
+    const detach = runtime.attachSpeaker((type, allowLive) => {
+      const pending = allowLive ? audio.coach(type) : audio.playClip(type);
+      void pending.catch(() => {});
+    });
+    return () => { detach(); audio.cancel(); };
+  }, [runtime, audio]);
+
+  useEffect(() => { audio.cancel(); runtime.configure(mode, fixtureId, singleHand, assisted); }, [runtime, audio, mode, fixtureId, singleHand, assisted]);
   useEffect(() => { if (!calibrated) runtime.invalidateCalibration(); }, [calibrated, runtime]);
   useEffect(() => {
     const referenceRequests = referenceRequestRef;
@@ -108,14 +135,16 @@ export function ThreeDTrainingPreview({
       clearInterval(interval); clearTimeout(resume); referenceRequests.current++; runtime.reset(); diagnosticsRef.current = null;
     };
   }, [runtime, controller, exercise, ghost]);
-  const reset = useCallback(() => { runtime.reset(); setSample(null); setUiTick(value => value + 1); }, [runtime]);
+  const reset = useCallback(() => { audio.cancel(); runtime.reset(); setSample(null); setUiTick(value => value + 1); }, [runtime, audio]);
   const retry = useCallback(() => { reset(); setStatus("loading"); setGeneration(value => value + 1); }, [reset]);
   const openReplay = useCallback((marker: ReplayMarker | null = null) => {
+    audio.cancel();
+    setReplayPackage(runtime.lastReplay);
     runtime.suspend("Reviewing completed attempt.");
     setReplayMarker(marker);
     setReplaying(true);
-  }, [runtime]);
-  const closeReplay = useCallback(() => { runtime.reset(); setReplaying(false); setReplayMarker(null); setStatus("loading"); }, [runtime]);
+  }, [runtime, audio]);
+  const closeReplay = useCallback(() => { audio.cancel(); runtime.reset(); setReplaying(false); setReplayPackage(null); setReplayMarker(null); setStatus("loading"); }, [runtime, audio]);
   const selectMode = (nextMode: TrainingMode) => {
     setLocalMode(nextMode); onModeChange?.(nextMode);
   };
@@ -140,6 +169,7 @@ export function ThreeDTrainingPreview({
     setUiTick(value => value + 1);
   };
   const selectGhostReference = async (sourceId: GhostReferenceSourceId) => {
+    if (skill.id !== "needle-passing") return;
     const request = ++referenceRequestRef.current;
     setReferenceError(null);
     const cached = referenceCacheRef.current[sourceId];
@@ -171,9 +201,9 @@ export function ThreeDTrainingPreview({
   const ghostSnapshot = ghost.snapshot;
   const activeEvaluationBundle = runtime.bundle;
   const feedback = snapshot ? pickupFeedback(snapshot) : null;
-  const review = activeEvaluationBundle ? buildDeterministicReview(activeEvaluationBundle) : null;
-  if (replaying && runtime.lastReplay) return <ThreeDReplayPreview key={runtime.lastReplay.attemptId}
-    replay={runtime.lastReplay} debug={debug} initialMarker={replayMarker ?? undefined} onClose={closeReplay} />;
+  const review = runtime.review?.review ?? (activeEvaluationBundle ? buildDeterministicReview(activeEvaluationBundle) : null);
+  if (replaying && replayPackage) return <ThreeDReplayPreview key={replayPackage.attemptId}
+    replay={replayPackage} audio={audio} debug={debug} initialMarker={replayMarker ?? undefined} onClose={closeReplay} />;
   return <section aria-label="Virtual instrument preview" className="space-y-3 rounded-xl border p-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h2 className="text-lg font-semibold">Virtual instruments</h2>
@@ -186,7 +216,7 @@ export function ThreeDTrainingPreview({
           onClick={activateSingleHandQuickStart}
           className="rounded-md border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
         >
-          1-Hand Quick Start (Use 1 hand only)
+          Use one hand
         </button>
         <button className="rounded-md border px-4 py-2" onClick={reset}>Reset scene</button>
         {(status === "error" || status === "lost") && <button className="rounded-md border px-4 py-2" onClick={retry}>Retry 3D scene</button>}
@@ -200,15 +230,15 @@ export function ThreeDTrainingPreview({
         className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs text-indigo-950 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-100"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-semibold">Demo Fixture Mode:</span>
+          <span className="font-semibold">Sample pass:</span>
           <select
-            aria-label="Select motion fixture"
+            aria-label="Choose a sample pass"
             data-testid="fixture-select"
             value={fixtureId}
             onChange={event => onFixtureChange?.(event.target.value as FixtureId)}
             className="rounded border border-indigo-300 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-indigo-700 dark:bg-zinc-900 dark:text-zinc-100"
           >
-            {FIXTURE_CATALOG.map(item => (
+            {FIXTURE_CATALOG.filter(item => fixtureMatchesSkill(skill.id, item.id)).map(item => (
               <option key={item.id} value={item.id}>
                 {item.label}
               </option>
@@ -222,7 +252,7 @@ export function ThreeDTrainingPreview({
             onClick={reset}
             className="rounded border border-indigo-300 bg-white px-2.5 py-1 font-medium text-indigo-900 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-100"
           >
-            Restart fixture
+            Restart sample
           </button>
         </div>
       </div>
@@ -274,6 +304,7 @@ export function ThreeDTrainingPreview({
         >
           Sync: {ghostSync === "progress-coupled" ? "Progress-coupled" : "Continuous loop"}
         </button>
+        {skill.id === "needle-passing" ? (
         <label className="flex items-center gap-1.5">
           <span className="text-zinc-500">Reference:</span>
           <select
@@ -290,22 +321,36 @@ export function ThreeDTrainingPreview({
             ))}
           </select>
         </label>
+        ) : (
+          <span data-testid="ghost-reference-select">Reference: Synthetic peg-transfer guide (not expert data)</span>
+        )}
         {ghostSnapshot.attribution && (
           <p data-testid="ghost-attribution" className="w-full text-[11px] text-zinc-500 dark:text-zinc-400">
             Attribution: {ghostSnapshot.attribution}
           </p>
         )}
         {referenceError && (
-          <p role="alert" className="w-full text-[11px] text-amber-600">
-            {referenceError}
+          <p role="alert" className="flex w-full flex-wrap items-center justify-between gap-2 text-[11px] text-amber-600">
+            <span>{referenceError}</span>
+            <button type="button" data-testid="dismiss-reference-error" className="rounded border border-amber-400 px-2 py-0.5" onClick={() => setReferenceError(null)}>Dismiss</button>
           </p>
         )}
       </div>
     )}
     <ol className="grid gap-2 text-sm sm:grid-cols-3" aria-label="Pickup instructions">
-      <li className="rounded-lg bg-slate-100 p-3 text-slate-900"><strong>1. Use ONE Instrument</strong><br />Use either your Left (cyan) or Right (amber) hand to pass the needle. Keep your other hand visible in camera view.</li>
-      <li className="rounded-lg bg-slate-100 p-3 text-slate-900"><strong>2. Grab the Needle</strong><br />Move one open tip ring into the top circle until it turns green, then pinch.</li>
-      <li className="rounded-lg bg-slate-100 p-3 text-slate-900"><strong>3. Rings 1 → 2 → 3 → Release</strong><br />Pass left Ring 1, rotate through center Ring 2, exit right Ring 3, and open inside the top-right Release Ring.</li>
+      {skill.id === "peg-transfer" ? (
+        <>
+          <li className="rounded-lg bg-slate-100 p-3 text-slate-900"><strong>1. Reach and grasp</strong><br />Move an open tip onto the peg on the left post, then pinch.</li>
+          <li className="rounded-lg bg-slate-100 p-3 text-slate-900"><strong>2. Lift and transfer</strong><br />Lift clear of the post and carry the peg through the midline ring. Bring the other instrument to the peg.</li>
+          <li className="rounded-lg bg-slate-100 p-3 text-slate-900"><strong>3. Place and release</strong><br />Lower the peg onto the right post and open. Releasing early does not finish the transfer.</li>
+        </>
+      ) : (
+        <>
+          <li className="rounded-lg bg-slate-100 p-3 text-slate-900"><strong>1. Use ONE Instrument</strong><br />Use either your Left (cyan) or Right (amber) hand to pass the needle. Keep your other hand visible in camera view.</li>
+          <li className="rounded-lg bg-slate-100 p-3 text-slate-900"><strong>2. Grab the Needle</strong><br />Move one open tip ring into the top circle until it turns green, then pinch.</li>
+          <li className="rounded-lg bg-slate-100 p-3 text-slate-900"><strong>3. Rings 1 → 2 → 3 → Release</strong><br />Pass left Ring 1, rotate through center Ring 2, exit right Ring 3, and open inside the top-right Release Ring.</li>
+        </>
+      )}
     </ol>
     <div className="grid gap-2 sm:grid-cols-2">
       <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-2.5 text-sm dark:border-slate-800">
@@ -317,7 +362,7 @@ export function ThreeDTrainingPreview({
           className="mt-1"
         />
         <span>
-          <strong>1-Hand Mode</strong> — only requires <strong>one hand</strong> in camera view (Left or Right) and hides the unused second instrument.
+          <strong>One hand</strong> — keep one hand in view. The other instrument hides.
         </span>
       </label>
       <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-2.5 text-sm dark:border-slate-800">
@@ -334,26 +379,41 @@ export function ThreeDTrainingPreview({
           className="mt-1"
         />
         <span>
-          <strong>Easy pickup</strong> — keeps the tips at the needle’s depth and snaps it into the jaws. Turning this off enables free 3D depth and resets the needle.
+          <strong>Easy pickup</strong> — keeps the tips at the {skill.id === "peg-transfer" ? "peg" : "needle"} depth and snaps it into the jaws. Turning this off enables free 3D depth and resets the {skill.id === "peg-transfer" ? "peg" : "needle"}.
         </span>
       </label>
     </div>
     <p data-testid="simulation-status" aria-live="polite">{status === "error" ? "3D rendering unavailable" : status === "lost" ? "Simulation paused: 3D context lost" : status === "loading" ? "Loading 3D workspace" : snapshot?.reason ?? "Calibrate both hands to begin."}</p>
-    <div className="relative h-[420px] overflow-hidden rounded-lg bg-slate-950">
+    <div className="relative h-[min(420px,70vh)] overflow-hidden rounded-lg bg-slate-950">
       <div aria-label="Scene checkpoint map" className="pointer-events-none absolute inset-x-3 top-2.5 z-10 flex flex-wrap items-center justify-between gap-1.5 rounded-md bg-slate-900/85 px-3 py-1.5 text-[11px] text-slate-200 backdrop-blur-sm">
-        <span className={exerciseSnapshot.activeTargetId === "practice-needle" ? "font-bold text-emerald-400" : "text-slate-300"}>① Top Circle: Pick Up Needle (Pinch)</span>
-        <span>→</span>
-        <span className={exerciseSnapshot.activeTargetId === "ring-1" ? "font-bold text-sky-400" : exerciseSnapshot.completedTargetIds.includes("ring-1") ? "text-emerald-400" : "text-slate-300"}>② Left Ring 1: Enter</span>
-        <span>→</span>
-        <span className={exerciseSnapshot.activeTargetId === "ring-2" ? "font-bold text-sky-400" : exerciseSnapshot.completedTargetIds.includes("ring-2") ? "text-emerald-400" : "text-slate-300"}>③ Center Ring 2: Rotate Wrist</span>
-        <span>→</span>
-        <span className={exerciseSnapshot.activeTargetId === "ring-3" ? "font-bold text-sky-400" : exerciseSnapshot.completedTargetIds.includes("ring-3") ? "text-emerald-400" : "text-slate-300"}>④ Right Ring 3: Exit</span>
-        <span>→</span>
-        <span className={exerciseSnapshot.activeTargetId === "release-zone" ? "font-bold text-sky-400" : exerciseSnapshot.phase === "complete" ? "text-emerald-400" : "text-slate-300"}>⑤ Top-Right Ring: Release (Open)</span>
+        {skill.id === "peg-transfer" ? (
+          <>
+            <span className={exerciseSnapshot.activeTargetId === "practice-peg" ? "font-bold text-emerald-400" : "text-slate-300"}>① Left post: Grasp</span>
+            <span>→</span>
+            <span className={exerciseSnapshot.activeTargetId === "source-post" ? "font-bold text-sky-400" : exerciseSnapshot.completedTargetIds.includes("source-post") ? "text-emerald-400" : "text-slate-300"}>② Lift off</span>
+            <span>→</span>
+            <span className={exerciseSnapshot.activeTargetId === "transfer-zone" ? "font-bold text-sky-400" : exerciseSnapshot.completedTargetIds.includes("transfer-zone") ? "text-emerald-400" : "text-slate-300"}>③ Midline transfer</span>
+            <span>→</span>
+            <span className={exerciseSnapshot.activeTargetId === "target-post" ? "font-bold text-sky-400" : exerciseSnapshot.completedTargetIds.includes("target-post") || exerciseSnapshot.phase === "complete" ? "text-emerald-400" : "text-slate-300"}>④ Right post: Place</span>
+          </>
+        ) : (
+          <>
+            <span className={exerciseSnapshot.activeTargetId === "practice-needle" ? "font-bold text-emerald-400" : "text-slate-300"}>① Top Circle: Pick Up Needle (Pinch)</span>
+            <span>→</span>
+            <span className={exerciseSnapshot.activeTargetId === "ring-1" ? "font-bold text-sky-400" : exerciseSnapshot.completedTargetIds.includes("ring-1") ? "text-emerald-400" : "text-slate-300"}>② Left Ring 1: Enter</span>
+            <span>→</span>
+            <span className={exerciseSnapshot.activeTargetId === "ring-2" ? "font-bold text-sky-400" : exerciseSnapshot.completedTargetIds.includes("ring-2") ? "text-emerald-400" : "text-slate-300"}>③ Center Ring 2: Rotate Wrist</span>
+            <span>→</span>
+            <span className={exerciseSnapshot.activeTargetId === "ring-3" ? "font-bold text-sky-400" : exerciseSnapshot.completedTargetIds.includes("ring-3") ? "text-emerald-400" : "text-slate-300"}>④ Right Ring 3: Exit</span>
+            <span>→</span>
+            <span className={exerciseSnapshot.activeTargetId === "release-zone" ? "font-bold text-sky-400" : exerciseSnapshot.phase === "complete" ? "text-emerald-400" : "text-slate-300"}>⑤ Top-Right Ring: Release (Open)</span>
+          </>
+        )}
       </div>
       <SceneBoundary key={generation} onFailure={onFailure}>
-        <TrainingScene controlsRef={controlsRef} controller={controller} exercise={exercise} ghost={ghost} diagnosticsRef={diagnosticsRef} onStatus={onStatus} runtime={runtime} />
+        <TrainingScene controlsRef={controlsRef} controller={controller} exercise={exercise} ghost={ghost} diagnosticsRef={diagnosticsRef} onStatus={onStatus} onLoadFailure={onFailure} runtime={runtime} />
       </SceneBoundary>
+      {status === "loading" && <ViewportLoading label="Loading the operating room" />}
     </div>
     <div aria-label="Exercise progression" className="space-y-2 rounded-lg border p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -407,11 +467,17 @@ export function ThreeDTrainingPreview({
         onTryAgain={reset}
         onReviewMoment={runtime.lastReplay ? marker => openReplay(marker) : undefined}
         saveStatus={runtime.saveStatus}
+        cloudStatus={runtime.cloudStatus}
+        onRetrySync={() => runtime.retryCloudSync()}
+        reviewSource={runtime.review?.source}
+        reviewNotice={runtime.review?.notice}
       />
     )}
     <p data-testid="pickup-guidance" aria-live="polite" className={`rounded-lg border p-3 font-medium ${feedback?.ready ? "border-green-500 bg-green-50 text-green-950" : "border-slate-300"}`}>{feedback?.message ?? "Calibrate both hands to begin."}</p>
-    <p data-testid="needle-ownership">Needle: {snapshot?.object.heldBy ?? "free"}</p>
-    <p className="text-sm text-zinc-500">Only one hand needs to hold and pass the needle (Left cyan or Right amber). Keep your unused hand comfortably visible in the camera frame so tracking stays active.</p>
+    <p data-testid="needle-ownership">{skill.id === "peg-transfer" ? "Peg" : "Needle"}: {snapshot?.object.heldBy ?? "free"}</p>
+    <p className="text-sm text-zinc-500">{skill.id === "peg-transfer"
+      ? "Use the left instrument to carry the peg and bring the right instrument to the midline. Keep both hands visible unless 1-Hand Mode is on."
+      : "Only one hand needs to hold and pass the needle (Left cyan or Right amber). Keep your unused hand comfortably visible in the camera frame so tracking stays active."}</p>
     {debug && <div aria-label="Simulation diagnostics" className="space-y-2 break-all font-mono text-xs">
       <p>Render FPS: {sample?.fps ?? 0} | Frames: {sample?.frames ?? 0} | Source: {snapshot?.sourceTMs ?? "none"}</p>
       <p>Median render FPS: {timing.medianFps.toFixed(1)} | p95 frame: {timing.p95FrameMs.toFixed(1)} ms | Samples: {timing.sampleCount}</p>

@@ -22,9 +22,7 @@ export default function LibraryPage() {
           Surgical Skills Library
         </h1>
         <p className="max-w-2xl text-zinc-600 dark:text-zinc-400">
-          Choose a skill to train. Each skill compares your webcam hand motion
-          against an expert reference. Skills without a cleared reference are
-          marked coming soon.
+          Needle Passing is ready. The other skills are listed, but you cannot train them yet.
         </p>
       </div>
 

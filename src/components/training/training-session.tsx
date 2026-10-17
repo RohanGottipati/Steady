@@ -2,17 +2,33 @@
 
 import { useEffect, useRef, useState } from "react";
 import { HandControlPanel, WorkspaceGuide } from "@/components/camera/hand-control-panel";
-import { resolveFixtureIdFromSearch, type FixtureId } from "@/lib/exercise/fixture-playback";
+import { defaultFixtureForSkill, fixtureMatchesSkill, resolveFixtureIdFromSearch, type FixtureId } from "@/lib/exercise/fixture-playback";
+import { isDebugEnabled } from "@/lib/ui/debug-query";
 import type { SkillCatalogEntry } from "@/lib/skills/types";
 import { HAND_CONNECTIONS, previewPoint } from "@/lib/vision/preview-coordinates";
 import type { TrackingDiagnostics } from "@/lib/vision/types";
 import { useHandControls } from "@/lib/vision/use-hand-controls";
 import { useHandTracking } from "@/lib/vision/use-hand-tracking";
 import type { SkillDefinition, TrainingMode } from "@/types";
+import { retryUnsyncedAttempts } from "@/lib/storage/cloud-sync";
+import { DegradedNotice } from "./degraded-notice";
 import { ThreeDTrainingPreview } from "./3d-training-preview";
 import { ModeSelector } from "./mode-selector";
+import { SessionBoundary } from "./session-boundary";
+import { useSessionResilience } from "./use-session-resilience";
 
-export function TrainingSession({
+export function TrainingSession(props: {
+  skill: SkillCatalogEntry;
+  definition: SkillDefinition;
+}) {
+  return (
+    <SessionBoundary>
+      <TrainingSessionView {...props} />
+    </SessionBoundary>
+  );
+}
+
+function TrainingSessionView({
   skill,
   definition,
 }: {
@@ -28,6 +44,8 @@ export function TrainingSession({
   const [mode, setMode] = useState<TrainingMode>(skill.availableModes[0] ?? "learn");
   const [fixtureId, setFixtureId] = useState<FixtureId | null>(null);
   const [debug, setDebug] = useState(false);
+  const resilience = useSessionResilience();
+  const debugRef = useRef(false);
   const [hud, setHud] = useState<TrackingDiagnostics & { left: string; right: string }>({
     backend: "none",
     trackingFps: 0,
@@ -38,20 +56,27 @@ export function TrainingSession({
   });
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const debugEnabled =
-      params.get("debug") === "1" || process.env.NEXT_PUBLIC_DEBUG_DEFAULT === "true";
+    const selected = new URLSearchParams(location.search).get("fixture");
+    if (fixtureId || (selected && selected !== "off")) return;
+    void retryUnsyncedAttempts().catch(() => {});
+  }, [fixtureId]);
+
+  useEffect(() => {
+    const debugEnabled = isDebugEnabled(location.search);
+    debugRef.current = debugEnabled;
     const resolvedFixture = resolveFixtureIdFromSearch(location.search);
     const initTimer = setTimeout(() => {
       setDebug(debugEnabled);
-      if (resolvedFixture) {
+      if (resolvedFixture && fixtureMatchesSkill(definition.id, resolvedFixture)) {
         setFixtureId(resolvedFixture);
       }
     }, 0);
 
     const restoreQuery = () => {
-      setFixtureId(resolveFixtureIdFromSearch(location.search));
-      setDebug(new URLSearchParams(location.search).get("debug") === "1" || process.env.NEXT_PUBLIC_DEBUG_DEFAULT === "true");
+      const restored = resolveFixtureIdFromSearch(location.search);
+      setFixtureId(fixtureMatchesSkill(definition.id, restored) ? restored : null);
+      debugRef.current = isDebugEnabled(location.search);
+      setDebug(debugRef.current);
       stopRef.current();
     };
     window.addEventListener("popstate", restoreQuery);
@@ -70,6 +95,7 @@ export function TrainingSession({
       const context = canvas.getContext("2d");
       if (!context) return;
       context.clearRect(0, 0, width, height);
+      if (!debugRef.current) return;
       for (const hand of [snapshotRef.current.left, snapshotRef.current.right]) {
         if (!hand || performance.now() - snapshotRef.current.tMs > 500) continue;
         const points = hand.landmarks.map(p => previewPoint(p.x, p.y, width, height));
@@ -94,7 +120,7 @@ export function TrainingSession({
     draw();
 
     const interval = setInterval(() => {
-      if (!debugEnabled) return;
+      if (!debugRef.current) return;
       const snapshot = snapshotRef.current;
       const fresh = performance.now() - snapshot.tMs <= 500;
       setHud({
@@ -116,27 +142,29 @@ export function TrainingSession({
       cancelAnimationFrame(animation);
       clearInterval(interval);
     };
-  }, [diagnosticsRef, snapshotRef, videoRef]);
+  }, [definition.id, diagnosticsRef, snapshotRef, videoRef]);
 
   const active = state.status === "running" || state.status === "paused";
 
   const selectFixture = (next: FixtureId | null) => {
+    const allowed = next && fixtureMatchesSkill(definition.id, next) ? next : null;
     stop();
     const url = new URL(location.href);
-    if (next) url.searchParams.set("fixture", next);
+    if (allowed) url.searchParams.set("fixture", allowed);
     else url.searchParams.set("fixture", "off");
     history.replaceState(null, "", url);
-    setFixtureId(next);
+    setFixtureId(allowed);
   };
 
-  const handleToggleFixtureMode = () => selectFixture(fixtureId ? null : "needle-pass-good");
+  const handleToggleFixtureMode = () => selectFixture(fixtureId ? null : defaultFixtureForSkill(definition.id));
   const handleStartCamera = () => {
     if (fixtureId) selectFixture(null);
-    void start();
+    void Promise.resolve(start()).catch(() => {});
   };
 
   return (
     <div className="mt-8 space-y-6" data-testid="training-session">
+      <DegradedNotice message={resilience.message} onDismiss={resilience.dismiss} />
       <section aria-label="Choose a training mode">
         <h2 className="mb-3 text-sm font-medium tracking-wide text-zinc-500 uppercase">
           Choose a mode
@@ -176,13 +204,18 @@ export function TrainingSession({
                   : "border-zinc-300 text-zinc-800 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
               }`}
             >
-              {fixtureId ? "Exit Demo Fixture (Use webcam)" : "Run Demo Fixture (No webcam)"}
+              {fixtureId ? "Use the camera" : "Play a sample pass"}
             </button>
           </div>
           <p role="status" aria-live="polite" className="text-sm font-medium">
-            {fixtureId
-              ? `Status: fixture (${fixtureId})`
-              : `Status: ${state.status}${state.message ? ` — ${state.message}` : ""}`}
+            {fixtureId ? (
+              <>
+                Playing a sample pass. No camera needed.
+                <span className="sr-only"> Status: fixture ({fixtureId})</span>
+              </>
+            ) : (
+              `Status: ${state.status}${state.message ? ` — ${state.message}` : ""}`
+            )}
           </p>
         </div>
 
@@ -200,12 +233,14 @@ export function TrainingSession({
               />
               <canvas
                 ref={canvasRef}
+                hidden={!debug}
                 className="pointer-events-none absolute inset-0 h-full w-full object-contain"
                 aria-hidden="true"
               />
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Raw webcam video stays in your browser and is never uploaded. Cyan: left hand. Amber: right hand.
+              Raw webcam video stays in your browser and is never uploaded.
+              {debug ? " Cyan marks the left hand and amber marks the right." : ""}
             </p>
           </div>
 

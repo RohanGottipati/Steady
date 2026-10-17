@@ -120,11 +120,11 @@ export class AudioManager {
     const text = COACH_CLIP_BY_TYPE[type].text;
     const mySeq = this.begin(opts.priority ?? "normal");
     if (mySeq === null) return Promise.resolve(false);
-    return this.playChain(
+    return this.settle(mySeq, this.playChain(
       mySeq,
       [this.liveStep(text), this.clipStep(type)],
       text,
-    );
+    ));
   }
 
   /** Play only the pre-generated local clip for an event type. */
@@ -135,19 +135,19 @@ export class AudioManager {
     const text = COACH_CLIP_BY_TYPE[type].text;
     const mySeq = this.begin(opts.priority ?? "normal");
     if (mySeq === null) return Promise.resolve(false);
-    return this.playChain(mySeq, [this.clipStep(type)], text);
+    return this.settle(mySeq, this.playChain(mySeq, [this.clipStep(type)], text));
   }
 
   /** Speak a dynamic phrase via the server TTS route (no pre-generated clip). */
   speak(
     text: string,
-    opts: { priority?: SpeakPriority } = {},
+    opts: { priority?: SpeakPriority; allowLive?: boolean } = {},
   ): Promise<boolean> {
     const trimmed = text.trim().slice(0, MAX_SPEECH_TEXT_LENGTH);
     if (!trimmed) return Promise.resolve(false);
     const mySeq = this.begin(opts.priority ?? "normal");
     if (mySeq === null) return Promise.resolve(false);
-    return this.playChain(mySeq, [this.liveStep(trimmed)], trimmed);
+    return this.settle(mySeq, this.playChain(mySeq, opts.allowLive === false ? [] : [this.liveStep(trimmed)], trimmed));
   }
 
   /** Stop any current playback/fallback and invalidate pending requests. */
@@ -167,6 +167,7 @@ export class AudioManager {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
+        signal: AbortSignal.timeout(8_000),
       });
       if (!res.ok) throw new Error(`speech route failed: ${res.status}`);
       const blob = await res.blob();
@@ -199,6 +200,18 @@ export class AudioManager {
 
   private superseded(mySeq: number): boolean {
     return mySeq !== this.seq;
+  }
+
+  /** A thrown playback step becomes silence instead of an unhandled rejection. */
+  private settle(mySeq: number, pending: Promise<boolean>): Promise<boolean> {
+    return pending.catch(() => {
+      if (!this.superseded(mySeq)) {
+        this.stopCurrent();
+        this.browserSpeaking = false;
+        this.busy = false;
+      }
+      return false;
+    });
   }
 
   private stopCurrent(): void {
@@ -278,7 +291,15 @@ export class AudioManager {
       this.current = null;
       this.startBrowserFallback(mySeq, fallbackText);
     };
-    return handle.play().then(
+    let started: Promise<void>;
+    try {
+      started = Promise.resolve(handle.play());
+    } catch {
+      this.current = null;
+      cleanup();
+      return Promise.resolve(false);
+    }
+    return started.then(
       () => true,
       () => {
         // Starting playback failed; let the caller try the next source. Leave
@@ -296,11 +317,18 @@ export class AudioManager {
     this.current = null;
     this.currentCleanup = null;
     this.browserSpeaking = true;
-    this.browserSpeak(text, () => {
+    try {
+      this.browserSpeak(text, () => {
+        this.browserSpeaking = false;
+        if (!this.superseded(mySeq)) {
+          this.busy = false;
+        }
+      });
+    } catch {
+      // Browser speech can throw when the provider is missing. Silence is safe;
+      // on-screen coaching text is already visible.
       this.browserSpeaking = false;
-      if (!this.superseded(mySeq)) {
-        this.busy = false;
-      }
-    });
+      if (!this.superseded(mySeq)) this.busy = false;
+    }
   }
 }

@@ -10,7 +10,11 @@ import { TISSUE_WALL_ZONE } from "@/lib/exercise/needle-passing-config";
 import { evaluateAttempt } from "@/lib/evaluation/evaluate";
 import type { TrainingMode } from "@/types";
 
-vi.mock("@/lib/storage/attempt-cache", () => ({ saveCompletedAttempt: vi.fn(async () => "indexeddb") }));
+vi.mock("@/lib/storage/attempt-cache", () => ({
+  saveCompletedAttempt: vi.fn(async () => "indexeddb"),
+  markCloudSyncStatus: vi.fn(async () => {}),
+}));
+vi.mock("@/lib/storage/cloud-sync", () => ({ syncSavedAttempt: vi.fn(async () => "local-only") }));
 const empty = emptyControlSnapshot();
 function finish(runtime: TrainingRuntime, hz = 60) {
   for (let i = 0; i < hz * 12 && !runtime.bundle && !runtime.error; i++) runtime.advance(empty, 1 / hz, i * 1000 / hz);

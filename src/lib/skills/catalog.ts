@@ -1,5 +1,6 @@
 import { SKILL_CATALOG } from "@/data/skill-catalog";
 import { needlePassingSkill } from "@/data/skills/needle-passing";
+import { pegTransferSkill } from "@/data/skills/peg-transfer";
 import type { SkillDefinition } from "@/types/skill";
 import type { SkillCatalogEntry } from "./types";
 
@@ -7,6 +8,7 @@ import type { SkillCatalogEntry } from "./types";
 // appear here; catalog entries without one are "coming-soon".
 const SKILL_DEFINITIONS: Record<string, SkillDefinition> = {
   [needlePassingSkill.id]: needlePassingSkill,
+  [pegTransferSkill.id]: pegTransferSkill,
 };
 
 export function getSkillCatalog(): readonly SkillCatalogEntry[] {

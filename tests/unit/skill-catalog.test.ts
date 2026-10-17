@@ -13,11 +13,11 @@ describe("skill catalog", () => {
     expect(ids).toEqual(["needle-passing", "suturing", "knot-tying", "peg-transfer"]);
   });
 
-  it("marks the needle-passing skill available and the rest coming-soon", () => {
+  it("marks needle-passing and peg-transfer available and leaves the other skills coming-soon", () => {
     expect(getCatalogEntry("needle-passing")?.status).toBe("available");
+    expect(getCatalogEntry("peg-transfer")?.status).toBe("available");
     expect(getCatalogEntry("suturing")?.status).toBe("coming-soon");
     expect(getCatalogEntry("knot-tying")?.status).toBe("coming-soon");
-    expect(getCatalogEntry("peg-transfer")?.status).toBe("coming-soon");
   });
 
   it("validates every entry against the SkillCatalogEntry schema", () => {
@@ -28,7 +28,12 @@ describe("skill catalog", () => {
 
   it("returns a full SkillDefinition only for available skills", () => {
     expect(getSkillDefinition("needle-passing")?.id).toBe("needle-passing");
+    expect(getSkillDefinition("peg-transfer")?.id).toBe("peg-transfer");
+    expect(getSkillDefinition("peg-transfer")?.segments.map(segment => segment.id)).toEqual([
+      "reach", "grasp", "lift", "transfer", "place", "release", "complete",
+    ]);
     expect(getSkillDefinition("suturing")).toBeUndefined();
+    expect(getSkillDefinition("knot-tying")).toBeUndefined();
   });
 
   it("returns undefined for an unknown skill id", () => {

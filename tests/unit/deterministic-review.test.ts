@@ -42,6 +42,7 @@ describe("buildDeterministicReview", () => {
     expect(() => aiReviewSchema.parse(review)).not.toThrow();
     expect(review.improvements.length).toBeGreaterThanOrEqual(1);
     expect(review.largestDifference.segmentId.length).toBeGreaterThan(0);
+    expect(review.replayNarration).not.toContain("largest gap");
   });
 
   it("is deterministic for the same attempt", () => {

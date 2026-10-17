@@ -5,6 +5,7 @@ import { useHandControls } from "@/lib/vision/use-hand-controls";
 import { HandControlsController } from "@/lib/vision/hand-controls";
 import { emptySnapshot, type TrackingStatus } from "@/lib/vision/types";
 import type { useHandTracking } from "@/lib/vision/use-hand-tracking";
+import { controlUiKey, projectControlUi } from "@/lib/vision/control-ui";
 import { cameraSize, controlFrame } from "../fixtures/hand-controls";
 
 describe("hand control hook lifecycle", () => {
@@ -93,6 +94,26 @@ describe("hand control hook lifecycle", () => {
       expect(h.controls().snapshotRef.current.calibrated).toBe(false);
       expect(h.controls().ui.calibration.stage).toBe("idle");
       expect(h.frames.size).toBe(1);
+    } finally { await h.dispose(); }
+  });
+
+  it("does not rerender when only landmark arrays change", async () => {
+    const h = await harness();
+    try {
+      await h.calibrate();
+      for (let i = 0; i < 4 && h.controls().ui.calibration.stage !== "ready"; i += 1) await h.sample();
+      expect(h.controls().ui.calibration.stage).toBe("ready");
+      const snapshot = h.controls().snapshotRef.current;
+      const hand = snapshot.left.hand;
+      expect(hand?.landmarks.length).toBeGreaterThan(0);
+      const projected = projectControlUi(snapshot);
+      expect(JSON.stringify(projected)).not.toMatch(/landmarks/);
+      hand!.landmarks = hand!.landmarks.map(point => ({ ...point, x: point.x + 1 }));
+      hand!.worldLandmarks = hand!.worldLandmarks.map(point => ({ ...point, y: point.y + 1 }));
+      expect(controlUiKey(projectControlUi(snapshot))).toBe(controlUiKey(projected));
+      const moved = projectControlUi(snapshot);
+      snapshot.left.target!.position = { ...snapshot.left.target!.position, x: snapshot.left.target!.position.x + 0.05 };
+      expect(controlUiKey(projectControlUi(snapshot))).not.toBe(controlUiKey(moved));
     } finally { await h.dispose(); }
   });
 

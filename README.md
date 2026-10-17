@@ -2,10 +2,10 @@
 
 Hardware-free AI surgical motion trainer that uses a laptop webcam to teach precise procedural movements through expert ghost demonstrations, real-time voice coaching, motion-level evaluation, and 3D expert-versus-user replay.
 
-## Current training and replay workflow (S1/A6)
+## Current training and replay workflow (A7/S1–S4)
 
-Open `/library`, choose **Needle Passing**, then select Learn, Practice, or Assessment.
-Start the camera explicitly and calibrate, or use **1-Hand Quick Start** after starting
+Open `/library`, choose **Needle Passing** or **Peg Transfer**, then select Learn, Practice, or Assessment.
+Start the camera explicitly and calibrate, or select **Use one hand** after starting
 it, holding one open hand still briefly to establish its neutral wrist pose. Learn
 shows a ghost demonstration before the active attempt. Pass the needle
 through Rings 1 → 2 → 3, then open inside the release ring. Results appear on the
@@ -14,12 +14,18 @@ markers, and expandable detail for all 20 deterministic metrics. **Try again** r
 the attempt while retaining camera calibration; stopping the camera retains a finished
 result. Restarting the camera requires calibration again.
 
-For a camera-free demonstration, select **Run Demo Fixture** or open:
+For a camera-free demonstration, select **Play a sample pass** or open:
 
 - `/train/needle-passing?fixture=needle-pass-good`
 - `/train/needle-passing?fixture=needle-pass-late-rotation`
+- `/train/peg-transfer?fixture=peg-transfer-good`
 
-Both animate through the actual simulation and exercise engine. Learn includes its
+Peg Transfer uses the same page. Lift the peg off the left post, meet the other
+instrument at the midline, and release it on the right post. The reference is a
+synthetic fixture, not an acquired LASK recording. Suturing and Knot Tying stay
+marked coming soon.
+
+The samples animate through the actual simulation and exercise engine. Learn includes its
 three-second demonstration. The perturbed pass scores worse than the clean pass.
 Demo results are labelled and excluded from saved history. `?fixture=off` overrides
 `NEXT_PUBLIC_DEMO_FIXTURE_MODE=true` when switching back to the camera.
@@ -27,8 +33,9 @@ Demo results are labelled and excluded from saved history. `?fixture=off` overri
 After completing either kind of attempt, select **Replay latest attempt**. Solid
 cyan/amber tools show your recorded movement; translucent lavender tools show the
 same canonical reference used for scoring, adapted for your working hand. Replay
-works after stopping the camera. It opens paused three seconds before the first
-successful needle pickup, or at the beginning if there is less lead-in or no pickup.
+works after stopping the camera. It starts from a three-second lead-in before the first
+successful object pickup, clamped to the start, and automatically pauses at the largest
+recorded difference. Its explanation and narration describe the same issue.
 The full recording remains available for scrubbing and scoring.
 Play/pause, scrub, change speed (0.25x/0.5x/1x),
 switch between synchronized comparison and original recorded timing, or jump to
@@ -42,15 +49,21 @@ motion. See [the replay handoff](docs/SIMULATION.md#a6-recording-and-replay-hand
 Webcam attempts save asynchronously to IndexedDB on this device (newest 20). Results
 remain available in memory if storage is restricted or full; the save message tells
 you which applies. Reload retrieval is available through the local cache interface;
-a history/results navigation screen belongs to the later results task. No attempt
-upload runs in S1. Raw video stays in the browser; saved replay data contains tool
-telemetry without raw hand landmarks. Optional `?debug=1` exposes numerical
-diagnostics and the result object.
+a history/results navigation screen belongs to the later results task. Webcam results are copied to Tiger asynchronously after saving locally; an outage
+keeps the local result and offers Retry sync with the same attempt ID. Raw video stays in the browser; saved replay data contains tool
+telemetry without raw hand landmarks. Optional `?debug=1` exposes landmark overlays, FPS, numerical
+diagnostics, and the result object. Those stay hidden on the default path.
 
 Live coaching is deterministic text with recorded events. Assessment hides the ghost,
 path guide, and coaching. Scoring always uses the unsmoothed canonical synthetic scene
-guide; choosing the optional JIGSAWS ghost changes the demonstration only. AI review,
-audio, a dedicated results/history screen, and cloud synchronization remain scheduled work.
+guide; choosing the optional JIGSAWS ghost changes the demonstration only. Live coaching
+uses ElevenLabs, committed clips, then browser speech. Optional Backboard/Gemini review
+explains supplied measurements and falls back to deterministic notes. Accepted review text
+is shared by results and replay. Fixtures do not call the review, speech, or upload APIs.
+A dedicated history/progress screen and broader analytics remain separate work.
+
+See [the demo runbook](docs/DEMO_RUNBOOK.md) for the judge path, backup recording
+(`npm run build` then `npm run demo:record`), and outstanding physical checks.
 
 ## Stack
 
@@ -74,6 +87,8 @@ npm run dev
 `dev` and `build` first run `prepare:vision`. The first run downloads Google's
 versioned hand model (about 8 MB) and copies matching WASM assets from the installed
 MediaPipe package. Subsequent runs reuse the checksum-verified model offline.
+Webpack is the default dev/build bundler, with the existing Tailwind loader included
+in its CSS pipeline. `npm run dev:turbo` remains available as an alternative.
 Generated model/runtime files are not committed. Deployment builds must run the
 preparation step and include the resulting `public/mediapipe/` assets.
 

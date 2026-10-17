@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import { savedAttemptSchema, type SavedAttempt } from "@/types/attempt";
+import { savedAttemptSchema, type CloudSyncStatus, type SavedAttempt } from "@/types/attempt";
 
 export const ATTEMPT_DATABASE = "steady-attempts";
 const MAX_CACHED_ATTEMPTS = 20;
@@ -87,6 +87,38 @@ export async function getLatestSavedAttempt(skillId?: string): Promise<SavedAtte
   } catch { /* Fall back to attempts completed in this tab. */ }
   const found = newest([...all.values()]).find(item => !skillId || item.result.skillId === skillId);
   return found ? structuredClone(found) : null;
+}
+export function markCloudSyncStatus(id: string, status: CloudSyncStatus): Promise<void> {
+  const current = memory.get(id);
+  if (current) remember({ ...current, cloudSyncStatus: status });
+  const write = writes.then(async () => {
+    try {
+      const db = await connect();
+      const parsed = savedAttemptSchema.safeParse(await db.get("attempts", id));
+      if (!parsed.success) return;
+      const tx = db.transaction("attempts", "readwrite");
+      void tx.done.catch(() => {});
+      await tx.store.put({ ...parsed.data, cloudSyncStatus: status });
+      await tx.done;
+    } catch { /* The in-memory copy is already updated when this tab has the attempt. */ }
+  });
+  writes = write;
+  return write;
+}
+export async function listSavedAttempts(): Promise<SavedAttempt[]> {
+  await writes;
+  const all = new Map(memory);
+  try {
+    for (const item of await (await connect()).getAll("attempts")) {
+      const parsed = savedAttemptSchema.safeParse(item);
+      if (parsed.success) all.set(parsed.data.result.id, parsed.data);
+    }
+  } catch { /* Fall back to attempts completed in this tab. */ }
+  return [...all.values()].map(item => structuredClone(item));
+}
+export const updateCloudSyncStatus = markCloudSyncStatus;
+export async function listUnsyncedAttempts(): Promise<SavedAttempt[]> {
+  return (await listSavedAttempts()).filter(item => item.cloudSyncStatus !== "synced");
 }
 export function clearSavedAttempts(): Promise<void> {
   memory.clear();

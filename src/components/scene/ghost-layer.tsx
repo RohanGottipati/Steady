@@ -70,24 +70,25 @@ export function updateGhostLayer(
 
   root.visible = true;
 
+  const showBothTools = snapshot.referenceId === "peg-transfer-reference-v1";
   const leftGroup = root.getObjectByName("ghost-left-instrument");
   if (leftGroup instanceof Group) {
-    leftGroup.visible = snapshot.activeSide === "left";
+    leftGroup.visible = showBothTools || snapshot.activeSide === "left";
     applyPose(leftGroup, snapshot.leftPose);
     updateJaws(leftGroup, snapshot.leftTool.jawClosed);
   }
 
   const rightGroup = root.getObjectByName("ghost-right-instrument");
   if (rightGroup instanceof Group) {
-    const showRight = snapshot.activeSide === "right";
+    const showRight = showBothTools || snapshot.activeSide === "right";
     rightGroup.visible = showRight;
-    applyPose(rightGroup, showRight ? snapshot.leftPose : snapshot.rightPose);
-    updateJaws(rightGroup, snapshot.leftTool.jawClosed);
+    applyPose(rightGroup, showBothTools ? snapshot.rightPose : showRight ? snapshot.leftPose : snapshot.rightPose);
+    updateJaws(rightGroup, showBothTools ? snapshot.rightTool.jawClosed : snapshot.leftTool.jawClosed);
   }
 
   const needleGroup = root.getObjectByName("ghost-needle");
   if (needleGroup instanceof Group) {
-    needleGroup.visible = snapshot.needleHeldBy !== null;
+    needleGroup.visible = !showBothTools && snapshot.needleHeldBy !== null;
     if (snapshot.needleHeldBy !== null) {
       applyPose(needleGroup, snapshot.needlePose);
     }
@@ -117,7 +118,7 @@ export function updateGhostLayer(
   if (trailGroup instanceof Group) {
     trailGroup.visible = snapshot.showTrail;
     const rightLine = trailGroup.getObjectByName("right-ghost-trail");
-    if (rightLine) rightLine.visible = false;
+    if (rightLine) rightLine.visible = showBothTools;
     if (trailData && trailGroup.userData.referenceId !== snapshot.referenceId) {
       const leftLine = trailGroup.getObjectByName("left-ghost-trail");
       if (leftLine instanceof Line) {

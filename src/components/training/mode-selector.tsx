@@ -4,9 +4,9 @@ import { useState } from "react";
 import type { TrainingMode } from "@/types/skill";
 
 const MODE_COPY: Record<TrainingMode, { title: string; blurb: string }> = {
-  learn: { title: "Learn", blurb: "Ghost visible continuously, step-by-step text coaching." },
-  practice: { title: "Practice", blurb: "Ghost on demand, limited coaching." },
-  assessment: { title: "Assessment", blurb: "No ghost or live coaching, full evaluation after." },
+  learn: { title: "Learn", blurb: "Watch the guide, then try the pass with coaching." },
+  practice: { title: "Practice", blurb: "The guide stays off until you ask for it." },
+  assessment: { title: "Assessment", blurb: "No guide or coaching. You get a score at the end." },
 };
 
 // Controlled on the product route; standalone previews can keep local state.

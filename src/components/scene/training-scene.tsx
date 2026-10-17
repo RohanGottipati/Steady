@@ -10,7 +10,8 @@ import type { ControlSnapshot } from "@/lib/vision/control-types";
 import { ExerciseTargets, updateExerciseTargets } from "./exercise-targets";
 import { GhostLayer, updateGhostLayer } from "./ghost-layer";
 import { Instrument } from "./instrument";
-import { OperatingRoom, PracticeNeedle } from "./operating-room";
+import { OperatingRoom, PracticeNeedle, PracticePeg } from "./operating-room";
+import { PegTransferTargets, updatePegTransferTargets } from "./peg-transfer-targets";
 import type { TrainingRuntime } from "@/lib/exercise/training-runtime";
 import { RenderTiming } from "@/lib/simulation/render-timing";
 import { PickupHalo, TipCursor } from "./pickup-guides";
@@ -32,6 +33,7 @@ export interface TrainingSceneProps {
   ghost?: GhostPlaybackController;
   diagnosticsRef: RefObject<SceneDiagnostics | null>;
   onStatus: (status: "ready" | "lost") => void;
+  onLoadFailure?: () => void;
 }
 const poseOf = (group: Group): Pose => ({ position: { x: group.position.x, y: group.position.y, z: group.position.z }, rotation: { x: group.quaternion.x, y: group.quaternion.y, z: group.quaternion.z, w: group.quaternion.w } });
 function apply(group: Group, pose: Pose) {
@@ -89,7 +91,9 @@ export function SceneContent({ controlsRef, controller, exercise, ghost, diagnos
     const exerciseSnapshot = exercise?.snapshot;
     const ghostSnapshot = ghost?.snapshot;
     const activeControls = runtime?.controls ?? controlsRef.current;
-    updateExerciseTargets(targets.current, exerciseSnapshot ?? null);
+    const pegScene = exercise?.skill.id === "peg-transfer";
+    if (pegScene) updatePegTransferTargets(targets.current, exerciseSnapshot ?? null);
+    else updateExerciseTargets(targets.current, exerciseSnapshot ?? null);
     updateGhostLayer(ghostGroup.current, ghostSnapshot ?? null, ghost?.getTrailData());
     timing.current.record(now);
     const snapshot = controller.snapshot;
@@ -149,14 +153,19 @@ export function SceneContent({ controlsRef, controller, exercise, ghost, diagnos
       rendered: { left: left.current?.visible ? poseOf(left.current) : null, right: right.current?.visible ? poseOf(right.current) : null, object: needle.current ? poseOf(needle.current) : null } };
   });
 
+  const pegScene = exercise?.skill.id === "peg-transfer";
   return <>
     {camera instanceof OrthographicCamera && <primitive object={camera} zoom={Math.min(size.width / 3.6, size.height / 2.6)} onUpdate={(value: OrthographicCamera) => value.updateProjectionMatrix()} />}
-    <OperatingRoom /><ExerciseTargets ref={targets} /><GhostLayer ref={ghostGroup} /><Instrument side="left" ref={left} /><Instrument side="right" ref={right} /><PracticeNeedle ref={needle} /><PickupHalo ref={halo} /><TipCursor side="left" ref={leftCursor} /><TipCursor side="right" ref={rightCursor} />
+    <OperatingRoom />
+    {pegScene ? <PegTransferTargets ref={targets} /> : <ExerciseTargets ref={targets} />}
+    <GhostLayer ref={ghostGroup} /><Instrument side="left" ref={left} /><Instrument side="right" ref={right} />
+    {pegScene ? <PracticePeg ref={needle} /> : <PracticeNeedle ref={needle} />}
+    <PickupHalo ref={halo} /><TipCursor side="left" ref={leftCursor} /><TipCursor side="right" ref={rightCursor} />
   </>;
 }
 
 export default function TrainingScene(props: TrainingSceneProps) {
-  return <Canvas aria-label="3D instrument workspace" orthographic camera={{ position: [0, 0.15, 4], zoom: 160, near: 0.05, far: 30 }} dpr={[1, 1.5]} gl={{ antialias: true }} fallback={<p>3D rendering is unavailable. Enable WebGL and retry the scene.</p>}>
+  return <Canvas aria-label="3D instrument workspace" orthographic camera={{ position: [0, 0.15, 4], zoom: 160, near: 0.05, far: 30 }} dpr={[1, 1.5]} gl={{ antialias: true }} fallback={<p className="p-4 text-sm text-slate-100">3D rendering is unavailable. Enable WebGL and retry the scene.</p>}>
     <SceneContent {...props} />
   </Canvas>;
 }

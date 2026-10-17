@@ -78,14 +78,18 @@ export function HandControlPanel({ controls, running, debug }: {
     </div>
     <p data-testid="calibration-status" aria-live="polite">Calibration: {stage} — {ui.calibration.message}</p>
     {collecting && <progress className="w-full" aria-label="Calibration stage progress" value={ui.calibration.progress} max={1} />}
-    <canvas ref={canvasRef} width={720} height={360} hidden={!ui.snapshot.calibrated} className="w-full rounded bg-zinc-950" aria-label="Canonical control targets; X right, Y up, circle size indicates depth" />
-    {ui.snapshot.calibrated && <p className="text-sm">Scene units are normalized. Circle thickness shows grip; the line shows palm orientation. Faded targets hold their last pose and grip during tracking loss.</p>}
-    <p data-testid="control-readiness">{ui.snapshot.canProgress ? "Controls ready" : "Progression paused until both controls are tracking"}</p>
+    <canvas ref={canvasRef} width={720} height={360} hidden={!ui.snapshot.calibrated} className="w-full rounded bg-zinc-950" aria-label="Hand position preview. Right is right, up is up, and circle size shows depth." />
+    {ui.snapshot.calibrated && <p className="text-sm">The circle is your hand. A thicker stroke means the grip is closed. A faded circle keeps the last pose if tracking drops.</p>}
+    <p data-testid="control-readiness">{ui.snapshot.canProgress ? "Controls ready" : "Tracking paused until both hands are in view."}</p>
     {HAND_SLOTS.map(slot => {
       const hand = ui.snapshot[slot], target = hand.target, calibration = ui.profile?.[slot];
+      const grip = target ? `, grip ${target.jawClosed ? "closed" : "open"}` : "";
+      const plainStatus = hand.status === "tracking" ? "in view" : hand.status === "lost" ? "out of view" : hand.status === "recovering" || hand.status === "grace" ? "recovering" : "waiting";
       return <div key={slot} className="text-sm">
-        <div role="group" aria-label={`${slot} control target`}>{slot}: {hand.status}{target && ` | x ${target.position.x.toFixed(3)} y ${target.position.y.toFixed(3)} z ${target.position.z.toFixed(3)} | grip ${target.jawClosed ? "closed" : "open"}`}{hand.rotationHeld && " | rotation held"}</div>
-        {debug && calibration && <p className="font-mono" aria-label={`${slot} pinch diagnostics`}>Pinch ratio: {hand.hand?.pinchRatio.toFixed(3) ?? "missing"}; enter &lt; {calibration.enterPinchRatio.toFixed(3)}; release &gt; {calibration.releasePinchRatio.toFixed(3)}</p>}
+        <div role="group" aria-label={`${slot} control target`}>{debug
+          ? <>{slot}: {hand.status}{target && ` | x ${target.position.x.toFixed(3)} y ${target.position.y.toFixed(3)} z ${target.position.z.toFixed(3)} | grip ${target.jawClosed ? "closed" : "open"}`}{hand.rotationHeld && " | rotation held"}</>
+          : <>{slot} hand: {plainStatus}{grip}</>}</div>
+        {debug && calibration && <p className="font-mono" aria-label={`${slot} pinch diagnostics`}>Pinch ratio: {hand.pinchRatio === null ? "missing" : hand.pinchRatio.toFixed(3)}; enter &lt; {calibration.enterPinchRatio.toFixed(3)}; release &gt; {calibration.releasePinchRatio.toFixed(3)}</p>}
       </div>;
     })}
     {debug && <label className="flex gap-2 text-sm"><input type="checkbox" checked={planar} onChange={event => { setPlanarUi(event.target.checked); setPlanar(event.target.checked); }} />Planar depth fallback (lock Z)</label>}
