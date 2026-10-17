@@ -1,4 +1,5 @@
 import { requestBackboardReview, ReviewUnavailableError } from "@/lib/ai/backboard-review";
+import { retrieveCoachingContext } from "@/lib/ai/coaching-retrieval";
 import { reviewRequestSchema } from "@/lib/ai/review-contract";
 import { createRateLimiter, type RateLimiter } from "@/lib/voice/rate-limit";
 import { rateLimitRequest, readLimitedJson, RequestBodyError } from "@/lib/reliability/request-guards";
@@ -37,7 +38,16 @@ export async function handleReviewRequest(
     if (!parsed.success) {
       return Response.json({ error: "invalid request" }, { status: 400 });
     }
-    const review = await requestBackboardReview(parsed.data, { fetchFn: deps.fetchFn, env });
+    // Retrieval degrades to [] on any failure — never blocks the review.
+    const coachingContext = await retrieveCoachingContext(
+      parsed.data.skillId,
+      [parsed.data.weakest.id, ...parsed.data.worstMoments.map(m => m.metricId)],
+    );
+    const review = await requestBackboardReview(parsed.data, {
+      fetchFn: deps.fetchFn,
+      env,
+      coachingContext,
+    });
     return Response.json(review);
   } catch (error) {
     if (error instanceof ReviewUnavailableError) {
