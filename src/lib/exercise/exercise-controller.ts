@@ -157,11 +157,15 @@ export class ExerciseController {
   private segmentMeta(index: number) {
     const clampedIndex = Math.min(this.skill.segments.length - 1, Math.max(0, index));
     const seg = this.skill.segments[clampedIndex];
+    const instructions =
+      seg.id === "approach"
+        ? "Move ONE open instrument tip (left cyan or right amber) into the needle's pickup circle."
+        : seg.instructions;
     return {
       index: clampedIndex,
       id: seg.id as NeedlePassingSegment,
       title: seg.title,
-      instructions: seg.instructions,
+      instructions,
     };
   }
 
@@ -323,7 +327,9 @@ export class ExerciseController {
     nowMs: number,
   ): ExerciseSnapshot {
     if (!controls.calibrated) {
-      this.reset();
+      if (this.snapshot.phase !== "idle" || this.frames.length > 0) {
+        this.reset();
+      }
       return this.snapshot;
     }
 
@@ -335,8 +341,8 @@ export class ExerciseController {
       source <= nowMs &&
       nowMs - source < CONTROL_TIMING.freshnessMs;
 
-    if (!validTime || !simulation.canProgress || !controls.canProgress || !simulation.left || !simulation.right) {
-      this.suspend(simulation.reason || "Exercise paused until both controls are tracking.");
+    if (!validTime || !simulation.canProgress || (!simulation.singleHand && !controls.canProgress) || !simulation.left || !simulation.right) {
+      this.suspend(simulation.reason || "Exercise paused until controls are tracking.");
       return this.snapshot;
     }
 

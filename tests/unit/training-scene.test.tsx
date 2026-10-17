@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PerspectiveCamera } from "three";
 import { ExerciseController } from "@/lib/exercise/exercise-controller";
+import { GhostPlaybackController } from "@/lib/exercise/ghost-playback";
 import { ToolSimulationController } from "@/lib/simulation/tool-simulation";
 import { emptyControlSnapshot, type ControlSnapshot } from "@/lib/vision/control-types";
 import { makeHandFrame, identityQuat } from "../fixtures/contracts";
@@ -61,6 +62,47 @@ vi.mock("@/components/scene/exercise-targets", async importOriginal => {
     }),
   };
 });
+vi.mock("@/components/scene/ghost-layer", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/components/scene/ghost-layer")>();
+  const { forwardRef, useImperativeHandle } = await import("react");
+  const { BufferGeometry, Group, Line, LineBasicMaterial, Mesh, MeshBasicMaterial } = await import("three");
+  return {
+    ...actual,
+    GhostLayer: forwardRef(function MockGhostLayer(_, ref) {
+      useImperativeHandle(ref, () => {
+        const root = new Group();
+        root.name = "ghost-layer";
+        root.visible = false;
+        const trailGroup = new Group();
+        trailGroup.name = "ghost-trail-group";
+        const leftTrail = new Line(new BufferGeometry(), new LineBasicMaterial());
+        leftTrail.name = "left-ghost-trail";
+        const rightTrail = new Line(new BufferGeometry(), new LineBasicMaterial());
+        rightTrail.name = "right-ghost-trail";
+        trailGroup.add(leftTrail, rightTrail);
+        root.add(trailGroup);
+        for (const side of ["left", "right"] as const) {
+          const inst = new Group();
+          inst.name = `ghost-${side}-instrument`;
+          const jawL = new Group();
+          jawL.name = "jaw-left";
+          const jawR = new Group();
+          jawR.name = "jaw-right";
+          inst.add(jawL, jawR);
+          root.add(inst);
+          const tip = new Mesh(new BufferGeometry(), new MeshBasicMaterial());
+          tip.name = `ghost-${side}-tip`;
+          root.add(tip);
+        }
+        const needle = new Group();
+        needle.name = "ghost-needle";
+        root.add(needle);
+        return root;
+      }, []);
+      return null;
+    }),
+  };
+});
 import { SceneContent } from "@/components/scene/training-scene";
 
 // Preserve the real simulation/geometry implementation; selectively reject only
@@ -87,18 +129,18 @@ describe("scene frame and lifecycle integration", () => {
   });
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-  async function harness(strict = false, exercise?: ExerciseController) {
+  async function harness(strict = false, exercise?: ExerciseController, ghost?: GhostPlaybackController) {
     let now = 0, renders = 0;
     vi.spyOn(performance, "now").mockImplementation(() => now);
     vi.spyOn(document, "hidden", "get").mockReturnValue(false);
     const controlsRef = { current: sample(0) }, diagnosticsRef = createRef<SceneDiagnostics | null>();
     const controller = new ToolSimulationController(), onStatus = vi.fn();
     const container = document.createElement("div"); document.body.appendChild(container); const root = createRoot(container);
-    function Harness() { renders++; return <SceneContent controlsRef={controlsRef} controller={controller} exercise={exercise} diagnosticsRef={diagnosticsRef} onStatus={onStatus} />; }
+    function Harness() { renders++; return <SceneContent controlsRef={controlsRef} controller={controller} exercise={exercise} ghost={ghost} diagnosticsRef={diagnosticsRef} onStatus={onStatus} />; }
     const render = async (mode: "visible" | "hidden" = "visible") => act(async () => root.render(strict ? <StrictMode><Harness /></StrictMode> : <Activity mode={mode}><Harness /></Activity>));
     await render();
     const tick = (time: number, control = sample(time)) => { now = time; controlsRef.current = control; runtime.frames.forEach(callback => callback({}, 1 / 60)); };
-    return { tick, render, controller, exercise, diagnosticsRef, onStatus, renders: () => renders,
+    return { tick, render, controller, exercise, ghost, diagnosticsRef, onStatus, renders: () => renders,
       dispose: async () => { await act(async () => root.unmount()); container.remove(); } };
   }
 
@@ -197,7 +239,8 @@ describe("scene frame and lifecycle integration", () => {
   });
   it("steps ExerciseController in useFrame, updates target visuals, and honors Assessment mode without React rerenders", async () => {
     const exercise = new ExerciseController({ mode: "assessment" });
-    const h = await harness(false, exercise);
+    const ghost = new GhostPlaybackController();
+    const h = await harness(false, exercise, ghost);
     try {
       const initialRenders = h.renders();
       h.tick(0);
@@ -205,11 +248,32 @@ describe("scene frame and lifecycle integration", () => {
       expect(h.diagnosticsRef.current?.exercise?.segmentId).toBe("approach");
       expect(h.diagnosticsRef.current?.exercise?.modeHooks.ghostVisible).toBe(false);
       expect(h.diagnosticsRef.current?.exercise?.modeHooks.showPathGuide).toBe(false);
+      expect(h.diagnosticsRef.current?.ghost?.visible).toBe(false);
       const closed = sample(40); closed.left.target!.jawClosed = true;
       h.tick(40, closed);
       expect(h.diagnosticsRef.current?.exercise?.segmentId).toBe("grip");
+      expect(h.diagnosticsRef.current?.ghost?.visible).toBe(false);
       expect(h.renders()).toBe(initialRenders);
     } finally { await h.dispose(); }
     expect(exercise.snapshot.phase).toBe("idle");
+  });
+  it("renders ghost playback in Learn and Practice modes and updates refs without React rerenders", async () => {
+    const exercise = new ExerciseController({ mode: "learn" });
+    const ghost = new GhostPlaybackController({ speed: 0.5 });
+    const h = await harness(false, exercise, ghost);
+    try {
+      const initialRenders = h.renders();
+      h.tick(0);
+      expect(h.diagnosticsRef.current?.exercise?.phase).toBe("demonstration");
+      expect(h.diagnosticsRef.current?.ghost?.visible).toBe(true);
+      expect(h.diagnosticsRef.current?.ghost?.speed).toBe(0.5);
+      const p0 = h.diagnosticsRef.current!.ghost!.normalizedProgress;
+      for (let frame = 1; frame <= 20; frame++) {
+        h.tick(frame * 16);
+      }
+      expect(h.diagnosticsRef.current!.ghost!.normalizedProgress).toBeGreaterThan(p0);
+      expect(h.renders()).toBe(initialRenders);
+    } finally { await h.dispose(); }
+    expect(ghost.snapshot.normalizedProgress).toBe(0);
   });
 });

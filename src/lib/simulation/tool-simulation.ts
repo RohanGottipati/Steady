@@ -11,6 +11,7 @@ export interface TaskObject extends Pose { id: string; heldBy: ToolId | null }
 export interface SimulationEvent { kind: "grab" | "release"; sourceTMs: number; toolId: ToolId; objectId: string }
 export interface SimulationSnapshot {
   assisted: boolean;
+  singleHand?: boolean;
   sourceTMs: number | null;
   canProgress: boolean;
   reason: string;
@@ -82,16 +83,28 @@ export function composePose(parent: Pose, local: Pose): Pose {
 export class ToolSimulationController {
   snapshot: SimulationSnapshot;
   private assisted: boolean;
+  private singleHand: boolean;
   epoch = 0;
   attachment: Pose | null = null;
   private lastSource = -Infinity;
   private armed = { left: false, right: false };
 
-  constructor({ assisted = true }: { assisted?: boolean } = {}) { this.assisted = assisted; this.snapshot = initial(assisted); }
+  constructor({ assisted = true, singleHand = false }: { assisted?: boolean; singleHand?: boolean } = {}) {
+    this.assisted = assisted;
+    this.singleHand = singleHand;
+    this.snapshot = { ...initial(assisted), singleHand };
+  }
 
   setAssisted(enabled: boolean) { if (enabled !== this.assisted) { this.assisted = enabled; this.reset(); } }
 
-  reset() { this.epoch++; this.snapshot = initial(this.assisted); this.attachment = null; this.armed = { left: false, right: false }; }
+  setSingleHand(enabled: boolean) {
+    if (enabled !== this.singleHand) {
+      this.singleHand = enabled;
+      this.snapshot = { ...this.snapshot, singleHand: enabled };
+    }
+  }
+
+  reset() { this.epoch++; this.snapshot = { ...initial(this.assisted), singleHand: this.singleHand }; this.attachment = null; this.armed = { left: false, right: false }; }
 
   suspend(reason = "Simulation paused until both controls are tracking.") {
     this.armed = { left: false, right: false };
@@ -104,12 +117,47 @@ export class ToolSimulationController {
     const validTime = Number.isFinite(nowMs) && source !== null && Number.isFinite(source) && source <= nowMs && nowMs - source < CONTROL_TIMING.freshnessMs;
     if (!validTime) { this.suspend("Simulation paused: waiting for fresh controls."); return []; }
     if (source! < this.lastSource) { this.suspend("Simulation paused: reordered controls."); return []; }
-    const eligible = controls.canProgress && HAND_SLOTS.every(slot => {
+    const slotEligible = (slot: "left" | "right") => {
       const hand = controls[slot];
       return hand.status === "tracking" && hand.hand?.handedness === (slot === "left" ? "Left" : "Right") && !hand.rotationHeld && hand.lastSeenMs === source;
+    };
+    const leftEligible = slotEligible("left");
+    const rightEligible = slotEligible("right");
+    const currentHeldBy = this.snapshot.object.heldBy;
+    const holderEligible =
+      currentHeldBy === "left-tool"
+        ? leftEligible
+        : currentHeldBy === "right-tool"
+          ? rightEligible
+          : true;
+    const eligible = this.singleHand
+      ? (leftEligible || rightEligible) && holderEligible
+      : controls.canProgress && leftEligible && rightEligible;
+    if (!eligible) {
+      this.lastSource = Math.max(this.lastSource, source!);
+      this.suspend(
+        this.singleHand
+          ? "Simulation paused: keep your active hand visible in the camera frame."
+          : undefined,
+      );
+      return [];
+    }
+    const parkedTarget = (slot: "left" | "right"): ToolControlTarget => ({
+      id: slot === "left" ? "left-tool" : "right-tool",
+      position: { x: slot === "left" ? -0.48 : 0.48, y: -0.1, z: 0 },
+      rotation: identity(),
+      jawClosed: false,
     });
-    if (!eligible) { this.lastSource = Math.max(this.lastSource, source!); this.suspend(); return []; }
-    const left = toolFromTarget(controls.left.target, "left-tool", this.assisted), right = toolFromTarget(controls.right.target, "right-tool", this.assisted);
+    const left = leftEligible
+      ? toolFromTarget(controls.left.target, "left-tool", this.assisted)
+      : this.singleHand
+        ? toolFromTarget(parkedTarget("left"), "left-tool", this.assisted)
+        : null;
+    const right = rightEligible
+      ? toolFromTarget(controls.right.target, "right-tool", this.assisted)
+      : this.singleHand
+        ? toolFromTarget(parkedTarget("right"), "right-tool", this.assisted)
+        : null;
     if (!left || !right) {
       this.lastSource = Math.max(this.lastSource, source!);
       this.suspend("Simulation paused: invalid instrument geometry."); return [];
@@ -147,7 +195,7 @@ export class ToolSimulationController {
       this.armed[slot] = !tools[slot].jawClosed;
       if (object.heldBy === tools[slot].id) tools[slot].heldObjectId = object.id;
     }
-    this.snapshot = { assisted: this.assisted, sourceTMs: source!, canProgress: true, reason: "Simulation ready", left, right, object };
+    this.snapshot = { assisted: this.assisted, singleHand: this.singleHand, sourceTMs: source!, canProgress: true, reason: "Simulation ready", left, right, object };
     return events;
   }
 }

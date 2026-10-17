@@ -76,6 +76,33 @@ export class HandCalibrationController {
     this.workspaceState();
     return true;
   }
+
+  /** Instant 1-hand / 2-hand default profile so users can start with one hand without 8-arrow calibration. */
+  applyQuickProfile(size: VideoDimensions) {
+    const dimensions = { width: size.width || 1280, height: size.height || 720 };
+    this.dimensions = dimensions;
+    const defaultHand = (centerX: number): HandCalibration => ({
+      neutralCenter: { x: centerX, y: 0.52, z: 0 },
+      palmScale: 0.14,
+      neutralRotation: { x: 0, y: 0, z: 0, w: 1 },
+      openPinchRatio: 0.72,
+      closedPinchRatio: 0.18,
+      enterPinchRatio: 0.18 + 0.28 * (0.72 - 0.18),
+      releasePinchRatio: 0.18 + 0.4 * (0.72 - 0.18),
+      range: { left: 0.22, right: 0.22, down: 0.18, up: 0.18 },
+    });
+    this.profile = {
+      dimensions,
+      left: defaultHand(0.55),
+      right: defaultHand(0.45),
+    };
+    this.state = {
+      stage: "ready",
+      progress: 1,
+      message: "1-Hand Quick Start active. Hold up ONE hand (Left or Right) to control the instrument.",
+    };
+    this.samples = emptySamples();
+  }
   private clearWindow() {
     this.samples = emptySamples(); this.windowStart = null; this.lastSample = null;
     this.state = { ...this.state, progress: 0 };
