@@ -201,6 +201,12 @@ test("navigates from /library to /train/needle-passing, calibrates, shows ghost 
   await page.getByTestId("start-attempt").click();
   await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: active");
 
+  // A long preparation period stays recorded, but initial replay skips to a
+  // three-second lead-in before the actual pickup. Observe the recording clock.
+  await expect.poll(async () => JSON.parse(await page.getByTestId("exercise-state").innerText()).elapsedActiveMs,
+    { timeout: 10_000 }).toBeGreaterThanOrEqual(5000);
+  await expect(page.getByTestId("needle-ownership")).toHaveText("Needle: free");
+
   await completeNeedlePass(page);
 
   const scoreValue = Number(await page.getByTestId("overall-score").innerText());
@@ -227,6 +233,18 @@ test("navigates from /library to /train/needle-passing, calibrates, shows ghost 
     db.close(); return values.map(item => item.result.id);
   });
   expect(persisted).toEqual([completed.id]);
+  await page.getByTestId("open-attempt-replay").click();
+  await expect(page.getByTestId("replay-status")).toContainText("Replay ready");
+  const initialReplay = JSON.parse(await page.getByTestId("replay-state").innerText());
+  expect(initialReplay.timeMs).toBeGreaterThanOrEqual(2000);
+  expect(initialReplay.playing).toBe(false);
+  expect(initialReplay.needle.heldBy).toBeNull();
+  await page.getByLabel("Replay timeline").focus(); await page.keyboard.press("Home");
+  await expect.poll(async () => JSON.parse(await page.getByTestId("replay-state").innerText()).timeMs).toBe(0);
+  await page.getByTestId("replay-play").click();
+  await expect.poll(async () => JSON.parse(await page.getByTestId("replay-state").innerText()).timeMs).toBeGreaterThan(0);
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).cameraRequests)).toBe(1);
+  await page.getByRole("button", { name: "Back to training" }).click();
   // Reload verifies persistence independently of the runtime's module memory.
   await page.reload();
   const storedId = await page.evaluate(async () => {
@@ -317,6 +335,10 @@ test("S1 produces results offline when device storage is unavailable", async ({ 
     expect(Object.keys(result.performance)).toHaveLength(20);
     await page.getByRole("button", { name: "Stop camera" }).click();
     await expect(page.getByTestId("attempt-results-panel")).toBeVisible();
+    await page.getByTestId("open-attempt-replay").click();
+    await expect(page.getByTestId("replay-status")).toContainText("Replay ready");
+    await page.getByTestId("replay-play").click();
+    await expect.poll(async () => JSON.parse(await page.getByTestId("replay-state").innerText()).timeMs).toBeGreaterThan(0);
   } finally { await context.setOffline(false); }
   expect(errors).toEqual([]);
 });

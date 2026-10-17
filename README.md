@@ -2,7 +2,7 @@
 
 Hardware-free AI surgical motion trainer that uses a laptop webcam to teach precise procedural movements through expert ghost demonstrations, real-time voice coaching, motion-level evaluation, and 3D expert-versus-user replay.
 
-## Current training workflow (S1)
+## Current training and replay workflow (S1/A6)
 
 Open `/library`, choose **Needle Passing**, then select Learn, Practice, or Assessment.
 Start the camera explicitly and calibrate, or use **1-Hand Quick Start** after starting
@@ -24,6 +24,21 @@ three-second demonstration. The perturbed pass scores worse than the clean pass.
 Demo results are labelled and excluded from saved history. `?fixture=off` overrides
 `NEXT_PUBLIC_DEMO_FIXTURE_MODE=true` when switching back to the camera.
 
+After completing either kind of attempt, select **Replay latest attempt**. Solid
+cyan/amber tools show your recorded movement; translucent lavender tools show the
+same canonical reference used for scoring, adapted for your working hand. Replay
+works after stopping the camera. It opens paused three seconds before the first
+successful needle pickup, or at the beginning if there is less lead-in or no pickup.
+The full recording remains available for scrubbing and scoring.
+Play/pause, scrub, change speed (0.25x/0.5x/1x),
+switch between synchronized comparison and original recorded timing, or jump to
+an issue. Optional smoothing changes only the display. Original timing excludes
+tracking suspensions, just like the recording clock. **Back to training** starts
+a fresh exercise; the latest completed replay remains available until replaced
+by a newer completed attempt or the page is reloaded. Needle pose/visibility and
+the exact adapted reference are memory-only; saved history still contains tool
+motion. See [the replay handoff](docs/SIMULATION.md#a6-recording-and-replay-handoff).
+
 Webcam attempts save asynchronously to IndexedDB on this device (newest 20). Results
 remain available in memory if storage is restricted or full; the save message tells
 you which applies. Reload retrieval is available through the local cache interface;
@@ -35,7 +50,7 @@ diagnostics and the result object.
 Live coaching is deterministic text with recorded events. Assessment hides the ghost,
 path guide, and coaching. Scoring always uses the unsmoothed canonical synthetic scene
 guide; choosing the optional JIGSAWS ghost changes the demonstration only. AI review,
-audio, post-attempt 3D replay, and cloud synchronization remain scheduled work.
+audio, a dedicated results/history screen, and cloud synchronization remain scheduled work.
 
 ## Stack
 

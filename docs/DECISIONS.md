@@ -2,6 +2,31 @@
 
 Record architectural and product decisions here as they are made.
 
+### 2026-10-17 - A6 initial review uses a three-second pickup lead-in
+- Context: Long preparation periods made the start of replay unhelpful. The user
+  selected an initial position three seconds before the first successful pickup.
+- Decision: On review initialization, call `ReplayController.seekToTaskStart()`.
+  Use recorded needle ownership, falling back to held-object IDs for tool-only
+  recordings, and clamp to the recording start. Remain paused; missing pickups
+  start at zero. Re-grabs do not replace the first pickup anchor.
+- Consequences: Full recording/scoring, manual seeking, issue markers, and renderer
+  retry behavior are preserved. This changes the opening cursor, not recorded data.
+
+### 2026-10-17 - A6 replay builds on merged S1 runtime
+- Context: S1 PR #12 was merged while A6 was being planned. The public trainer
+  now owns one runtime, validated local results, canonical reference adaptation,
+  camera-free fixtures, and an IndexedDB tool-motion cache.
+- Decision: Extend A4 recording with aligned memory-only needle/visibility data;
+  freeze it once in S1's runtime with the same adapted reference used for scoring.
+  Add a camera-independent display controller/scene and a minimal review surface
+  inside Person A's 3d training wrapper. Synchronized replay uses segment frame
+  progress; marker timestamps remain reference time. Default playback preserves
+  recorded samples, with optional event-bounded centered smoothing.
+- Consequences: Shared schemas, evaluation, and cache behavior stay stable. Replay
+  survives camera stop/reset in this tab; needle/reference metadata is not added to
+  persisted history. B8 can consume the renderer/cursor API. JIGSAWS replay,
+  history navigation, voice, and cloud synchronization remain subsequent work.
+
 ### 2026-10-17 - S1 owns a single numerical runtime and local results
 - Context: The unfinished product integration had competing fixture/render drivers,
   shared mutable camera inputs, changing completion timestamps, and display-reference
