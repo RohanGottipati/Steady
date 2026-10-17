@@ -1,10 +1,28 @@
 # Project Context
 
-Last updated: 2026-10-16 23:19
-Updated by: dependency bootstrap
+Last updated: 2026-10-16 23:40
+Updated by: context merge (agent operating rules + dependency bootstrap)
 Current branch: main
 Current milestone: M0
 Demo-critical status: YELLOW
+
+## 0. Agent Operating Rules (READ FIRST)
+
+These rules apply to every AI agent working in this repo (Claude, Codex, or any other),
+regardless of which tool or model is in use. This file is the agent-agnostic source of
+truth for the current project state — it records what exists and where it is.
+
+1. **Update this file (`docs/CONTEXT.md`) before every push.** Keep it reflecting the
+   true current stage of the project: what works, what is in progress, completed tasks,
+   the current milestone/status, and the next recommended actions. Refresh the
+   `Last updated` timestamp and `Updated by` field. Rewrite stale lines rather than
+   appending endlessly.
+2. **Never put any reference to an AI in commit messages.** No "Claude", "Codex",
+   "AI", "Copilot", "generated with", "Co-Authored-By" AI trailers, or similar. Use the
+   project's task-ID commit style instead (see `IMPLEMENTATION_PLAN.md` §25.2), e.g.
+   `S0: scaffold Next.js app and shared types`.
+3. Read `docs/IMPLEMENTATION_PLAN.md` (architectural source of truth) before coding, and
+   work one task ID at a time.
 
 ## 1. Current Working State
 - Next.js App Router bootstrap complete with hackathon dependencies installed.
