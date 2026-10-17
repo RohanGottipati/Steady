@@ -1,9 +1,9 @@
 # Project Context
 
-Last updated: 2026-10-17 21:20 UTC
-Updated by: Person B — Task B7 (ElevenLabs voice integration; rebased onto main after S1 PR #12)
-Current branch: person-b/b7-elevenlabs-voice
-Current milestone: S1 training/results integrated; B7 voice layer added; physical M1/M2/M3 and production-build acceptance pending
+Last updated: 2026-10-17 20:53 UTC
+Updated by: Person A — A6 publication after refreshing main
+Current branch: person-a/a6-attempt-replay (from latest main 57468be / B7 PR #11; targeting main)
+Current milestone: S1 training/results, B7 voice layer, and A6 canonical replay implemented; physical M1/M2/M3 and production-build acceptance pending
 Demo-critical status: YELLOW
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -95,7 +95,20 @@ truth for the current project state — it records what exists and where it is.
   display smoothing, **1-Hand Quick Start / 1-Hand Mode** (`singleHand`), and runtime
   workspace fitting + gesture-to-segment mapping for B4's JIGSAWS `Needle_Passing_E005`
   expert trial (`needle-passing-jigsaws-expert-v1.json`) with Gao et al. (2014)
-  attribution. S1 now exposes training/results on `/train/[skillId]`; 3D replay remains A6.
+  attribution. S1 exposes training/results on `/train/[skillId]`; A6 now adds canonical replay.
+- A6 replay is available through **Replay latest attempt** after a completed webcam
+  pass or S1 fixture, including after camera stop/reset. A4 records aligned needle
+  pose/owner and visibility sidecars; S1 freezes these with the exact adapted
+  canonical scoring reference. A camera-independent renderer shows solid user and
+  translucent reference tools, paths, tip-deviation connectors, and recorded user
+  needle. Controls expose synchronized/original timing, 0.25x/0.5x/1x, seeking,
+  reference-time issue jumps, visibility, and optional event-bounded smoothing.
+  Review opens paused three seconds before the first confirmed needle pickup,
+  clamped to the beginning; absent pickups start at zero. Full recording/scoring
+  and timeline/issue access are retained, including before that opening cursor.
+  Replay is display-only; evaluation/shared schemas/local cache are unchanged.
+  Exact reference/needle metadata is retained only for the latest completed attempt
+  in memory. History/reload navigation and JIGSAWS replay remain subsequent work.
 - Live coaching engine (B6): `src/lib/coaching/coaching-engine.ts` turns a compact
   per-tick `CoachingSignals` snapshot (path/corridor deviation, danger zone, tool/
   assisting-hand speed, grip slip, rotation lateness, overshoot) into deterministic
@@ -194,6 +207,13 @@ truth for the current project state — it records what exists and where it is.
   contract. `tts-server.ts` is `server-only` (`synthesizeSpeech`, `SpeechConfigError` → 503,
   `SpeechUpstreamError` → 502). `AudioManager` takes injectable `createAudio`/`fetchFn`/
   `fallbackSpeak` for testability. Shared `src/types/` contracts are unchanged.
+- A6 interfaces live in `src/lib/simulation/replay-types.ts` and
+  `replay-controller.ts`: `ReplayRecording`, `ReplayInput`, `CompletedReplay`, and
+  `ReplayController`. `TrainingRuntime.lastReplay` survives reset and is replaced
+  only by another completed attempt. `ReplayScene` accepts the controller without
+  webcam/simulation input. Marker times are reference times; `seekMarker` maps them
+  to user segment progress and pauses, including one-frame segments. See
+  `docs/SIMULATION.md` for B8 integration, timing domains, and missing-data behavior.
 
 ## 4. Current Task Ownership
 Person A - Realtime Vision and 3D Simulation:
@@ -209,8 +229,8 @@ Person A - Realtime Vision and 3D Simulation:
 - A5 implemented: translucent ghost renderer, tool-tip path trail/tube, sub-frame 30 Hz
   `lerp`/`slerp` interpolation, `0.5x`/`1x` speeds, `demonstration`/`progress-coupled`/`continuous`
   sync modes, 1-Hand Quick Start / 1-Hand Mode, 7-frame display smoothing, and runtime
-  JIGSAWS expert workspace fitting. Joint `S1` product integration is implemented; `A6`
-  (3D replay renderer) is next; A1/A2/M2/M3 physical performance acceptance remains pending.
+  JIGSAWS expert workspace fitting. Joint `S1` product integration and `A6`
+  canonical replay are implemented; A1/A2/M2/M3 physical performance acceptance remains pending.
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4), B4 external data conversion (merged to main via #6), B5 full 20-metric evaluator (merged to main via #8) done
@@ -218,6 +238,16 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - B7 ElevenLabs voice layer implemented: pre-generation script + 7 committed common clips, `/api/speech`, `AudioManager` (overlap-safe) with live-ElevenLabs-first → clip → `speechSynthesis` fallback chain (`coach(type)`). Next: wire `AudioManager` voice into the live loop (S1/S2), B8 results UI (needs A6 + B5), B9 Backboard/Gemini review (needs B8), S2 narrated replay (needs A6+B7+B9).
 
 ## 5. Completed Tasks
+- A6 implementation — revised plan after pulling merged S1 (`a1f1c2a`), then
+  extended its existing runtime/recorder with aligned scene state and one detached
+  canonical replay package. Added camera-independent numerical playback, exact
+  marker seeking, dual rendering, optional display smoothing, paths/connectors,
+  lifecycle recovery, and a minimal review surface on the existing public/dev
+  trainer. S1 right/single-hand scoring adaptation is reused. Camera stop/reset
+  retains the latest replay. Demo playback is explicitly labeled synthetic.
+  Shared schemas, scoring, cache, dependencies, and Person B subsystems are unchanged.
+  Handoff and revised plan are in SIMULATION and A6_PLAN. Publication uses
+  `person-a/a6-attempt-replay`, created after refreshing main at `57468be`.
 - S1 implementation — one scene-driven `TrainingRuntime` connects camera or fixed
   30 Hz fixtures to simulation/exercise/ghost/coaching and freezes one validated
   result per attempt. Product modes, reset/retry, one-hand control, interruption,
@@ -230,7 +260,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   fallback; raw landmark observations are omitted from saved replay telemetry.
   Demo results stay session-only. Ownership/interface changes were recorded before
   S1 touched the shared scene and Person B evaluator interfaces. Audio, cloud
-  synchronization, AI review, and replay remain separate tasks. The user reviewed
+  synchronization and AI review remain separate tasks; A6 now adds replay. The user reviewed
   S1, reported that it looks good, and authorized branch publication and a PR into
   main (2026-10-17). This is qualitative preview approval, not measured hardware
   acceptance.
@@ -374,7 +404,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   on retry, followed by broadly positive feedback on the remaining checklist.
   Detailed physical outcomes and measured performance remain unrecorded.
 - Production build remains blocked by the existing Turbopack CSS worker local-port
-  restriction (`Operation not permitted`), reproduced by the A3 escalated normal-build
+  restriction (`Operation not permitted`), reproduced by the A6 escalated normal-build
   retry on 2026-10-17. Asset preparation/checksummed cache reuse passed first; the
   failure remains in the existing globals.css CSS-worker process before a successful
   production build can be established.
@@ -415,6 +445,44 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm run lint
 - npm test
 - npm run build
+
+Latest A6 pickup lead-in verification (2026-10-17, uncommitted on main `57468be` after B7 PR #11):
+- `npm run typecheck` and `npm run lint`: passed without warnings.
+- `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`: 36 files / 315 tests
+  passed, including 28 replay/controller/lifecycle tests. New coverage checks either
+  pickup owner, scene-state precedence, tool-only held-object fallback, empty pinches,
+  first pickup across re-grabs, nonzero recording origins, early/missing pickups,
+  and preservation of the full recording. B7 tests pass alongside A6.
+- Targeted Chromium verification (`train-s1.spec.ts` / `replay-a6.spec.ts`, grep
+  `navigates from|S1 fixture replays`, one worker): 2 tests passed (39.1 seconds).
+  A long preparation period opens at the pickup lead-in, paused, with the needle
+  still free; Home scrubs back to the full recording start. Existing camera-free
+  playback, marker seeking, actual tip alignment, and WebGL retry also pass.
+- Production build not repeated for this opening-position change; the known
+  CSS-worker port-binding restriction below remains unresolved.
+
+Prior A6 verification (2026-10-17, uncommitted on main `a1f1c2a` after pulling S1 PR #12):
+- `npm run typecheck` and `npm run lint`: passed without warnings.
+- `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`: 30 files / 272 tests
+  passed, including 23 new A6 tests covering clocks/segment alignment, reference-time
+  markers (including one-frame segments), exact geometry/attachment, optional
+  event/visibility-bounded smoothing, cap/error handling, capture on either hand,
+  hidden paths, actual Three groups, Strict Mode and context/visibility cleanup.
+  Migration/seed tests remain excluded to avoid cloud writes. The adapter rejection
+  traceback is the existing passing negative test.
+- `npm run test:e2e -- --workers=1`: all 18 Chromium tests passed before the final
+  offline hardening. The final affected suite (`train-s1.spec.ts` and
+  `replay-a6.spec.ts`, one worker) then passed all 6 tests (1.5 minutes), including
+  webcam-stop playback without another camera request, first replay after network
+  loss with IndexedDB unavailable, zero-camera fixture review, marker seeking,
+  actual rendered tip alignment, WebGL retry/cursor retention, and navigation.
+  An intermediate offline failure exposed separate preload/dynamic chunk entries;
+  the corrected loader shares the exact module promise and permits download retry.
+- The A6 WebGL screenshot (`test-results/a6-replay.png`) was visually inspected.
+- `npm run build`: cached vision assets prepared successfully. Normal and elevated
+  builds both reproduced the existing `globals.css` Turbopack CSS-worker port-binding
+  `Operation not permitted` failure before compilation could complete. No production
+  build success or physical-camera acceptance is claimed.
 
 Latest S1 verification (2026-10-17, implementation carried to `integration/s1-training-results`, main base `097d3d4`):
 - `npm run lint` and `npm run typecheck`: passed without warnings.
@@ -517,13 +585,14 @@ CSS-worker local-port restriction; verify on an unrestricted host before release
 no production build success claimed.
 
 ## 11. Next Recommended Actions
-1. Person A: A6 dual user/expert 3D replay (seekable cursor, smoothing and deviation
-   connectors); S1 now supplies validated saved tool-motion frames and results.
-2. Person B: B7 voice layer done (live-first `AudioManager.coach()` + clips + fallback,
-   `/api/speech` hardened). Next: wire `AudioManager` voice into S1's live loop (it already
-   exposes the B6 message/event seam) and the final review narration (S2). B8 adds dedicated
-   results/history/replay navigation once A6 exists; B9 follows B8. S1's inline results and
-   text coaching must remain usable without these services.
+1. Person A: review the canonical A6 replay on the target Mac, including real-hand
+   pickup/release, either working hand, visibility, seeking and rendering performance.
+   A7 additional scene configs can follow separately; JIGSAWS replay remains deferred.
+2. Person B: B7 voice layer is merged (live-first `AudioManager.coach()` + clips +
+   fallback and hardened `/api/speech`). Next: wire it into S1's existing B6 seam
+   and S2 review narration. B8 can add results/history/replay navigation using the
+   A6 controller/renderer; B9 follows B8. S1's inline results and text coaching
+   must remain usable without these services.
 3. Person B: B10 cloud synchronization uses the existing pending `SavedAttempt` /
    `AttemptUploadPayload` and frozen 20-vector contracts. Keep demo attempts out of
    uploaded history and preserve asynchronous local evaluation/cache behavior.
@@ -540,6 +609,12 @@ no production build success claimed.
   / `?fixture=needle-pass-late-rotation` for camera-free animated demonstrations.
   Results appear inline; Try again starts a fresh attempt. `?fixture=off` forces webcam
   mode even when the public demo environment flag is enabled.
+- A6: complete a pass, stop the camera if running, and select **Replay latest attempt**.
+  Issue buttons jump in reference-time alignment; original timing preserves recorded
+  active-attempt timestamps. Hidden tabs/context loss pause; retry keeps the cursor.
+  Back to training resets the exercise, retaining the previous replay until replaced.
+  Only the latest replay/reference/needle package is retained in memory; reload/history
+  navigation and persisted scene metadata remain B8/persistence work.
 - Development preview: `http://localhost:3000/dev/hand-tracking?debug=1`; explicit Start/Stop controls.
 - No model CDN dependency during tracking. `npm run prepare:vision` needs network only when the pinned model cache is absent/invalid.
 - Worker uses the classic WASM loader to match Turbopack's worker output; fallback reason is visible in debug mode.

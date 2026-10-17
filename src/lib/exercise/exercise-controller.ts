@@ -2,6 +2,7 @@ import { needlePassingSkill } from "@/data/skills/needle-passing";
 import type { RecordedMotion } from "@/lib/evaluation/types";
 import { ASSISTED_GRAB_RADIUS, GRAB_RADIUS, NEEDLE_ID, type SimulationEvent, type SimulationSnapshot } from "@/lib/simulation/tool-simulation";
 import { CONTROL_TIMING, type ControlSnapshot } from "@/lib/vision/control-types";
+import type { ReplayRecording, ReplaySceneFrame } from "@/lib/simulation/replay-types";
 import type { HandFrame, MotionFrame, NeedlePassingSegment, Quat, SkillDefinition, ToolState, TrainingMode } from "@/types";
 import {
   corridorMetrics,
@@ -146,6 +147,8 @@ export class ExerciseController {
   private dangerZoneDurationMs = 0;
   private completedTargets: TargetRingId[] = [];
   private frames: MotionFrame[] = [];
+  private replaySceneFrames: ReplaySceneFrame[] = [];
+  private recordingTruncated = false;
   private segmentFrames = new Map<NeedlePassingSegment, number>();
 
   constructor({ skill = needlePassingSkill, mode = "practice" }: { skill?: SkillDefinition; mode?: TrainingMode } = {}) {
@@ -263,6 +266,8 @@ export class ExerciseController {
     this.dangerZoneDurationMs = 0;
     this.completedTargets = [];
     this.frames = [];
+    this.replaySceneFrames = [];
+    this.recordingTruncated = false;
     this.segmentFrames.clear();
     this.snapshot = this.initialSnapshot("idle", "Calibrate both hands to begin the exercise.");
   }
@@ -289,6 +294,18 @@ export class ExerciseController {
     };
   }
 
+  getReplayRecording(): ReplayRecording {
+    return {
+      skillId: this.skill.id,
+      // Replay does not need the optional landmark observations used by metrics.
+      frames: this.frames.map(frame => ({ tMs: frame.tMs, segmentId: frame.segmentId,
+        normalizedProgress: frame.normalizedProgress,
+        leftTool: cloneTool(frame.leftTool), rightTool: cloneTool(frame.rightTool) })),
+      sceneFrames: structuredClone(this.replaySceneFrames),
+      truncated: this.recordingTruncated,
+    };
+  }
+
   private formatMessage(title: string, liveInstruction: string): string {
     return this.snapshot.modeHooks.showLiveCoaching ? `${title}: ${liveInstruction}` : `Segment: ${title}`;
   }
@@ -299,7 +316,11 @@ export class ExerciseController {
     simulation: SimulationSnapshot,
     controls: ControlSnapshot,
   ) {
-    if (!simulation.left || !simulation.right || this.frames.length >= EXERCISE_THRESHOLDS.maxRecordedFrames) return;
+    if (!simulation.left || !simulation.right) return;
+    if (this.frames.length >= EXERCISE_THRESHOLDS.maxRecordedFrames) {
+      this.recordingTruncated = true;
+      return;
+    }
     const clampedProgress = clamp(normalizedProgress, 0, 1);
     this.frames.push({
       tMs: Math.max(0, Math.round(this.elapsedActiveMs * 1000) / 1000),
@@ -311,6 +332,13 @@ export class ExerciseController {
       rightHand: cloneHand(controls.right.hand),
     });
     this.segmentFrames.set(segmentId, (this.segmentFrames.get(segmentId) ?? 0) + 1);
+    this.replaySceneFrames.push({
+      needle: { ...simulation.object, position: { ...simulation.object.position }, rotation: { ...simulation.object.rotation } },
+      visible: {
+        left: !simulation.singleHand || controls.left.status === "tracking" || simulation.object.heldBy === "left-tool",
+        right: !simulation.singleHand || controls.right.status === "tracking" || simulation.object.heldBy === "right-tool",
+      },
+    });
   }
 
   private computeOverallProgress(segmentIndex: number, segmentProgress: number): number {
@@ -657,7 +685,7 @@ export class ExerciseController {
           demonstrationProgress: 1,
           modeHooks,
           readyForEvaluation: true,
-          readyForReplay: true,
+          readyForReplay: !this.recordingTruncated,
           frameCount: this.frames.length,
           sourceTMs: source,
           canProgress: true,

@@ -1,4 +1,4 @@
-# A3/A4/A5/S1 simulation and training handoff
+# A3/A4/A5/S1/A6 simulation, training, and replay handoff
 
 The development-only `/dev/hand-tracking?debug=1` route combines A1/A2 tracking and
 calibration with two kinematic 3D instruments, the A4 Needle Passing exercise
@@ -17,7 +17,7 @@ on or auto-triggered), A5 renders translucent reference instruments, a ghost nee
 and reference tool-tip path trails (`0.5x`/`1x` speed, `progress-coupled`/`continuous` sync,
 and runtime switching between the canonical synthetic reference and the workspace-fitted
 JIGSAWS `Needle_Passing_E005` expert trial). S1 connects these systems to `/train/needle-passing` with deterministic results; dual
-user-versus-expert post-attempt replay remains A6. This is an educational motion-control
+user-versus-reference post-attempt replay is now available through A6. This is an educational motion-control
 prototype; task-object physics and anatomical fidelity are not claimed.
 
 ## S1 runtime, results, and local persistence
@@ -89,6 +89,98 @@ Manual S1 acceptance on Chrome/macOS:
    work. With device storage blocked, verify the memory-only save message.
 6. Check actual camera-track release when leaving the route. Record measured target-Mac
    FPS/latency/soak separately; synthetic Chromium input is not physical signoff.
+
+## A6 recording and replay handoff
+
+Implementation follows `docs/A6_PLAN.md` after pulling S1 PR #12 from main
+(`a1f1c2a`). `TrainingRuntime` remains the single owner of active progression,
+evaluation, and local saving. A6 does not add a competing recording/evaluation
+loop, change shared schemas, or change the existing cache.
+
+- `ExerciseController.getReplayRecording()` returns detached tool-only motion
+  frames plus equally indexed `ReplaySceneFrame`s (needle world pose/owner and
+  left/right visibility). Every evaluation frame, including short-segment and
+  terminal frames, has a sidecar. No frame is recorded at display FPS. Overflow
+  sets `truncated`; S1's existing recording-limit error prevents partial results,
+  and the replay controller rejects truncated recordings.
+- At completion the runtime freezes `lastReplay: CompletedReplay`: attempt ID,
+  recording/sidecars, worst-moment markers, and the exact adapted, unsmoothed
+  canonical scoring reference. It reuses S1's `adaptReferenceForAttempt`, including
+  right-hand and single-hand adaptation. Ghost settings/JIGSAWS do not affect it.
+  Use the reference snapshot, not a lookup by ID: the scene guide and committed
+  synthetic reference currently share an ID but contain different trajectories.
+- Runtime reset, calibration loss, camera stop, and WebGL retry preserve the
+  latest completed replay. A new completed attempt replaces it. Replay packages
+  contain no camera images or hand landmarks. They are memory-only and disappear
+  on page reload/navigation; the original newest-20 tool-motion cache is unchanged.
+- `ReplayController` (`src/lib/simulation/replay-controller.ts`) accepts
+  `{ skillId, userFrames, reference, sceneFrames?, truncated? }`. Inputs are copied
+  and validated. Empty inputs show an empty state; one-frame recordings are static
+  in synchronized mode. Timestamps may be equal (last observation wins) but cannot
+  decrease. Invalid tool IDs/geometry/quaternions and mismatched sidecars are rejected.
+  Reference segments must form a single canonical Needle Passing sequence; raw
+  JIGSAWS/repeated procedures are outside this chunk. Unknown/repeated user segments
+  render without a synchronized comparison rather than fabricated matching poses.
+- `play()`, `pause()`, `setSpeed(0.25 | 0.5 | 1)`, `setMode("synchronized" | "original")`,
+  `seekTime(ms)`, `seekProgress(0..1)`, and `seekMarker(ReplayMarker)` control a
+  ref-backed `snapshot`. `update(deltaSeconds)` advances display playback only;
+  it never controls the simulation or recalculates scores. Time/progress seeks use
+  the current mode's playback timeline and pause. Play at the end restarts.
+- The review surface calls `seekToTaskStart()` once when opened: seek to three
+  recorded seconds before the first confirmed `practice-needle` owner, relative to
+  the recording's first timestamp, and remain paused. Clamp to the beginning for
+  early pickups; use the beginning when no pickup exists. Scene ownership is
+  authoritative when sidecars exist; tool-only recordings use `heldObjectId`,
+  never jaw closure. Later releases/re-grabs do not move this initial anchor.
+  Manual seeking and issue markers still cover the entire recording, and scoring
+  uses all original frames. Renderer retries preserve the selected cursor.
+- Synchronized mode uses the user timeline, with each segment aligned by normalized
+  frame index, matching the evaluator's convention rather than A4's overall
+  `normalizedProgress`. Original mode advances both recordings from their own start,
+  using recorded timestamps, and holds whichever stream finishes first. Tracking
+  pauses are absent from the active-attempt clock; neither mode recreates those
+  wall-clock pauses.
+- **Markers contain reference timestamps.** `seekMarker` locates that reference
+  segment/frame progress, maps it into the user's segment, switches to synchronized
+  mode, and pauses. It returns `false` without moving when the segment is absent.
+  Paused marker alignment also preserves exact reference progress when a user
+  segment has only one frame and its clock cannot represent that progress.
+  Markers must come from evaluation against the supplied reference snapshot.
+- Default rendering interpolates recorded tips and shortest-path unit quaternions,
+  resolving grip origins through the shared `TIP_OFFSET`. Jaw/ownership/visibility
+  changes occur at their observed frames, never halfway to an event. Optional
+  `setSmoothing("centered-7")` averages only inside the same segment and event run,
+  preserving endpoints and event-adjacent samples. `"recorded"` restores the exact
+  samples. `setShowExpert`/`setShowPaths` control overlays. `getTrails()` supplies
+  cached independent line-segment endpoints; invisible intervals create gaps.
+- Held user needles use the recorded grip-relative attachment and the displayed
+  owner pose; free needles use recorded world poses. Tool-only input has no needle
+  rendering. The reference layer shows tool trajectories, without fabricating an
+  unrecorded expert needle pose. Deviation connectors and angle readouts describe
+  the currently displayed geometry, including optional smoothing; they are not
+  replacements for authoritative score/evidence values.
+- `ReplayScene` is a camera-independent client-loaded R3F scene, preloaded during
+  training so an already-loaded session can open its first replay offline. It updates groups
+  through refs, caches path geometry, and disposes replaced/unmounted resources.
+  Its loop pauses on hidden tabs/context loss/teardown and discards stale resume
+  deltas. Retry reuses the recording/cursor and requires explicit Play to resume.
+  The training wrapper mounts either live training or replay, with 4 Hz UI sampling.
+
+For B8, construct a controller with the recording and its exact evaluation
+reference, pass it to `ReplayScene` with a stable `onStatus` callback, and call
+`seekMarker(result.worstMoments[index])` from issue buttons. `ThreeDReplayPreview`
+is the minimal A6 control surface/example. SavedAttempt's existing motion-only
+frames also work, but B8/persistence must supply the matching reference adaptation;
+the saved schema alone does not retain single-hand metadata or the needle sidecar.
+A6 does not add history/reload navigation or silently reconstruct missing data.
+
+Manual replay acceptance: finish either S1 fixture or a webcam pass, stop the
+camera, open Replay latest attempt, and inspect pickup/early release/final release,
+both timing modes, scrubbing, marker jumps, and each speed. Hide/show reference
+and paths, compare recorded/smoothed views, hide/restore the tab, and lose/retry
+WebGL. The cursor should stay put through interruptions. Return to training and
+verify a fresh exercise, with the previous replay still available. Target-Mac
+performance measurements remain a separate physical acceptance step.
 
 ## Interfaces and ownership
 

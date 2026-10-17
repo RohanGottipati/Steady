@@ -1,10 +1,11 @@
 import { CoachingEngine, DEFAULT_COACHING_CONFIG } from "@/lib/coaching/coaching-engine";
 import { ToolSimulationController } from "@/lib/simulation/tool-simulation";
+import type { CompletedReplay } from "@/lib/simulation/replay-types";
 import { saveCompletedAttempt, type CachePersistence } from "@/lib/storage/attempt-cache";
 import { emptyControlSnapshot, type ControlSnapshot } from "@/lib/vision/control-types";
 import { needlePassingSkill } from "@/data/skills/needle-passing";
 import type { SkillDefinition, TrainingMode } from "@/types";
-import { evaluateCompletedAttempt, type CompletedAttemptBundle } from "./attempt-evaluator";
+import { adaptReferenceForAttempt, evaluateCompletedAttempt, type CompletedAttemptBundle } from "./attempt-evaluator";
 import { CoachingSignalsAdapter } from "./coaching-signals";
 import { ExerciseController } from "./exercise-controller";
 import { buildFixtureControlFrames, type FixtureId } from "./fixture-playback";
@@ -24,6 +25,8 @@ export class TrainingRuntime {
   private readonly signals = new CoachingSignalsAdapter();
   controls: ControlSnapshot = emptyControlSnapshot();
   bundle: CompletedAttemptBundle | null = null;
+  // Detached from the active exercise: resets/camera shutdown must not erase it.
+  lastReplay: CompletedReplay | null = null;
   error: string | null = null;
   message: string | null = null;
   saveStatus: "idle" | "saving" | "demo" | CachePersistence = "idle";
@@ -151,9 +154,19 @@ export class TrainingRuntime {
   }
   private finish() {
     try {
-      this.bundle = evaluateCompletedAttempt({ recorded: this.exercise.getRecordedMotion(), reference: this.reference,
+      const bundle = evaluateCompletedAttempt({ recorded: this.exercise.getRecordedMotion(), reference: this.reference,
         skill: this.skill, mode: this.exercise.snapshot.mode, singleHand: this.singleHand,
         attemptId: this.attemptId ?? crypto.randomUUID(), importantEvents: [...this.coaching.events] });
+      const recording = this.exercise.getReplayRecording();
+      this.lastReplay = {
+        attemptId: bundle.attemptResult.id,
+        source: this.fixtureId ? "fixture" : "webcam",
+        input: { skillId: recording.skillId, userFrames: recording.frames, sceneFrames: recording.sceneFrames,
+          truncated: recording.truncated,
+          reference: structuredClone(adaptReferenceForAttempt(this.reference, recording, { singleHand: this.singleHand })) },
+        markers: structuredClone(bundle.attemptResult.worstMoments),
+      };
+      this.bundle = bundle;
       this.message = null;
       if (this.fixtureId) { this.saveStatus = "demo"; return; }
       this.saveStatus = "saving";

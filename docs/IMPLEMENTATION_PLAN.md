@@ -3455,6 +3455,13 @@ Do not move forward if this milestone is unstable.
 **Depends on:** A4 + A5  
 **Priority:** P0
 
+Implementation baseline: S1 PR #12 is merged on main `a1f1c2a`. A6 extends the
+existing `TrainingRuntime`, recorder, fixtures, and inline product surface; it
+preserves S1's evaluation/cache contracts and uses the exact canonical reference
+adapted for the attempt. See `docs/A6_PLAN.md` for the revised bounded plan and
+`docs/SIMULATION.md` for the replay cursor/renderer handoff. Needle/visibility
+sidecars and exact reference snapshots are memory-only in this chunk.
+
 ### Output
 
 - user motion recorder,

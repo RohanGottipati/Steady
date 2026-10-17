@@ -14,6 +14,7 @@ import type { ControlSnapshot } from "@/lib/vision/control-types";
 import type { SceneDiagnostics } from "@/components/scene/training-scene";
 import type { ReferenceMotion, SkillDefinition, TrainingMode } from "@/types";
 import { AttemptResultsPanel } from "./attempt-results-panel";
+import { preloadReplayScene, ThreeDReplayPreview } from "./3d-replay-preview";
 
 const TrainingScene = dynamic(() => import("@/components/scene/training-scene"), { ssr: false, loading: () => <p>Loading 3D workspace…</p> });
 class SceneBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
@@ -65,6 +66,7 @@ export function ThreeDTrainingPreview({
   const [timing, setTiming] = useState({ medianFps: 0, p95FrameMs: 0, sampleCount: 0 });
   const [status, setStatus] = useState<"loading" | "ready" | "lost" | "error">("loading");
   const [generation, setGeneration] = useState(0);
+  const [replaying, setReplaying] = useState(false);
   const [assisted, setAssisted] = useState(true);
   const [localSingleHand, setLocalSingleHand] = useState(controlledSingleHand ?? false);
   const singleHand = controlledSingleHand ?? localSingleHand;
@@ -78,6 +80,12 @@ export function ThreeDTrainingPreview({
   const [, setUiTick] = useState(0);
   const onStatus = useCallback((value: "ready" | "lost") => setStatus(value), []);
   const onFailure = useCallback(() => { runtime.suspend("3D rendering unavailable."); setStatus("error"); }, [runtime]);
+
+  useEffect(() => {
+    // Fetch the client-only renderer while training is online, so first review
+    // does not need a chunk download after connectivity is lost mid-attempt.
+    void preloadReplayScene().catch(() => {});
+  }, []);
 
   useEffect(() => { runtime.configure(mode, fixtureId, singleHand, assisted); }, [runtime, mode, fixtureId, singleHand, assisted]);
   useEffect(() => { if (!calibrated) runtime.invalidateCalibration(); }, [calibrated, runtime]);
@@ -155,10 +163,14 @@ export function ThreeDTrainingPreview({
   const ghostSnapshot = ghost.snapshot;
   const activeEvaluationBundle = runtime.bundle;
   const feedback = snapshot ? pickupFeedback(snapshot) : null;
+  if (replaying && runtime.lastReplay) return <ThreeDReplayPreview key={runtime.lastReplay.attemptId}
+    replay={runtime.lastReplay} debug={debug} onClose={() => { runtime.reset(); setReplaying(false); setStatus("loading"); }} />;
   return <section aria-label="Virtual instrument preview" className="space-y-3 rounded-xl border p-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h2 className="text-lg font-semibold">Virtual instruments</h2>
       <div className="flex flex-wrap gap-2">
+        {runtime.lastReplay && <button type="button" data-testid="open-attempt-replay" className="rounded-md border px-4 py-2"
+          onClick={() => { runtime.suspend("Reviewing completed attempt."); setReplaying(true); }}>Replay latest attempt</button>}
         <button
           type="button"
           data-testid="quick-single-hand-start"
