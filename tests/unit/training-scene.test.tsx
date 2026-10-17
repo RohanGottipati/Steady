@@ -2,6 +2,7 @@ import { act, Activity, StrictMode, createRef } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PerspectiveCamera } from "three";
+import { ExerciseController } from "@/lib/exercise/exercise-controller";
 import { ToolSimulationController } from "@/lib/simulation/tool-simulation";
 import { emptyControlSnapshot, type ControlSnapshot } from "@/lib/vision/control-types";
 import { makeHandFrame, identityQuat } from "../fixtures/contracts";
@@ -35,6 +36,31 @@ vi.mock("@/components/scene/pickup-guides", async () => {
   const Guide = forwardRef(function Guide(_, ref) { useImperativeHandle(ref, () => new Group(), []); return null; });
   return { TipCursor: Guide, PickupHalo: Guide };
 });
+vi.mock("@/components/scene/exercise-targets", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/components/scene/exercise-targets")>();
+  const { forwardRef, useImperativeHandle } = await import("react");
+  const { BoxGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial } = await import("three");
+  return {
+    ...actual,
+    ExerciseTargets: forwardRef(function MockExerciseTargets(_, ref) {
+      useImperativeHandle(ref, () => {
+        const group = new Group();
+        for (const name of ["ring-1", "ring-2", "ring-3", "tissue-wall"]) {
+          const mesh = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+          mesh.name = name;
+          group.add(mesh);
+        }
+        for (const name of ["corridor-guide", "release-zone"]) {
+          const mesh = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+          mesh.name = name;
+          group.add(mesh);
+        }
+        return group;
+      }, []);
+      return null;
+    }),
+  };
+});
 import { SceneContent } from "@/components/scene/training-scene";
 
 // Preserve the real simulation/geometry implementation; selectively reject only
@@ -61,18 +87,18 @@ describe("scene frame and lifecycle integration", () => {
   });
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-  async function harness(strict = false) {
+  async function harness(strict = false, exercise?: ExerciseController) {
     let now = 0, renders = 0;
     vi.spyOn(performance, "now").mockImplementation(() => now);
     vi.spyOn(document, "hidden", "get").mockReturnValue(false);
     const controlsRef = { current: sample(0) }, diagnosticsRef = createRef<SceneDiagnostics | null>();
     const controller = new ToolSimulationController(), onStatus = vi.fn();
     const container = document.createElement("div"); document.body.appendChild(container); const root = createRoot(container);
-    function Harness() { renders++; return <SceneContent controlsRef={controlsRef} controller={controller} diagnosticsRef={diagnosticsRef} onStatus={onStatus} />; }
+    function Harness() { renders++; return <SceneContent controlsRef={controlsRef} controller={controller} exercise={exercise} diagnosticsRef={diagnosticsRef} onStatus={onStatus} />; }
     const render = async (mode: "visible" | "hidden" = "visible") => act(async () => root.render(strict ? <StrictMode><Harness /></StrictMode> : <Activity mode={mode}><Harness /></Activity>));
     await render();
     const tick = (time: number, control = sample(time)) => { now = time; controlsRef.current = control; runtime.frames.forEach(callback => callback({}, 1 / 60)); };
-    return { tick, render, controller, diagnosticsRef, onStatus, renders: () => renders,
+    return { tick, render, controller, exercise, diagnosticsRef, onStatus, renders: () => renders,
       dispose: async () => { await act(async () => root.unmount()); container.remove(); } };
   }
 
@@ -168,5 +194,22 @@ describe("scene frame and lifecycle integration", () => {
     } finally { await h.dispose(); }
     h.onStatus.mockClear(); runtime.three.gl.domElement.dispatchEvent(new Event("webglcontextlost"));
     expect(h.onStatus).not.toHaveBeenCalled(); expect(runtime.frames.size).toBe(0);
+  });
+  it("steps ExerciseController in useFrame, updates target visuals, and honors Assessment mode without React rerenders", async () => {
+    const exercise = new ExerciseController({ mode: "assessment" });
+    const h = await harness(false, exercise);
+    try {
+      const initialRenders = h.renders();
+      h.tick(0);
+      expect(h.diagnosticsRef.current?.exercise?.phase).toBe("active");
+      expect(h.diagnosticsRef.current?.exercise?.segmentId).toBe("approach");
+      expect(h.diagnosticsRef.current?.exercise?.modeHooks.ghostVisible).toBe(false);
+      expect(h.diagnosticsRef.current?.exercise?.modeHooks.showPathGuide).toBe(false);
+      const closed = sample(40); closed.left.target!.jawClosed = true;
+      h.tick(40, closed);
+      expect(h.diagnosticsRef.current?.exercise?.segmentId).toBe("grip");
+      expect(h.renders()).toBe(initialRenders);
+    } finally { await h.dispose(); }
+    expect(exercise.snapshot.phase).toBe("idle");
   });
 });

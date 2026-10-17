@@ -42,13 +42,17 @@ enabled, open your thumb/index finger, and move a colored tip ring inside the
 needle’s circle. When it turns green and says **tip aligned**, pinch to pick up;
 open to release. Easy pickup locks tip depth and snaps the needle into the jaws;
 turn it off for free 3D depth (this resets the scene, not calibration). Both instruments freeze if
-either control becomes unavailable. **Reset scene** restores the needle without
-recalibrating. Debug mode includes calibrated pinch thresholds and a planar
-depth fallback. Calibration stays in memory and must be repeated after restarting
+either control becomes unavailable. A4 adds the 8-segment **Needle Passing**
+exercise (`Approach -> Grip -> Align -> Entry -> Rotation -> Exit -> Release -> Complete`)
+with three target rings (`ring-1`, `ring-2`, `ring-3`), a curved corridor guide,
+an upper-right release ring, a lower `tissue-wall` danger zone, and **Learn / Practice / Assessment**
+mode controls (Assessment hides ghost and coaching hooks). **Reset scene** restores the needle and exercise progress without
+recalibrating. Debug mode includes calibrated pinch thresholds, a planar
+depth fallback, and live exercise telemetry. Calibration stays in memory and must be repeated after restarting
 the camera. See [`docs/HAND_TRACKING.md`](docs/HAND_TRACKING.md) for the raw and
 calibrated interfaces, fallbacks, privacy details, and manual acceptance checklist.
-See [`docs/SIMULATION.md`](docs/SIMULATION.md) for A3's geometry, interaction,
-rendering interfaces and outstanding physical acceptance checks.
+See [`docs/SIMULATION.md`](docs/SIMULATION.md) for A3/A4 geometry, interaction,
+exercise state machine, rendering interfaces and outstanding physical acceptance checks.
 
 After unlocking, commit and push `.env.local` changes normally; git-crypt encrypts
 them when staged. Keep the tracked file and its encryption rules in place. Do not

@@ -1,14 +1,19 @@
-# A3 simulation handoff
+# A3/A4 simulation and exercise handoff
 
 The development-only `/dev/hand-tracking?debug=1` route combines A1/A2 tracking and
-calibration with two kinematic 3D instruments. Start the camera, calibrate, approach
+calibration with two kinematic 3D instruments and the A4 Needle Passing exercise
+state machine. Start the camera, calibrate, approach
 the needle’s pickup circle with an **open** colored tip ring, wait for the circle
-to turn green and the “tip aligned” prompt, then pinch. Open to release. **Reset scene** restores the needle without restarting camera/calibration.
+to turn green and the “tip aligned” prompt, then pinch. Guide the held needle
+through Entry Ring 1, rotate your wrist through Apex Ring 2, exit through Ring 3,
+move into the upper-right release ring, and open to release. **Reset scene** restores the needle and exercise progress without restarting camera/calibration.
 The route remains 404 in production.
 
 The background grid is a visual guide; the needle has the only large pickup
-circle. Exercise sequencing, completion, scoring,
-ghosts and recording belong to later tasks. This is an educational motion-control
+circle, while the three mounted target rings (`ring-1`, `ring-2`, `ring-3`), the
+corridor guide arc, the release ring, and the lower `tissue-wall` danger bar drive
+A4's 8-segment exercise progression. Translucent ghost rendering (`A5`) and product-route
+integration (`S1`) belong to subsequent tasks. This is an educational motion-control
 prototype; task-object physics and anatomical fidelity are not claimed.
 
 ## Interfaces and ownership
@@ -38,10 +43,34 @@ A3 receives that control ref and never acquires or stops a camera itself.
 
 Snapshots/attachments/input are read-only to consumers. The controller copies
 transform data without mutating A2. Simulation interfaces are owned by Person A;
-shared schemas and data version remain unchanged. A4 should consume authoritative
+shared schemas and data version remain unchanged. A4 consumes authoritative
 snapshots/events, readiness and assistance mode; assisted poses must not be
 treated as unassisted precision measurements. A5 can reuse instrument geometry
-with its own poses.
+with its own poses and read A4's `modeHooks` and normalized progress.
+
+## A4 exercise state machine and mode hooks
+
+`ExerciseController` (`src/lib/exercise/exercise-controller.ts`) and
+`needle-passing-config.ts` (`src/lib/exercise/needle-passing-config.ts`) bind to
+Person B's `needlePassingSkill` (`src/data/skills/needle-passing.ts`) without
+modifying shared contracts:
+
+- **Checkpoints (`scene-canonical-v1`):**
+  - `practice-needle` starts at `(0, 0.35, 0)`.
+  - `ring-1` (Entry): `(-0.16, 0.24, 0)`, alignment radius `0.15` (assisted) / `0.13` (free), gate radius `0.11` (assisted) / `0.08` (free), orientation tolerance `<= 45°`.
+  - `ring-2` (Apex / Rotation): `(0, 0.18, 0)`, engagement radius `0.13` (assisted) / `0.11` (free), gate radius `0.11` (assisted) / `0.08` (free), required wrist rotation delta `>= 12°` relative to the orientation captured at `entry`.
+  - `ring-3` (Exit): `(0.16, 0.24, 0)`, gate radius `0.11` (assisted) / `0.08` (free).
+  - `release-zone`: `(0.20, 0.36, 0)`, radius `0.10` (assisted) / `0.08` (free).
+  - `tissue-wall` danger zone: box centered at `(0, 0.01, 0)` with half-extents `(0.35, 0.06, 0.12)` (`y ∈ [-0.05, 0.07]`).
+- **Phases and 8-segment sequence:**
+  - `idle -> demonstration (Learn mode only) -> active (approach -> grip -> align -> entry -> rotation -> exit -> release) -> complete`.
+  - Invalid-action guardrails: un-held tools cannot advance past `grip`; touching later rings out of order cannot skip earlier segments; early needle release sets `needleDropped: true` and holds the active segment until re-acquired; penetrating `tissue-wall` sets `inDangerZone: true`, increments `dangerZoneCount`, accumulates `dangerZoneDurationMs`, and blocks forward segment transitions until clear.
+- **Mode behavior hooks (`ModeBehaviorHooks`):**
+  - `learn`: enters `demonstration` phase on calibration (`3,000 ms` foreground timer or `Start attempt`), keeps `ghostVisible: true`, `canToggleGhost: false`, `showPathGuide: true`, `highlightCurrentTarget: true`, `voiceCoachingLevel: "full"`, `showLiveCoaching: true`.
+  - `practice`: starts in `active` (`approach`) with `ghostVisible: false`, `canToggleGhost: true` (`toggleGhost()`), and auto-enables `ghostVisible: true` (`ghostAutoTriggered: true`) after `1,500 ms` of sustained corridor deviation (`> 0.12` units).
+  - `assessment`: starts in `active` (`approach`) and strictly enforces `ghostVisible: false`, `canToggleGhost: false`, `ghostAutoTriggered: false`, `showPathGuide: false`, `highlightCurrentTarget: false`, `voiceCoachingLevel: "none"`, `showLiveCoaching: false`.
+- **Recorded motion output (`getRecordedMotion()`):**
+  - Appends one validated `MotionFrame` per accepted `sourceTMs` during the active attempt plus the terminal `complete` frame, directly consumable by Person B's `evaluateAttempt(recorded, reference)` (`src/lib/evaluation/evaluate.ts`).
 
 ## Geometry and interaction
 
