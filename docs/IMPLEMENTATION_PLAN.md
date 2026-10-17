@@ -5,7 +5,7 @@
 **Team size:** 2 people  
 **Primary development platform:** macOS, latest Chrome  
 **Document purpose:** Canonical implementation reference for human developers and AI coding assistants  
-**Last updated:** 2026-10-16
+**Last updated:** 2026-10-17
 
 ---
 
@@ -1189,6 +1189,12 @@ Use Hand Landmarker with:
 The output includes normalized landmarks, world landmarks, and handedness.
 
 ## 8.4 Worker architecture
+
+A1 implementation details and verification are maintained in `docs/HAND_TRACKING.md`.
+Next/Turbopack emits classic bundled workers. The installed MediaPipe runtime must
+therefore use its classic WASM loader (`forVisionTasks(root, false)`), rather than
+the ES-module WASM loader. Assets are prepared locally before dev/build. A1 emits
+raw tracking snapshots; A2 constructs calibrated shared `HandFrame` values.
 
 Target:
 
@@ -3005,6 +3011,10 @@ all pass.
 - debug skeleton overlay,
 - current hand data stored in refs,
 - stable hand ID helper.
+
+Implementation surface: `/dev/hand-tracking?debug=1` (development only), reusable
+camera hook/controller, worker with main-thread fallback, and raw observation types
+owned by Person A. See `docs/HAND_TRACKING.md` for setup, interfaces and manual QA.
 
 ### Acceptance
 

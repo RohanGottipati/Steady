@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prepare:vision": "node scripts/setup/prepare-vision.mjs",
+    "predev": "npm run prepare:vision",
+    "prebuild": "npm run prepare:vision",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",

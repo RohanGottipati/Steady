@@ -55,6 +55,9 @@ data/raw/
 **/shands/raw/
 
 # Large binary assets (tracked via public/.gitkeep until licensed)
+public/mediapipe/wasm/
+public/mediapipe/runtime.json
+public/mediapipe/*.tmp
 *.task
 !public/mediapipe/.gitkeep
 *.glb
