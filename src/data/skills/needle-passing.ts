@@ -11,7 +11,7 @@ export const needlePassingSkill: SkillDefinition = skillDefinitionSchema.parse({
   difficulty: "beginner",
   estimatedMinutes: 6,
   referenceMotionId: "needle-passing-reference-v1",
-  sourceLabel: "Internal reference",
+  sourceLabel: "Synthetic reference (not expert data)",
   availableModes: ["learn", "practice", "assessment"],
   segments: [
     { id: "approach", title: "Approach", instructions: "Move both instruments toward the first target without overshooting." },

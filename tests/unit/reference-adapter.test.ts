@@ -20,20 +20,96 @@ function pythonCmd(): string | null {
   return null;
 }
 
+function loadFixture(rel: string) {
+  return parseReference(JSON.parse(readFileSync(join(ROOT, rel), "utf8")));
+}
+
+function expectCanonicalInvariants(ref: ReturnType<typeof parseReference>) {
+  const f = ref.frames;
+  expect(ref.fps).toBe(30);
+  expect(ref.coordinateSystem).toBe("scene-canonical-v1");
+  expect(f[0].normalizedProgress).toBe(0);
+  expect(f.at(-1)!.normalizedProgress).toBe(1);
+  for (let i = 0; i < f.length; i++) {
+    expect(f[i].normalizedProgress).toBeGreaterThanOrEqual(0);
+    expect(f[i].normalizedProgress).toBeLessThanOrEqual(1);
+    for (const tool of [f[i].leftTool, f[i].rightTool]) {
+      const q = tool.rotation;
+      const norm = Math.hypot(q.x, q.y, q.z, q.w);
+      expect(norm).toBeCloseTo(1, 6); // slerp output stays unit-norm
+    }
+    if (i > 0) {
+      expect(f[i].normalizedProgress).toBeGreaterThanOrEqual(f[i - 1].normalizedProgress);
+      expect(f[i].tMs).toBeGreaterThan(f[i - 1].tMs);
+      const dt = f[i].tMs - f[i - 1].tMs;
+      if (i < f.length - 1) {
+        expect(dt).toBeCloseTo(1000 / 30, 2); // 30 Hz cadence
+      } else {
+        // The final frame is forced to the true end timestamp, so the last
+        // step may be shorter than one full 30 Hz interval.
+        expect(dt).toBeGreaterThan(0);
+        expect(dt).toBeLessThanOrEqual(1000 / 30 + 0.01);
+      }
+    }
+  }
+  const declared = new Set(ref.segments.map((s) => s.id));
+  for (const fr of f) expect(declared.has(fr.segmentId)).toBe(true);
+  for (const s of ref.segments) expect(s.startMs).toBeLessThanOrEqual(s.endMs);
+}
+
 describe("committed reference fixtures", () => {
-  it("needle-passing reference validates against the schema", () => {
-    const json = JSON.parse(
-      readFileSync(
-        join(ROOT, "public/references/needle-passing/needle-passing-reference-v1.json"),
-        "utf8",
-      ),
-    );
-    const ref = parseReference(json);
+  it("needle-passing fixture validates and holds canonical invariants", () => {
+    const ref = loadFixture("public/references/needle-passing/needle-passing-reference-v1.json");
     expect(ref.skillId).toBe("needle-passing");
-    expect(ref.fps).toBe(30);
-    expect(ref.frames.length).toBeGreaterThan(0);
-    expect(ref.frames[0].normalizedProgress).toBe(0);
-    expect(ref.frames.at(-1)!.normalizedProgress).toBe(1);
+    expectCanonicalInvariants(ref);
+  });
+
+  it("needle-passing applies the JIGSAWS y/z axis swap", () => {
+    const ref = loadFixture("public/references/needle-passing/needle-passing-reference-v1.json");
+    // CSV row 0 left tool source (-0.40, 0.30, 0.10) with basis (x=right, y=toward
+    // camera, z=up) -> canonical (x, z, y) = (-0.40, 0.10, 0.30).
+    const p = ref.frames[0].leftTool.position;
+    expect(p.x).toBeCloseTo(-0.4, 9);
+    expect(p.y).toBeCloseTo(0.1, 9);
+    expect(p.z).toBeCloseTo(0.3, 9);
+    expect(ref.frames[0].leftTool.jawClosed).toBe(false); // grip 0.80 -> open
+    expect(ref.frames.find((fr) => fr.segmentId === "grip")!.leftTool.jawClosed).toBe(true);
+  });
+
+  it("peg-transfer fixture validates and applies the LASK z flip", () => {
+    const ref = loadFixture("public/references/peg-transfer/peg-transfer-reference-v1.json");
+    expect(ref.skillId).toBe("peg-transfer");
+    expectCanonicalInvariants(ref);
+    // CSV row 0 left tool source (-0.35, 0.10, 0.40) with basis (x=right, y=up,
+    // z=away from camera) -> canonical (x, y, -z) = (-0.35, 0.10, -0.40).
+    const p = ref.frames[0].leftTool.position;
+    expect(p.x).toBeCloseTo(-0.35, 9);
+    expect(p.y).toBeCloseTo(0.1, 9);
+    expect(p.z).toBeCloseTo(-0.4, 9);
+  });
+
+  it("peg-transfer preserves every source CSV phase, in order (incl. final segment)", () => {
+    const ref = loadFixture("public/references/peg-transfer/peg-transfer-reference-v1.json");
+    expect(ref.segments.map((s) => s.id)).toEqual([
+      "reach",
+      "grasp",
+      "lift",
+      "transfer",
+      "place",
+      "release",
+      "complete",
+    ]);
+  });
+
+  it("rotations are mapped into the canonical basis, not left in the source frame", () => {
+    const ref = loadFixture("public/references/needle-passing/needle-passing-reference-v1.json");
+    // Source orientations rotate about source-Y; the JIGSAWS Y/Z axis swap must
+    // carry them to canonical-Z. A non-identity frame must no longer be about Y.
+    const fr = ref.frames.find((f) => Math.abs(f.leftTool.rotation.w) < 0.999);
+    expect(fr).toBeDefined();
+    const r = fr!.leftTool.rotation;
+    expect(Math.abs(r.y)).toBeLessThan(1e-9);
+    expect(Math.abs(r.z)).toBeGreaterThan(1e-3);
   });
 });
 

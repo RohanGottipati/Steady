@@ -58,44 +58,131 @@ def slerp(a, b, t):
     return [s0 * a[i] + s1 * b[i] for i in range(4)]
 
 
+def axis_map_to_matrix(axis_map):
+    m = [[0.0, 0.0, 0.0] for _ in range(3)]
+    for i, (idx, sign) in enumerate(axis_map):
+        m[i][idx] = sign
+    return m
+
+
+def _matmul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+
+
+def _transpose(m):
+    return [[m[j][i] for j in range(3)] for i in range(3)]
+
+
+def quat_to_matrix(q):
+    x, y, z, w = q
+    return [
+        [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+        [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+        [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+    ]
+
+
+def matrix_to_quat(r):
+    tr = r[0][0] + r[1][1] + r[2][2]
+    if tr > 0:
+        s = math.sqrt(tr + 1.0) * 2
+        w, x, y, z = (
+            0.25 * s,
+            (r[2][1] - r[1][2]) / s,
+            (r[0][2] - r[2][0]) / s,
+            (r[1][0] - r[0][1]) / s,
+        )
+    elif r[0][0] > r[1][1] and r[0][0] > r[2][2]:
+        s = math.sqrt(1.0 + r[0][0] - r[1][1] - r[2][2]) * 2
+        w, x, y, z = (
+            (r[2][1] - r[1][2]) / s,
+            0.25 * s,
+            (r[0][1] + r[1][0]) / s,
+            (r[0][2] + r[2][0]) / s,
+        )
+    elif r[1][1] > r[2][2]:
+        s = math.sqrt(1.0 + r[1][1] - r[0][0] - r[2][2]) * 2
+        w, x, y, z = (
+            (r[0][2] - r[2][0]) / s,
+            (r[0][1] + r[1][0]) / s,
+            0.25 * s,
+            (r[1][2] + r[2][1]) / s,
+        )
+    else:
+        s = math.sqrt(1.0 + r[2][2] - r[0][0] - r[1][1]) * 2
+        w, x, y, z = (
+            (r[1][0] - r[0][1]) / s,
+            (r[0][2] + r[2][0]) / s,
+            (r[1][2] + r[2][1]) / s,
+            0.25 * s,
+        )
+    return normalize_quat(x, y, z, w)
+
+
+def transform_quat(q, basis):
+    # Change orientation basis the same way positions are mapped: R' = M R M^T.
+    # For a signed permutation M (incl. reflections, det=-1) this stays a proper
+    # rotation, so the quaternion lives in the same frame as the mapped positions.
+    rotated = _matmul(_matmul(basis, quat_to_matrix(q)), _transpose(basis))
+    return matrix_to_quat(rotated)
+
+
 def _lerp3(a, b, u):
     return [a[i] + (b[i] - a[i]) * u for i in range(3)]
 
 
 def resample(frames, target_fps=TARGET_FPS):
-    """Resample source frames to a fixed cadence with position lerp + quat slerp."""
+    """Resample source frames to a fixed cadence with position lerp + quat slerp.
+
+    The fixed grid always includes the true final timestamp so the last source
+    segment survives (a short final step is expected). Each output frame's
+    segment is the phase active at that time (step function over source rows),
+    which keeps the full phase sequence rather than picking the nearer endpoint.
+    """
     if len(frames) < 2:
         return list(frames)
     frames = sorted(frames, key=lambda f: f["t_ms"])
     step = 1000.0 / target_fps
     t0, t1 = frames[0]["t_ms"], frames[-1]["t_ms"]
+
+    steps = int(math.floor((t1 - t0) / step + 1e-9))
+    times = [t0 + k * step for k in range(steps + 1)]
+    if abs(times[-1] - t1) > 1e-6:
+        times.append(t1)  # guarantee a sample at the true end
+
     out = []
-    i = 0
-    t = t0
-    while t <= t1 + 1e-6:
-        while i < len(frames) - 2 and frames[i + 1]["t_ms"] < t:
+    for t in times:
+        i = 0
+        while i < len(frames) - 2 and frames[i + 1]["t_ms"] <= t:
             i += 1
         f0, f1 = frames[i], frames[i + 1]
         span = (f1["t_ms"] - f0["t_ms"]) or 1.0
         u = min(max((t - f0["t_ms"]) / span, 0.0), 1.0)
-        near = f0 if u < 0.5 else f1
+
+        # Active phase = last source row at or before t (step function).
+        seg_idx = 0
+        for j in range(len(frames)):
+            if frames[j]["t_ms"] <= t + 1e-9:
+                seg_idx = j
+            else:
+                break
+
         out.append(
             {
                 "t_ms": t,
-                "segment": near["segment"],
+                "segment": frames[seg_idx]["segment"],
                 "left": {
                     "pos": _lerp3(f0["left"]["pos"], f1["left"]["pos"], u),
                     "quat": slerp(f0["left"]["quat"], f1["left"]["quat"], u),
-                    "jaw": near["left"]["jaw"],
+                    "jaw": (f0 if u < 0.5 else f1)["left"]["jaw"],
                 },
                 "right": {
                     "pos": _lerp3(f0["right"]["pos"], f1["right"]["pos"], u),
                     "quat": slerp(f0["right"]["quat"], f1["right"]["quat"], u),
-                    "jaw": near["right"]["jaw"],
+                    "jaw": (f0 if u < 0.5 else f1)["right"]["jaw"],
                 },
             }
         )
-        t += step
     return out
 
 
@@ -136,6 +223,7 @@ def build_reference(
     origin,
     scale,
 ):
+    basis = axis_map_to_matrix(axis_map)
     transformed = []
     for f in source_frames:
         transformed.append(
@@ -144,12 +232,12 @@ def build_reference(
                 "segment": f["segment"],
                 "left": {
                     "pos": transform_position(f["left"]["pos"], axis_map, origin, scale),
-                    "quat": normalize_quat(*f["left"]["quat"]),
+                    "quat": transform_quat(normalize_quat(*f["left"]["quat"]), basis),
                     "jaw": f["left"]["jaw"],
                 },
                 "right": {
                     "pos": transform_position(f["right"]["pos"], axis_map, origin, scale),
-                    "quat": normalize_quat(*f["right"]["quat"]),
+                    "quat": transform_quat(normalize_quat(*f["right"]["quat"]), basis),
                     "jaw": f["right"]["jaw"],
                 },
             }

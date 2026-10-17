@@ -52,7 +52,13 @@ def main(argv=None):
     ap.add_argument("output")
     ap.add_argument("--skill", default="peg-transfer")
     ap.add_argument("--id", default="peg-transfer-reference-v1")
-    ap.add_argument("--source-name", default="LASK (synthetic sample, CC BY 4.0)")
+    ap.add_argument(
+        "--source-name",
+        default="Synthetic peg-transfer sample (LASK format, not expert data)",
+    )
+    # Synthetic samples ship as internal-recording; pass --source-type dataset
+    # only when converting real (CC BY 4.0, attributed) LASK kinematics.
+    ap.add_argument("--source-type", default="internal-recording")
     args = ap.parse_args(argv)
 
     frames = [row_to_frame(r) for r in rb.read_csv_rows(args.input)]
@@ -60,7 +66,7 @@ def main(argv=None):
         frames,
         skill_id=args.skill,
         reference_id=args.id,
-        source_type="dataset",
+        source_type=args.source_type,
         source_name=args.source_name,
         axis_map=AXIS_MAP,
         origin=ORIGIN,
