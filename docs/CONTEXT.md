@@ -1,7 +1,7 @@
 # Project Context
 
-Last updated: 2026-10-17 04:35 UTC
-Updated by: Person A — A1 preview review and branch handoff
+Last updated: 2026-10-17 04:38 UTC
+Updated by: Person A — reconcile A1 hand tracking with B0 on main
 Current branch: person-a/a1-hand-tracking
 Current milestone: M0
 Demo-critical status: YELLOW
@@ -29,6 +29,9 @@ truth for the current project state — it records what exists and where it is.
    attributes. New clones must unlock with the existing key; do not run `git-crypt init`,
    overwrite it with `.env.example`, or expose secret contents or exported keys.
    See `docs/GIT_CRYPT.md` for the full workflow.
+5. **Do not commit or push until explicitly instructed.** Make and stage changes
+   freely, but wait for the human to say to commit or push. Never commit or push on
+   your own initiative, even when work looks complete.
 
 ## 1. Current Working State
 - Next.js App Router bootstrap complete with hackathon dependencies installed.
@@ -38,6 +41,8 @@ truth for the current project state — it records what exists and where it is.
 - Local model/WASM assets are prepared before dev/build; cached assets support offline use.
 - Person A reviewed the tracking preview and reported it looks good (2026-10-17).
   This records preview approval; the formal soak/performance checklist is still pending.
+- Tiger Data schema live: migration `0001_init` applied (core relational tables + 4 hypertables, `attempt_scores.performance_vector vector(20)`); `npm run db:migrate`/`db:seed` runners work and are idempotent; one synthetic `needle-passing` attempt seeded and queryable.
+- `/api/health` reports `{ ok, service, db }` where `db` is `up`/`down`/`unconfigured` and never throws on DB outage (server-only client in `src/lib/db/`).
 - Calibration, pinch/rotation control, 3D tools, library/training flow, and evaluation are not implemented.
 
 ## 2. Architecture Invariants
@@ -66,7 +71,7 @@ Person A - Realtime Vision and 3D Simulation:
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - S0 shared bootstrap
-- B0 Tiger Data bootstrap follows immediately after S0
+- B0 base migrations, seed, and database health check implemented; B1/B2 next
 
 ## 5. Completed Tasks
 - Partial S0 - repository structure and docs seeded
@@ -80,6 +85,11 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   worker/fallback inference, development preview, regression tests and documentation.
   Preview reviewed/approved by Person A on 2026-10-17. Formal physical-camera
   acceptance remains pending; this does not complete M1.
+- Setup - Tiger Cloud service provisioned (`ort1b0mw86`, Postgres 18.6 / TimescaleDB 2.30.2), CLI installed and authenticated, connection verified; Tiger env vars populated in encrypted `.env.local`.
+- B0 - Tiger base migrations + schema (relational tables, hypertables, `vector(20)`), migration/seed runners (`scripts/tiger/*.mjs`, `npm run db:migrate`/`db:seed`), `/api/health` DB check, and synthetic seed; integration test `tests/unit/b0-tiger-bootstrap.test.ts` (auto-skips without `TIGER_DATABASE_URL`).
+- A1/B0 integration - resolved the A1 PR's context conflict against `origin/main`
+  (`7e94139`), preserving both implementations, operating rules, package scripts,
+  and B0's encrypted environment update. Shared contracts are unchanged.
 
 ## 6. In Progress
 - S0 - bootstrap acceptance commands must stay green; remaining product shell dirs can grow with A1/B0
@@ -87,7 +97,8 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   measured FPS/latency, React profiler, lighting/overlap and disconnect QA remain manual.
   Shared setup coordination was recorded before changing package scripts, asset
   ignore rules, the development route and Playwright's localhost origin. Person B
-  subsystems and shared `src/types/` contracts were not changed.
+  subsystems and shared `src/types/` contracts were not changed by A1.
+- B0 - deferred to B10/B12: continuous aggregates, vector/BM25 indexes, retention/columnstore, Tiger MCP (intentionally skipped; agents use CLI + `.env.local`)
 
 ## 7. Known Issues / Risks
 - Production build remains blocked by the existing Turbopack CSS worker local-port
@@ -109,10 +120,10 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - Reference motions: none yet.
 
 ## 9. External Service Status
-- Tiger Cloud service created: no
-- Tiger DB migrations current: no
-- Tiger extensions verified (`timescaledb`, `vectorscale`, `pg_textsearch`): no
-- Tiger MCP configured for coding agents: no
+- Tiger Cloud service created: yes (project `p2r9lzrn7s`, service `ort1b0mw86` "db-21893", free plan, us-east-1, Postgres 18.6 / TimescaleDB 2.30.2; connection verified via `tiger db ping`). `TIGER_DATABASE_URL`/`TIGER_PROJECT_ID`/`TIGER_SERVICE_ID` set in encrypted `.env.local`. Details in `docs/TIGER_DATA.md`.
+- Tiger DB migrations current: yes (`0001_init` applied via `npm run db:migrate`)
+- Tiger extensions verified (`timescaledb`, `vectorscale`, `pg_textsearch`): all enabled by `0001_init` (timescaledb 2.30.2, vectorscale 0.9.0 + vector 0.8.7, pg_textsearch 1.5.1)
+- Tiger MCP configured for coding agents: no (not needed; agents use Tiger CLI + `.env.local`)
 - Tiger cloud sync smoke test: not-run
 - Tiger optional fork workflow available: unknown
 - Backboard model ID verified: yes (`BACKBOARD_MODEL_PROVIDER=google`, `BACKBOARD_MODEL_NAME=gemini-2.5-flash`)
@@ -125,8 +136,9 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
-Latest verification (2026-10-17): typecheck and lint passed; unit tests passed
-(8 files, 45 tests). Four Chromium browser tests passed, including actual local
+Latest verification after merging main (2026-10-17): typecheck and lint passed;
+all 53 tests passed across 10 files, including B0 database integration and health
+checks. Four Chromium browser tests passed again, including actual local
 MediaPipe worker inference with a synthetic camera, continued inference offline,
 and actual main-thread fallback. Cached asset preparation passed. Regression
 coverage includes Strict Mode and Activity page-cache cleanup/resume, permission
@@ -136,7 +148,7 @@ by Turbopack's CSS worker port-binding restriction, including an escalated retry
 
 ## 11. Next Recommended Actions
 1. Person A runs A1's physical-camera QA from `docs/HAND_TRACKING.md`, then begins A2 calibration/pinch/rotation/smoothing using the raw snapshot interface.
-2. Person B completes B0 Tiger Data bootstrap once `TIGER_DATABASE_URL` is set, then B1/B2.
+2. Person B proceeds with B1 skill-library/product shell and B2 reference adapters; B0's base schema, runners, health check, and seed are already implemented. Deferred analytics/search work belongs to B10/B12.
 3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
 ## 12. Manual Demo Notes

@@ -14,7 +14,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "verify:ai": "node scripts/setup/verify-ai-services.mjs"
+    "verify:ai": "node scripts/setup/verify-ai-services.mjs",
+    "db:migrate": "node scripts/tiger/migrate.mjs",
+    "db:seed": "node scripts/tiger/seed.mjs"
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.73.0",
