@@ -120,7 +120,9 @@ and `rotationHeld`. Consumers must not mutate snapshots, profiles, or their arra
 - `ToolControlTarget` contains `id`, canonical `position`, `rotation`, and
   `jawClosed`. A3 owns instrument geometry, tip position and held objects. Do not
   fabricate a `ToolState` with a placeholder tip or interpret missing targets as
-  release events.
+  release events. A3 now consumes this interface in the development preview;
+  see [`SIMULATION.md`](SIMULATION.md) for real tool geometry, ownership,
+  display interpolation, lifecycle semantics and physical acceptance.
 
 ### Coordinates and filtering
 

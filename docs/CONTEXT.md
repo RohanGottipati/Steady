@@ -1,9 +1,9 @@
 # Project Context
 
-Last updated: 2026-10-17 06:30 UTC
-Updated by: B3 evaluation engine (rebased on main: A1 + B0 + B1 + B2 + A2)
-Current branch: b3
-Current milestone: M0
+Last updated: 2026-10-17 15:23 UTC
+Updated by: A3 publication integrated with latest main (B3 evaluation engine)
+Current branch: person-a/a3-virtual-instruments
+Current milestone: M0; A3 implementation available, M1/M2 physical acceptance pending
 Demo-critical status: YELLOW
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -56,7 +56,20 @@ truth for the current project state — it records what exists and where it is.
   quaternion response. Synthetic phase-delay and stationary-jitter tests guard
   responsiveness; the generic One Euro defaults, pinch and recovery gates are unchanged.
 - Evaluation engine (B3): `src/lib/evaluation/` deterministically scores a recorded attempt vs a `ReferenceMotion` — per-segment alignment (no DTW), 8 of 20 metrics (pathSimilarity, targetAccuracy, instrumentOrientationAccuracy, pathEfficiency, movementSmoothness, speedProfileControl, segmentTiming, proceduralSequencing), partial category scores (precision/control/efficiencySafety), overall, and top-3 worst-moment replay markers. Remaining 12 metrics + full `AttemptResult` 20-vector are B5/B10.
-- 3D instruments/tools are not implemented.
+- A3 implementation available in the development preview: procedural operating room,
+  forceps/needle holder, real geometry-derived tips, deterministic single-owner
+  needle grab/release, and separate display interpolation. Both tools freeze when
+  either control is ineligible. Scene reset, context-loss recovery and renderer
+  retry are available. Debug mode reports rendered poses and bounded frame timings.
+- A3 usability follow-up: the user reported difficulty acquiring the needle and
+  rejected the original instrument appearance. Easy pickup now defaults on,
+  constraining actual jaw tips to Z=0 and snapping within a visible 0.16-unit halo.
+  Front orthographic framing, colored tip crosshairs and ready/reopen/depth prompts
+  explain acquisition. A visible switch restores strict 0.10-unit free 3D depth
+  and resets ownership without recalibration. Flat tweezers and an angular
+  pistol-grip needle holder replace the old finger-loop silhouettes. A muted
+  grid replaces decorative rings that looked like additional pickup targets.
+- Exercise progression, ghosts and product-route integration are not implemented; B3 evaluation exists independently.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -83,10 +96,13 @@ truth for the current project state — it records what exists and where it is.
   calibrated, clamped and filtered canonical target rotation. Pinch ratio is the
   measured world-space thumb/index distance divided by MCP width; confidence is
   assigned-label probability, not landmark accuracy.
-- A3 target handoff: canonical position/rotation/jaw state only; A3 owns tips,
-  instrument geometry and held objects. Honor `canProgress`; missing hands do not
-  create release events or fresh observations. See `docs/HAND_TRACKING.md` for the
-  full coordinate, timing, calibration and lifecycle contract.
+- A3 simulation consumes A2 canonical targets and publishes existing `ToolState`
+  values, the accepted source timestamp, task-object pose/owner and per-call
+  grab/release events. Snapshot assistance mode and shared pickup-feedback geometry
+  distinguish guided pickup from free depth. Person-A-owned interfaces live in `src/lib/simulation/`;
+  shared schemas remain unchanged. Interaction uses authoritative geometry and
+  eligible fresh sources; display transforms never become interaction samples.
+  See `docs/SIMULATION.md` for geometry, pause/reset and A4/A5 handoff contracts.
 
 ## 4. Current Task Ownership
 Person A - Realtime Vision and 3D Simulation:
@@ -94,7 +110,10 @@ Person A - Realtime Vision and 3D Simulation:
 - A2 implemented: calibration and ref-backed control targets in vision/filters,
   camera preview, related tests, and handoff documentation. Shared contracts and
   Person B subsystems remain unchanged. The existing development route is the
-  integration surface; its copy now describes calibration and control targets.
+  integration surface.
+- A3 implemented: numerical simulation, procedural scene/instruments/needle,
+  existing-camera integration, interaction/display tests and simulation handoff.
+  A1/A2/M2 physical performance acceptance remains pending.
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - S0 bootstrap, B0 Tiger bootstrap, B1 skill library (merged) done; B2 reference adapters (PR #3) + B3 evaluation engine done on this branch stack
@@ -128,7 +147,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   release. Development preview includes calibration/retry/cancel, target canvas,
   diagnostics and planar depth fallback. Unit/browser regression coverage and
   README, handoff, decisions and canonical plan updated. Physical acceptance is
-  pending; A3 implementation is unblocked, but M1 is not declared complete.
+  pending; M1 is not declared complete. A3 now consumes these controls.
 - A2 workspace usability fix - replaced an all-or-nothing sweep window with
   independent sustained direction captures and actionable per-hand prompts.
   Stationary-stage quality gates are unchanged; invalid/missing observations earn
@@ -138,18 +157,28 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   helpers, 8 metrics with evidence timestamps, partial category/overall scores, worst-moment
   markers. Tests: `evaluation-score.test.ts`, `evaluation.test.ts` (perfect vs perturbed
   fixtures derived from the committed reference; deterministic).
+- A3 implementation - two kinematic instruments and procedural clinical scene;
+  edge-triggered single-owner acquisition, grip-preserving global pause, fresh
+  release, scene/session reset and renderer recovery. Numerical, scene lifecycle
+  and actual WebGL browser coverage pass; target-Mac acceptance remains pending.
 
 ## 6. In Progress
+- A3 usability acceptance - synthetic depth-drift pickup, assistance switching and
+  revised render screenshots pass. The user reviewed the revised preview and
+  said “looks good to me” before authorizing publication. This is qualitative acceptance, not a measured soak.
+- A3 physical acceptance - run the two-minute target-Mac checklist in
+  `docs/SIMULATION.md`; measure median render FPS, p95 interval, tracking speed,
+  end-to-end latency and profiler behavior. No real-camera A3 signoff is claimed.
 - A2 manual verification - Person A confirmed calibration completes and pinching
   opens/closes the controls (2026-10-17). After receiving the recovery, rotation,
   depth, crossings and two-minute checklist, Person A reported everything seems
   mostly good, then clarified that movement feels slightly laggy throughout.
   Control-specific smoothing was tuned in response; Person A retested and accepted
-  the result for now (2026-10-17). A3 is ready to start.
+  the result for now (2026-10-17). A3 implementation is now available.
   This is qualitative feedback, not a measured soak signoff.
 - A2 acceptance - measured calibration duration, FPS/latency, React profiler and
   detailed physical test outcomes remain unrecorded. Use the checklist in
-  `docs/HAND_TRACKING.md` when collecting formal performance evidence. A3 is unblocked.
+  `docs/HAND_TRACKING.md` when collecting formal performance evidence.
 - S0 - bootstrap acceptance commands must stay green; remaining product shell dirs can grow with A1/B0
 - A1 acceptance - target Mac physical-camera two-minute soak, anatomical labels,
   measured FPS/latency, React profiler, lighting/overlap and disconnect QA remain manual.
@@ -170,9 +199,10 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   on retry, followed by broadly positive feedback on the remaining checklist.
   Detailed physical outcomes and measured performance remain unrecorded.
 - Production build remains blocked by the existing Turbopack CSS worker local-port
-  restriction (`Operation not permitted`), reproduced by A2's escalated normal-build
-  retry on 2026-10-17. The sandboxed build first failed to fetch existing Google
-  Fonts; the unrestricted retry reached the known CSS worker port restriction.
+  restriction (`Operation not permitted`), reproduced by the A3 escalated normal-build
+  retry on 2026-10-17. Asset preparation/checksummed cache reuse passed first; the
+  failure remains in the existing globals.css CSS-worker process before a successful
+  production build can be established.
   Verify the normal build on an unrestricted host before release; no production success claimed.
 - Full hand overlap can be ambiguous. A1 emits missing observations rather than
   manufacturing identity; restart or remove/re-show hands if initialization was incorrect.
@@ -184,7 +214,9 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - JIGSAWS: not yet acquired/cleared (academic-use only; adapter ready). See `docs/DATA_LICENSES.md`.
 - LASK: not yet acquired (CC BY 4.0; adapter ready). See `docs/DATA_LICENSES.md`.
 - SHANDS: optional future source.
-- 3D assets: not yet selected.
+- 3D assets: repository-authored A3 room, instruments, target pad/grid, tip
+  crosshairs, pickup halo and needle procedural geometry. No external model downloads, textures or new dependencies.
+  Source/asset decision recorded in `docs/ASSET_LICENSES.md`.
 - Hand Landmarker float16 v1 and MediaPipe 1.1.1 WASM: acquired, checksum verified;
   source/license/attribution recorded in `docs/ASSET_LICENSES.md`. Generated binaries are ignored.
 - Reference motions: synthetic canonical fixtures for needle-passing and peg-transfer under `public/references/` (generated by the B2 adapters from synthetic CSVs — not real expert data).
@@ -206,32 +238,57 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
-Latest verification on b3 rebased on main (A1 + B0 + B1 + B2 + A2, 2026-10-17):
-typecheck and lint clean; full unit/integration suite passes including A2 controls
-and B3 evaluation (score helpers + perfect-vs-perturbed behavior). DB-backed tests
-auto-skip without `TIGER_DATABASE_URL`; the Python adapter test auto-skips without
-Python on PATH. Production build passed in this environment; A1 previously reported
-the build blocked by a Turbopack CSS-worker port restriction on a restricted host —
-confirm on an unrestricted host before release.
-Latest A2 verification (2026-10-17): typecheck and lint passed; 80 local unit tests
-passed across 12 files using `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`.
-B0's integration test was intentionally excluded: it applies migrations and seed
-writes to the configured cloud service, outside A2's scope. Existing health unit
-tests passed; no current cloud/database integration success is claimed.
-Seven Chromium browser tests passed, including the new sequential workspace arrow
-capture across tracking loss, A2 guided calibration, movement,
-pinch/loss/recovery, planar fallback, cancellation/retry and restart, plus actual
-local MediaPipe worker inference/offline continuation and main-thread fallback.
-Pinned/checksummed model preparation and cached reuse passed. Unit coverage also
-includes invalid/overflowing geometry, stale/reordered/duplicate timestamps,
-filter resets, pinch chatter, orientation limits, independent profiles, Strict
-Mode/Activity cleanup, visibility/stream changes, backend suspension and absence
-of frame-driven React rendering. Physical-camera accuracy and performance acceptance remain pending.
+Integration base: latest main `a304c70` (B3 evaluation engine, PR #4).
+The context conflict was reconciled to retain both B3 and A3 state. No B3 source
+changes were needed.
+
+Latest A3 integration verification (2026-10-17):
+- `npm run typecheck`: passed.
+- `npm run lint`: passed without warnings.
+- `npm test -- --exclude tests/unit/b0-tiger-bootstrap.test.ts`: 152 tests passed
+  across 20 files, including the newly merged B3 evaluation tests. An earlier
+  restricted run could not reach Tiger for two existing health assertions; the escalated run passed, including those read-only health queries.
+  B0 migration/seed tests were excluded to avoid cloud writes; no migration/seed
+  integration success is claimed for A3.
+- `npm run test:e2e -- --workers=1`: all 11 Chromium tests passed. Includes the
+  seven existing A1/A2 regressions (actual local MediaPipe worker, offline tracking
+  and main-thread fallback) plus A3 pickup/movement/freeze/recovery/release/reset,
+  single camera acquisition, restart and client navigation camera cleanup, actual
+  context loss/restoration, and unavailable-WebGL retry while tracking stays usable.
+  Four A3 scenarios also passed in a focused run. They include pickup despite
+  depth drift, geometry-derived alignment guidance and assistance switching/reset
+  without recalibration. Pickup waits for three fresh settled open observations,
+  rather than assuming a calibration range or a transient filtered pose.
+- New unit coverage: rotated tips and attachments, schema compatibility, malformed
+  geometry (including duplicate-source corruption and inconsistent hand slots),
+  grab boundaries/competition, single ownership, no same-sample handoff,
+  loss/stale/reordered/future input, reset without release events, display phase
+  delay <30 ms at 20/30 source FPS and 60/120 render FPS, bounded timing, and scene
+  lifecycle/display transforms under Strict Mode/Activity/visibility/context events,
+  including contexts restored while Activity listeners are detached. The 36 focused
+  A3 unit tests passed, including rotated-tip plane constraints, assisted radius
+  boundaries/snap, free-depth mismatch, mode reset, reopening after missed pickup,
+  and guidance priority when another in-range instrument is closed.
+- `test-results/a3-instruments.png` and `test-results/a3-ready.png`: generated
+  and visually reviewed with the new instruments, single pickup halo and grid. This synthetic
+  WebGL screenshot is not physical-camera or target-Mac performance evidence.
+- `npm run build` (preceding A3 implementation verification): asset preparation/
+  cached model verification passed; normal
+  production build remains blocked by the existing Turbopack CSS-worker port
+  restriction even in the escalated retry. Verify on a host that permits that
+  worker process before release. The UX follow-up did not rerun the known-blocked
+  production command or change build configuration. Upstream B3 context reported
+  a successful production build on its verification host; that does not establish
+  a successful A3 production build in this environment.
+- Shared contracts, dependencies, database schema and encrypted environment files
+  were not changed. Next dev generated root `AGENTS.md` with installed Next.js
+  guidance; it is included. Publication is authorized on the A3 branch with a PR into main.
 
 ## 11. Next Recommended Actions
-1. Person A runs A1/A2's physical-camera QA from `docs/HAND_TRACKING.md` and records
-   actual outcomes. Proceed with A3 instruments using A2 control targets; honor
-   freshness/progression gates and keep held-object ownership in simulation.
+1. Person A runs the A1/A2 and A3 physical-camera QA from `docs/HAND_TRACKING.md`
+   and `docs/SIMULATION.md`, recording measured outcomes. A3 implementation unblocks
+   A4 exercise sequencing and A5 ghost rendering as separate tasks; preserve source
+   freshness, single ownership and separation of display/interaction streams.
 2. Person B: B2 + B3 done → B5 full 20-metric evaluator (remaining 12 metrics + full `AttemptResult` 20-vector), or B4 external data conversion. Deferred analytics/search work belongs to B10/B12.
 3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
@@ -252,4 +309,10 @@ of frame-driven React rendering. Physical-camera accuracy and performance accept
 - Calibration is memory-only and resets with camera stream/format changes. Tabs
   and backend fallback preserve profiles but require three-frame recovery.
 - Debug mode shows calibrated pinch thresholds and a planar depth fallback.
+- A3: leave Easy pickup enabled, open thumb/index finger, and move a cyan/amber
+  tip ring inside the needle’s only large circle. Wait for green / “tip aligned”,
+  then pinch. Open to release. If the tip enters while closed, follow the reopen
+  prompt and pinch again. Both tools freeze on tracking loss. Easy pickup off
+  restores free depth and depth-specific guidance; switching modes resets the
+  scene, not calibration. Reset scene restores the needle. No exercise scoring.
 - Backup fixture mode: not implemented yet.

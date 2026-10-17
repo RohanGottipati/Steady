@@ -6,6 +6,7 @@ import { useHandTracking } from "@/lib/vision/use-hand-tracking";
 import { useHandControls } from "@/lib/vision/use-hand-controls";
 import type { TrackingDiagnostics } from "@/lib/vision/types";
 import { HandControlPanel, WorkspaceGuide } from "./hand-control-panel";
+import { ThreeDTrainingPreview } from "@/components/training/3d-training-preview";
 
 export function HandTrackingPreview() {
   const tracking = useHandTracking();
@@ -74,6 +75,7 @@ export function HandTrackingPreview() {
       </div>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">Video and hand landmarks are processed in this browser and are not uploaded or recorded. Stop releases the camera. Cyan: left hand. Amber: right hand.</p>
       <HandControlPanel controls={controls} running={state.status === "running"} debug={debug} />
+      <ThreeDTrainingPreview controlsRef={controls.snapshotRef} calibrated={controls.ui.snapshot.calibrated} debug={debug} />
       {debug && <dl aria-label="Tracking diagnostics" className="grid grid-cols-2 gap-2 rounded-lg border p-4 font-mono text-sm">
         <dt>Backend</dt><dd>{hud.backend}</dd>
         {hud.fallbackReason && <><dt>Fallback reason</dt><dd>{hud.fallbackReason}</dd></>}
