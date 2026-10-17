@@ -1,8 +1,8 @@
 # Project Context
 
-Last updated: 2026-10-17 04:38 UTC
-Updated by: Person A — reconcile A1 hand tracking with B0 on main
-Current branch: person-a/a1-hand-tracking
+Last updated: 2026-10-17 05:05 UTC
+Updated by: B1 review fixes merged with A1 on main
+Current branch: b1
 Current milestone: M0
 Demo-critical status: YELLOW
 
@@ -43,7 +43,8 @@ truth for the current project state — it records what exists and where it is.
   This records preview approval; the formal soak/performance checklist is still pending.
 - Tiger Data schema live: migration `0001_init` applied (core relational tables + 4 hypertables, `attempt_scores.performance_vector vector(20)`); `npm run db:migrate`/`db:seed` runners work and are idempotent; one synthetic `needle-passing` attempt seeded and queryable.
 - `/api/health` reports `{ ok, service, db }` where `db` is `up`/`down`/`unconfigured` and never throws on DB outage (server-only client in `src/lib/db/`).
-- Calibration, pinch/rotation control, 3D tools, library/training flow, and evaluation are not implemented.
+- `/library` lists all four skills (data-driven from `src/data/skill-catalog.ts`) with difficulty/source/license badges, availability, and client-side search; `/train/[skillId]` is a STUB (shared file) with a mode selector and a placeholder where Person A adds the 3D trainer. Every card links to `/train/[id]`; coming-soon skills reach a friendly notice there instead of breaking navigation.
+- Calibration, pinch/rotation control, 3D tools, and evaluation are not implemented.
 
 ## 2. Architecture Invariants
 - Raw webcam frames stay in the browser by default.
@@ -70,8 +71,8 @@ Person A - Realtime Vision and 3D Simulation:
 - A1 webcam, two-hand detection, identity helper, and development preview
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
-- S0 shared bootstrap
-- B0 base migrations, seed, and database health check implemented; B1/B2 next
+- S0 shared bootstrap (done), B0 Tiger bootstrap (done), B1 skill library (done)
+- B2 reference-motion adapter framework next, then B3 evaluator
 
 ## 5. Completed Tasks
 - Partial S0 - repository structure and docs seeded
@@ -90,6 +91,7 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - A1/B0 integration - resolved the A1 PR's context conflict against `origin/main`
   (`7e94139`), preserving both implementations, operating rules, package scripts,
   and B0's encrypted environment update. Shared contracts are unchanged.
+- B1 - Skill library: `SkillCatalogEntry` type + catalog loader (`src/lib/skills/`), four-skill catalog data, `needle-passing` `SkillDefinition`, `/library` page + cards/badges/search, `/train/[skillId]` stub with mode selector. Tests in `tests/unit/skill-catalog.test.ts`.
 
 ## 6. In Progress
 - S0 - bootstrap acceptance commands must stay green; remaining product shell dirs can grow with A1/B0
@@ -136,19 +138,19 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
-Latest verification after merging main (2026-10-17): typecheck and lint passed;
-all 53 tests passed across 10 files, including B0 database integration and health
-checks. Four Chromium browser tests passed again, including actual local
-MediaPipe worker inference with a synthetic camera, continued inference offline,
-and actual main-thread fallback. Cached asset preparation passed. Regression
-coverage includes Strict Mode and Activity page-cache cleanup/resume, permission
-cancellation, late initialization/inference, capture timeouts, identity loss and
-crossings, and animation-frame fallback. Normal production build is still blocked
-by Turbopack's CSS worker port-binding restriction, including an escalated retry.
+Latest verification after merging main + B1 review fixes (2026-10-17): typecheck
+and lint pass; full unit/integration suite passes (incl. A1 vision, B0 database
+integration/health, and B1 skill catalog); four Chromium browser tests pass
+(local MediaPipe worker inference with synthetic camera, offline inference,
+main-thread fallback). DB-backed tests auto-skip without `TIGER_DATABASE_URL`.
+Production build was verified passing in this environment (all four
+`/train/[skillId]` pages prerender); note A1 previously reported the build
+blocked by a Turbopack CSS-worker port restriction on a restricted host — confirm
+on an unrestricted host before release.
 
 ## 11. Next Recommended Actions
 1. Person A runs A1's physical-camera QA from `docs/HAND_TRACKING.md`, then begins A2 calibration/pinch/rotation/smoothing using the raw snapshot interface.
-2. Person B proceeds with B1 skill-library/product shell and B2 reference adapters; B0's base schema, runners, health check, and seed are already implemented. Deferred analytics/search work belongs to B10/B12.
+2. Person B does B2 reference-motion adapter framework (loader/validator, fixture JSON, JIGSAWS/LASK Python skeletons), then B3 evaluator.
 3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
 ## 12. Manual Demo Notes
