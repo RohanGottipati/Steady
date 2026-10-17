@@ -1,8 +1,8 @@
 # Project Context
 
-Last updated: 2026-10-17 16:00 UTC
-Updated by: B4 external data conversion (branch b4, rebased on main after A3 PR #5)
-Current branch: b4
+Last updated: 2026-10-17 17:30 UTC
+Updated by: B5 complete 20-metric evaluator (branch b5, off b4)
+Current branch: b5
 Current milestone: M0; A3 implementation available, M1/M2 physical acceptance pending
 Demo-critical status: YELLOW
 
@@ -56,7 +56,7 @@ truth for the current project state — it records what exists and where it is.
 - Control filtering now uses a 3 Hz base cutoff / beta 0.75 for position and
   quaternion response. Synthetic phase-delay and stationary-jitter tests guard
   responsiveness; the generic One Euro defaults, pinch and recovery gates are unchanged.
-- Evaluation engine (B3): `src/lib/evaluation/` deterministically scores a recorded attempt vs a `ReferenceMotion` — per-segment alignment (no DTW), 8 of 20 metrics (pathSimilarity, targetAccuracy, instrumentOrientationAccuracy, pathEfficiency, movementSmoothness, speedProfileControl, segmentTiming, proceduralSequencing), partial category scores (precision/control/efficiencySafety), overall, and top-3 worst-moment replay markers. Remaining 12 metrics + full `AttemptResult` 20-vector are B5/B10. B4 fixed a latent `proceduralSequencing` bug: it now uses run-collapsed-segment LCS so references that legitimately revisit gestures (every real surgical task) score a perfect clone at 100.
+- Evaluation engine (B3→B5): `src/lib/evaluation/` deterministically scores a recorded attempt vs a `ReferenceMotion` — per-segment alignment (no DTW). B5 completed the full **20-metric** set: the 8 B3 metrics plus depthConsistency, motionStability, overshootControl, correctionEfficiency, rotationControlAccuracy, pinchStability, gripTiming, handWorkspaceControl, bimanualCoordination, idleTimeControl, toolCollisionAvoidance, dangerZoneAvoidance (`metrics-extra.ts`). `evaluateAttempt(user, ref, options?)` now returns all 20 metrics (in `PERFORMANCE_VECTOR_ORDER`), the keyed `PerformanceVector`, all five category scores, a **weighted** overall (honors `options.metricWeights`, i.e. `SkillDefinition.metricWeights`), top-3 worst-moment markers, and a deterministic factual `explanations[]` (one per metric; the AI layer elaborates, never recomputes). `toAttemptResult(evaluation, meta)` assembles a schema-valid `AttemptResult` (session metadata + coaching events supplied by the caller/B6). The two A4-fed safety metrics degrade honestly without a contract change: tool-tool collisions come from tip proximity now; `dangerZoneAvoidance` is 100 until A4 supplies zone geometry via `options.scene.dangerZones`. B4's run-collapsed-LCS `proceduralSequencing` fix is retained. B10 reads the frozen `PERFORMANCE_VECTOR_ORDER` + `vector(20)` for persistence.
 - A3 implementation available in the development preview: procedural operating room,
   forceps/needle holder, real geometry-derived tips, deterministic single-owner
   needle grab/release, and separate display interpolation. Both tools freeze when
@@ -122,8 +122,8 @@ Person A - Realtime Vision and 3D Simulation:
   A1/A2/M2 physical performance acceptance remains pending.
 
 Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
-- S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4) done; B4 external data conversion done on branch b4
-- B5 full 20-metric evaluator next
+- S0 bootstrap, B0 Tiger bootstrap, B1 skill library, B2 reference adapters, B3 evaluation engine (merged to main via #4) done; B4 external data conversion done on branch b4; B5 full 20-metric evaluator done on branch b5
+- B6 live coaching event engine next (depends on B3/B5); B10 Tiger persistence can proceed in parallel against the frozen `PERFORMANCE_VECTOR_ORDER`/`vector(20)` + `AttemptUploadPayload` contracts
 
 ## 5. Completed Tasks
 - Partial S0 - repository structure and docs seeded
@@ -177,6 +177,17 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
   axis swap, three data-only real refs validated, a 76-col kinematics parse fixture
   (offsets/grip/matrix→quat/len guard), and an LCS perfect-clone-of-repeating-ref
   regression.
+- B5 - complete 20-metric evaluator: added the 12 remaining metrics
+  (`src/lib/evaluation/metrics-extra.ts`), a shared `MetricContext` (`context.ts`),
+  skill-specific weighting + full category/overall scoring + per-metric factual
+  explanations, and `toAttemptResult()` assembling a schema-valid `AttemptResult`
+  (`evaluate.ts`). Danger-zone/collision inputs are optional scene inputs so the
+  task completes before A4. Tests (`tests/unit/b5-metrics.test.ts` + updated
+  `evaluation.test.ts`, new fixtures in `tests/fixtures/evaluation.ts`): full-set/
+  canonical-order + 0-100 + explanation-per-metric structure, a targeted
+  direction test per new metric (with independence checks — depth/workspace/
+  bimanual unaffected by a pure XY translation; danger-zone 100 with no zones),
+  weighted-overall, determinism, and the `toAttemptResult` schema round-trip.
 
 ## 6. In Progress
 - A3 usability acceptance - synthetic depth-drift pickup, assistance switching and
@@ -254,7 +265,14 @@ Person B - Data, Evaluation, Product, Tiger Data, AI and Voice:
 - npm test
 - npm run build
 
-Latest verification on b4 (2026-10-17, review follow-up after rebase on main):
+Latest verification on b5 (2026-10-17): `npm run typecheck` and `npm run lint`
+clean; `npm test` = 22 files / 180 tests passing, including the new B5 20-metric
+direction/weighting/`toAttemptResult` tests. The Python adapter `len==76` guard
+test prints an expected subprocess traceback to stderr (not a failure). The B0
+Tiger integration test ran green against the cloud service. Production build not
+re-run on this branch (still blocked by the known Turbopack CSS-worker restriction).
+
+Prior verification on b4 (2026-10-17, review follow-up after rebase on main):
 `npm run typecheck` and `npm run lint` clean; `npm test` = 21 files / 163 tests
 passing, including the synthetic product references, the three data-only JIGSAWS
 expert refs, the 76-col kinematics parse fixture + `len==76` guard, the repeat-safe
@@ -276,9 +294,11 @@ no production build success claimed.
    sequencing and A5 ghost rendering; preserve source freshness, single ownership
    and separation of display/interaction streams. A5 can now replay the real JIGSAWS
    references.
-2. Person B: B2 + B3 + B4 done → B5 full 20-metric evaluator (remaining 12 metrics +
-   full `AttemptResult` 20-vector, skill-specific weights). Deferred analytics/search
-   work belongs to B10/B12.
+2. Person B: B2 + B3 + B4 + B5 done → B6 live coaching event engine (depends on
+   B3/B5). B10 Tiger persistence can run in parallel now (frozen 20-vector +
+   `AttemptUploadPayload` contracts; only B10 touches the DB). When A4 lands, feed
+   real danger-zone geometry + tool-collision radius via `evaluateAttempt` options.
+   Deferred analytics/search work belongs to B10/B12.
 3. Keep `npm run verify:ai` green after key rotation; do not start B7/B9 until B6/B8 exist.
 
 ## 12. Manual Demo Notes

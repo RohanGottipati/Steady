@@ -11,35 +11,34 @@ import {
   wrongSequenceAttempt,
 } from "../fixtures/evaluation";
 
+import { PERFORMANCE_VECTOR_ORDER } from "@/types/evaluation";
+
 const ref = loadNeedleReference();
 const score = (r: EvaluationResult, id: string) =>
   r.metrics.find((m) => m.id === id)?.score ?? NaN;
 
-const B3_METRIC_IDS = [
-  "pathSimilarity",
-  "targetAccuracy",
-  "instrumentOrientationAccuracy",
-  "pathEfficiency",
-  "movementSmoothness",
-  "speedProfileControl",
-  "segmentTiming",
-  "proceduralSequencing",
-];
-
 describe("evaluateAttempt", () => {
   const perfect = evaluateAttempt(perfectAttempt(ref), ref);
 
-  it("implements exactly the B3 metric set with evidence", () => {
-    expect(perfect.metrics.map((m) => m.id).sort()).toEqual([...B3_METRIC_IDS].sort());
+  it("implements the full 20-metric set in canonical order with 0-100 scores", () => {
+    expect(perfect.metrics.map((m) => m.id)).toEqual([...PERFORMANCE_VECTOR_ORDER]);
     for (const m of perfect.metrics) {
       expect(m.score).toBeGreaterThanOrEqual(0);
       expect(m.score).toBeLessThanOrEqual(100);
     }
   });
 
-  it("reports only categories that have implemented metrics", () => {
+  it("populates every PerformanceVector field and an explanation per metric", () => {
+    for (const id of PERFORMANCE_VECTOR_ORDER) {
+      expect(perfect.performance[id]).toBeGreaterThanOrEqual(0);
+      expect(perfect.performance[id]).toBeLessThanOrEqual(100);
+    }
+    expect(perfect.explanations.map((e) => e.id)).toEqual([...PERFORMANCE_VECTOR_ORDER]);
+  });
+
+  it("reports all five category scores", () => {
     expect(Object.keys(perfect.categoryScores).sort()).toEqual(
-      ["control", "efficiencySafety", "precision"].sort(),
+      ["control", "coordination", "efficiencySafety", "precision", "technique"].sort(),
     );
   });
 
