@@ -1,12 +1,18 @@
 import React from "react";
 import Link from "next/link";
 import {
+  Aperture,
   ArrowRight,
+  CircleDot,
   Clock,
+  Crosshair,
+  Hand,
   Link2,
   Lock,
   Move,
+  Paperclip,
   Scissors,
+  UnfoldHorizontal,
   Waypoints,
 } from "lucide-react";
 import { Button } from "../Button";
@@ -19,6 +25,12 @@ const ICONS: Record<string, typeof Scissors> = {
   suturing: Scissors,
   "knot-tying": Link2,
   "peg-transfer": Move,
+  "pattern-cutting": CircleDot,
+  "ligating-loop": Aperture,
+  "clip-applying": Paperclip,
+  "needle-loading": Crosshair,
+  "tissue-retraction": Hand,
+  "camera-navigation": UnfoldHorizontal,
 };
 
 /** Skill card with bold ink outline (echoing the instrument line-art brand). */

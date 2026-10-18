@@ -4,8 +4,9 @@ import type { ControlSnapshot, ToolControlTarget } from "@/lib/vision/control-ty
 import type { HandFrame, Quat, Vec3 } from "@/types";
 import { corridorArcPoint, NEEDLE_PASSING_RINGS, RELEASE_ZONE } from "./needle-passing-config";
 import { PEG_HOME, TARGET_POST, TRANSFER_ZONE } from "./peg-transfer-config";
+import { buildRouteFixtureWaypoints, getRouteTask, listRouteTasks, type RouteFixtureId } from "./route-tasks";
 
-export type FixtureId = "needle-pass-good" | "needle-pass-late-rotation" | "peg-transfer-good";
+export type FixtureId = "needle-pass-good" | "needle-pass-late-rotation" | "peg-transfer-good" | RouteFixtureId;
 
 export interface FixtureCatalogItem {
   id: FixtureId;
@@ -29,16 +30,26 @@ export const FIXTURE_CATALOG: readonly FixtureCatalogItem[] = [
     label: "Good Peg Transfer",
     description: "Lift the peg off the left post, meet at the midline, and place it on the right post.",
   },
-] as const;
+  ...listRouteTasks().map(task => ({
+    id: `${task.skillId}-good` as RouteFixtureId,
+    label: `Good ${task.title}`,
+    description: task.demoMessage,
+  })),
+];
 
 export function fixtureMatchesSkill(skillId: string, fixtureId: FixtureId | null): boolean {
   if (!fixtureId) return true;
   if (fixtureId === "peg-transfer-good") return skillId === "peg-transfer";
+  const routeTask = getRouteTask(fixtureId.slice(0, -"-good".length));
+  if (routeTask) return skillId === routeTask.skillId;
   return skillId === "needle-passing";
 }
 
 export function defaultFixtureForSkill(skillId: string): FixtureId {
-  return skillId === "peg-transfer" ? "peg-transfer-good" : "needle-pass-good";
+  if (skillId === "peg-transfer") return "peg-transfer-good";
+  const task = getRouteTask(skillId);
+  if (task) return `${task.skillId}-good`;
+  return "needle-pass-good";
 }
 
 export function resolveFixtureIdFromSearch(
@@ -55,6 +66,10 @@ export function resolveFixtureIdFromSearch(
   }
   if (raw === "peg-transfer-good" || raw === "peg-transfer") {
     return "peg-transfer-good";
+  }
+  if (raw) {
+    const routeTask = getRouteTask(raw.endsWith("-good") ? raw.slice(0, -"-good".length) : raw);
+    if (routeTask) return `${routeTask.skillId}-good`;
   }
   if (raw === "off" || raw === "false" || raw === "0") return null;
   if (demoEnvEnabled) {
@@ -196,7 +211,10 @@ export function buildFixtureControlFrames(
     }
   };
 
-  if (fixtureId === "peg-transfer-good") {
+  const routeTask = getRouteTask(fixtureId.endsWith("-good") ? fixtureId.slice(0, -"-good".length) : "");
+  if (routeTask && fixtureId === `${routeTask.skillId}-good`) {
+    samples.push(...buildRouteFixtureWaypoints(routeTask));
+  } else if (fixtureId === "peg-transfer-good") {
     const home = { ...PEG_HOME };
     const lifted = { x: -0.133, y: 0.32, z: 0 };
     const midline = { ...TRANSFER_ZONE.position };

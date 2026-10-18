@@ -27,7 +27,9 @@ import type { ControlSnapshot } from "@/lib/vision/control-types";
 import { ExerciseTargets, updateExerciseTargets } from "./exercise-targets";
 import { GhostLayer, updateGhostLayer } from "./ghost-layer";
 import { Instrument } from "./instrument";
-import { OperatingRoom, PracticeNeedle, PracticePeg } from "./operating-room";
+import { OperatingRoom, PracticeNeedle, PracticePeg, PracticeRouteObject } from "./operating-room";
+import { getRouteTask } from "@/lib/exercise/route-tasks";
+import { RouteTaskTargets, updateRouteTaskTargets } from "./route-task-targets";
 import {
   PegTransferTargets,
   updatePegTransferTargets,
@@ -205,9 +207,11 @@ export function SceneContent({
     const exerciseSnapshot = exercise?.snapshot;
     const ghostSnapshot = ghost?.snapshot;
     const activeControls = runtime?.controls ?? controlsRef.current;
+    const routeTask = getRouteTask(exercise?.skill.id ?? "");
     const pegScene = exercise?.skill.id === "peg-transfer";
     if (pegScene)
       updatePegTransferTargets(targets.current, exerciseSnapshot ?? null);
+    else if (routeTask) updateRouteTaskTargets(targets.current, exerciseSnapshot ?? null);
     else updateExerciseTargets(targets.current, exerciseSnapshot ?? null);
     updateGhostLayer(
       ghostGroup.current,
@@ -337,6 +341,7 @@ export function SceneContent({
   });
 
   const pegScene = exercise?.skill.id === "peg-transfer";
+  const routeTask = getRouteTask(exercise?.skill.id ?? "");
   return (
     <>
       {camera instanceof OrthographicCamera && (
@@ -353,6 +358,8 @@ export function SceneContent({
       <TrainingField>
         {pegScene ? (
           <PegTransferTargets ref={targets} />
+        ) : routeTask ? (
+          <RouteTaskTargets ref={targets} task={routeTask} />
         ) : (
           <ExerciseTargets ref={targets} />
         )}
@@ -361,6 +368,8 @@ export function SceneContent({
         <Instrument side="right" ref={right} />
         {pegScene ? (
           <PracticePeg ref={needle} />
+        ) : routeTask ? (
+          <PracticeRouteObject ref={needle} kind={routeTask.objectKind} />
         ) : (
           <PracticeNeedle ref={needle} />
         )}

@@ -2,6 +2,7 @@ import { motionFrameSchema, referenceMotionSchema, type MotionFrame, type Quat, 
 import { lerpVec3, slerpQuat } from "@/lib/exercise/ghost-playback";
 import { NEEDLE_PASSING_SEGMENT_ORDER, normalizeQuat, normalizeToolWithGripOffset } from "@/lib/exercise/ghost-reference";
 import { PEG_ID, PEG_SEGMENT_IDS } from "@/lib/exercise/peg-transfer-config";
+import { getRouteTask } from "@/lib/exercise/route-tasks";
 import { composePose, NEEDLE_ID, relativePose } from "./tool-simulation";
 import type { ReplayInput, ReplayNeedle, ReplaySceneFrame } from "./replay-types";
 
@@ -197,20 +198,23 @@ export class ReplayController {
   snapshot: ReplaySnapshot;
 
   constructor(input: ReplayInput) {
-    this.taskObjectId = input.skillId === "peg-transfer" ? PEG_ID : NEEDLE_ID;
+    const routeTask = getRouteTask(input.skillId);
+    this.taskObjectId = routeTask?.objectId ?? (input.skillId === "peg-transfer" ? PEG_ID : NEEDLE_ID);
     if (input.truncated) throw new Error("This recording was truncated. Record a new attempt for complete replay.");
     const reference = referenceMotionSchema.parse(input.reference);
     if (reference.skillId !== input.skillId) throw new Error("Replay and reference must use the same skill.");
     this.userFrames = copyFrames(input.userFrames);
     this.referenceFrames = copyFrames(reference.frames);
-    const segmentOrder: readonly string[] = input.skillId === "peg-transfer" ? PEG_SEGMENT_IDS : NEEDLE_PASSING_SEGMENT_ORDER;
+    const segmentOrder: readonly string[] = routeTask?.segmentIds ?? (input.skillId === "peg-transfer" ? PEG_SEGMENT_IDS : NEEDLE_PASSING_SEGMENT_ORDER);
     let lastRank = -1;
     for (const frame of this.referenceFrames) {
       const rank = segmentOrder.indexOf(frame.segmentId);
       if (rank < lastRank || rank < 0) {
-        throw new Error(input.skillId === "peg-transfer"
-          ? "Replay requires the peg-transfer reference segments in order."
-          : "Replay requires a single canonical Needle Passing reference.");
+        throw new Error(routeTask
+          ? `Replay requires the ${input.skillId} reference segments in order.`
+          : input.skillId === "peg-transfer"
+            ? "Replay requires the peg-transfer reference segments in order."
+            : "Replay requires a single canonical Needle Passing reference.");
       }
       lastRank = rank;
     }

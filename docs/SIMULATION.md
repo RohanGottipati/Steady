@@ -469,8 +469,9 @@ or target-Mac performance. See CONTEXT for actual automated outcomes/build block
   skips the midline does not advance. Assessment still forces the ghost, path,
   and live coaching off.
 - `?fixture=peg-transfer-good` plays that path without a camera. Needle Passing
-  fixtures stay on `/train/needle-passing`. Suturing and knot-tying remain
-  coming-soon. Real LASK data is not included.
+  fixtures stay on `/train/needle-passing`. Suturing, knot tying, and the six
+  additional drills each have a `?fixture=<skill-id>-good` sample on the same
+  runtime. Real LASK data is not included.
 
 ## Integrated review, audio, and acceptance
 

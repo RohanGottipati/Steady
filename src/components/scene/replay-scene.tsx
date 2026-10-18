@@ -36,7 +36,9 @@ import type {
 import type { Pose } from "@/lib/simulation/tool-simulation";
 import type { Vec3 } from "@/types";
 import { Instrument } from "./instrument";
-import { OperatingRoom, PracticeNeedle, PracticePeg } from "./operating-room";
+import { OperatingRoom, PracticeNeedle, PracticePeg, PracticeRouteObject } from "./operating-room";
+import { getRouteTask } from "@/lib/exercise/route-tasks";
+import { RouteTaskTargets } from "./route-task-targets";
 import { ExerciseTargets } from "./exercise-targets";
 import { PegTransferTargets } from "./peg-transfer-targets";
 
@@ -315,6 +317,7 @@ export function ReplaySceneContent({
   onManualControl,
   performanceMode = false,
 }: ReplaySceneProps) {
+  const routeTask = getRouteTask(skillId);
   const orbit = useRef<ComponentRef<typeof OrbitControls>>(null);
   const orbitTarget = useMemo(() => trainingCameraPose(1).target, []);
   const root = useRef<Group>(null),
@@ -411,6 +414,8 @@ export function ReplaySceneContent({
       <TrainingField>
         {skillId === "peg-transfer" ? (
           <PegTransferTargets />
+        ) : routeTask ? (
+          <RouteTaskTargets task={routeTask} />
         ) : (
           <ExerciseTargets />
         )}
@@ -423,6 +428,8 @@ export function ReplaySceneContent({
         </group>
         {skillId === "peg-transfer" ? (
           <PracticePeg ref={needle} />
+        ) : routeTask ? (
+          <PracticeRouteObject ref={needle} kind={routeTask.objectKind} />
         ) : (
           <PracticeNeedle ref={needle} />
         )}

@@ -7,6 +7,8 @@ import { pegTransferSkill } from "@/data/skills/peg-transfer";
 import { ToolSimulationController } from "@/lib/simulation/tool-simulation";
 import { ExerciseController } from "./exercise-controller";
 import { buildFixtureControlFrames } from "./fixture-playback";
+import { getRouteReference } from "./route-reference";
+import { getRouteTask } from "./route-tasks";
 
 export const RAW_PEG_TRANSFER_REFERENCE: ReferenceMotion = parseReference(pegTransferReferenceJson);
 
@@ -51,6 +53,17 @@ export function referenceForSkill(skill: SkillDefinition): ReferenceMotion {
     }
     if (reference.segments.map(segment => segment.id).join(",") !== PEG_SEGMENT_IDS.join(",")) {
       throw new Error("Peg Transfer reference segments do not match the skill.");
+    }
+    return reference;
+  }
+  const task = getRouteTask(skill.id);
+  if (task && skill.referenceMotionId === task.referenceMotionId) {
+    const reference = getRouteReference(skill.id);
+    if (!reference || reference.skillId !== skill.id || reference.id !== skill.referenceMotionId) {
+      throw new Error(`Reference motion is unavailable for ${skill.id}.`);
+    }
+    if (reference.segments.map(segment => segment.id).join(",") !== skill.segments.map(segment => segment.id).join(",")) {
+      throw new Error(`Reference motion is unavailable for ${skill.id}.`);
     }
     return reference;
   }

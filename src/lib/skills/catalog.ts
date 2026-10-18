@@ -1,25 +1,30 @@
-import { SKILL_CATALOG } from "@/data/skill-catalog";
-import { knotTyingBlueprint } from "@/data/skills/knot-tying";
+import { cameraNavigationSkill } from "@/data/skills/camera-navigation";
+import { clipApplyingSkill } from "@/data/skills/clip-applying";
+import { knotTyingSkill } from "@/data/skills/knot-tying";
+import { ligatingLoopSkill } from "@/data/skills/ligating-loop";
+import { needleLoadingSkill } from "@/data/skills/needle-loading";
 import { needlePassingSkill } from "@/data/skills/needle-passing";
+import { patternCuttingSkill } from "@/data/skills/pattern-cutting";
 import { pegTransferSkill } from "@/data/skills/peg-transfer";
-import { suturingBlueprint } from "@/data/skills/suturing";
-import type { SkillBlueprint, SkillDefinition } from "@/types/skill";
+import { suturingSkill } from "@/data/skills/suturing";
+import { tissueRetractionSkill } from "@/data/skills/tissue-retraction";
+import { SKILL_CATALOG } from "@/data/skill-catalog";
+import type { SkillDefinition } from "@/types/skill";
 import type { SkillCatalogEntry } from "./types";
 
-// Full training definitions, keyed by id. Only skills with a scene and reference
-// motion appear here; catalog entries without one are "coming-soon".
+// Full training definitions, keyed by id. A catalog entry is available only
+// when it has a scene, a reference motion, and a definition here.
 const SKILL_DEFINITIONS: Record<string, SkillDefinition> = {
   [needlePassingSkill.id]: needlePassingSkill,
+  [suturingSkill.id]: suturingSkill,
+  [knotTyingSkill.id]: knotTyingSkill,
   [pegTransferSkill.id]: pegTransferSkill,
-};
-
-// Authored designs for coming-soon skills (B11): real phases, metric weights,
-// and attributed expert references, but no scene yet — so they preview in the
-// library without being launchable. A skill has a definition or a blueprint,
-// never both.
-const SKILL_BLUEPRINTS: Record<string, SkillBlueprint> = {
-  [suturingBlueprint.id]: suturingBlueprint,
-  [knotTyingBlueprint.id]: knotTyingBlueprint,
+  [patternCuttingSkill.id]: patternCuttingSkill,
+  [ligatingLoopSkill.id]: ligatingLoopSkill,
+  [clipApplyingSkill.id]: clipApplyingSkill,
+  [needleLoadingSkill.id]: needleLoadingSkill,
+  [tissueRetractionSkill.id]: tissueRetractionSkill,
+  [cameraNavigationSkill.id]: cameraNavigationSkill,
 };
 
 export function getSkillCatalog(): readonly SkillCatalogEntry[] {
@@ -34,8 +39,9 @@ export function getSkillDefinition(id: string): SkillDefinition | undefined {
   return SKILL_DEFINITIONS[id];
 }
 
-export function getSkillBlueprint(id: string): SkillBlueprint | undefined {
-  return SKILL_BLUEPRINTS[id];
+export function getSkillBlueprint(id: string): undefined {
+  void id;
+  return undefined;
 }
 
 export function isSkillAvailable(id: string): boolean {

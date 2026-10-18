@@ -17,6 +17,7 @@ import {
 import { DEFAULT_NEEDLE_PASSING_REFERENCE, normalizeToolWithGripOffset } from "./ghost-reference";
 import { TISSUE_WALL_ZONE } from "./needle-passing-config";
 import { BOARD_EDGE_ZONE } from "./peg-transfer-config";
+import { getRouteTask } from "./route-tasks";
 
 export interface CompletedAttemptEvaluationInput {
   recorded: RecordedMotion;
@@ -160,7 +161,7 @@ export function evaluateCompletedAttempt({
   const evaluation = evaluateAttempt(recorded, adaptedReference, {
     metricWeights: skill.metricWeights,
     scene: {
-      dangerBoxes: [skill.id === "peg-transfer" ? BOARD_EDGE_ZONE : TISSUE_WALL_ZONE],
+      dangerBoxes: [skill.id === "peg-transfer" ? BOARD_EDGE_ZONE : getRouteTask(skill.id)?.danger ?? TISSUE_WALL_ZONE],
       collisionRadius: 0.05,
     },
   });

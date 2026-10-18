@@ -7,7 +7,7 @@ test.use({
 });
 test.setTimeout(60_000);
 
-test("peg transfer trains on the shared route while coming-soon skills stay gated", async ({ page }) => {
+test("peg transfer trains on the shared route and suturing launches a trainer", async ({ page }) => {
   const errors: string[] = [];
   const live: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -15,17 +15,20 @@ test("peg transfer trains on the shared route while coming-soon skills stay gate
     if (/\/api\/(speech|attempts|review)|elevenlabs|backboard/i.test(request.url())) live.push(request.url());
   });
 
-  await page.goto("/train/knot-tying");
-  await expect(page.getByText("This skill is coming soon.")).toBeVisible();
-  await page.goto("/train/suturing");
-  await expect(page.getByText("This skill is coming soon.")).toBeVisible();
+  await page.goto("/train/knot-tying?fixture=knot-tying-good");
+  await expect(page.getByRole("heading", { name: "Knot Tying" })).toBeVisible();
+  await expect(page.getByText("Reach the suture tail and pinch")).toBeVisible();
+  await page.goto("/train/suturing?fixture=suturing-good");
+  await expect(page.getByRole("heading", { name: "Suturing" })).toBeVisible();
+  await expect(page.getByText("Reach the needle at the near wound edge")).toBeVisible();
   await page.goto("/train/not-a-skill");
   await expect(page.getByRole("heading", { name: "404" })).toBeVisible();
 
   await page.goto("/library");
   await expect(page.getByRole("link", { name: "Train Peg Transfer" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Train Needle Passing" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Knot Tying — coming soon" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Train Knot Tying" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Train Pattern Cutting" })).toBeVisible();
 
   await page.goto("/train/peg-transfer?fixture=peg-transfer-good");
   await expect(page.getByRole("heading", { name: "Peg Transfer" })).toBeVisible();
