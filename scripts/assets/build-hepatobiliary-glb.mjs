@@ -15,12 +15,13 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Document, NodeIO } from "@gltf-transform/core";
 import { KHRMeshQuantization } from "@gltf-transform/extensions";
 import { dedup, prune, quantize, simplifyPrimitive, weld } from "@gltf-transform/functions";
 import { MeshoptSimplifier } from "meshoptimizer";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const ARCHIVE_URL = "https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip";
 const OUTPUT = path.join(ROOT, "public/models/patient/hepatobiliary-anatomy.glb");
 
