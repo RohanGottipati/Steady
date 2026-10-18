@@ -1,9 +1,9 @@
 # Project Context
 
 Last updated: 2026-10-18
-Updated by: UI1–UI6 product UI integration
-Current milestone: supplied Steady UI integrated; automated and scoped live-service acceptance complete
-Working state: UI1–UI6 delivery on main; no deployment performed
+Updated by: S4 frame stability and B5 segment timing repairs
+Current milestone: S4 stable training canvas and B5 normalized step timing
+Working state: verified S4 UI, frame stability and B5 timing changes; delivery branch main; no deployment performed
 Physical acceptance: pending on target Mac/Chrome
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -45,13 +45,23 @@ Steady is a browser-based, webcam-controlled surgical motion simulator. The curr
 
 ## 2. UI architecture and invariants
 
-Public pages share the new product header/footer and canonical skill-card presentation. Available training routes use the dark workspace with real camera/calibration controls, persistent video, mode/ghost/voice controls, checkpoints, reduced graphics, results, and replay.
+Public pages share one dark theme, semantic surfaces, product header/footer and canonical skill-card presentation. The decorative waveform and anonymous identity labels are removed. Long credits are available only on `/notices`, linked from the public footer. Available training routes use a viewport-filling workspace with a closer surgeon camera, live pickup/tracking guidance, persistent video, a browser fullscreen toggle and a dismissible settings/guide panel (Escape closes it and restores focus). Attempt controls, calibration and safety status remain directly available; secondary session details expand on demand. Results/replay share the dark theme. Runtime, hand calibration, scoring and persistence contracts remain unchanged.
 
-The existing TrainingRuntime, tracking/calibration controllers, recording, evaluator, accepted review ownership, and per-session AudioManager remain authoritative. UI stages derive from those systems; there is no prototype simulation or timer-driven calibration. Per-frame motion stays in refs; HUD sampling remains bounded.
+The existing TrainingRuntime, tracking/calibration controllers, recording, evaluator, accepted review ownership, and per-session AudioManager remain authoritative. UI stages derive from those systems; there is no prototype simulation or timer-driven calibration. Per-frame motion stays in refs; HUD sampling remains bounded. Training uses fixed control/guidance rows around a flexible scene row. Longer instructions and expanded details scroll within those rows; live coaching, errors and connection notices float outside layout flow, preserving canvas dimensions and camera framing during attempts.
 
 The room is a static presentation layer rendered through the installed React Three Fiber stack. Geometry is batched by shared material. Training-local coordinates are placed on the table once; evaluation, stored tools, collision tests, and replay records remain canonical. Replay cameras transform local focus points into world space. Orbiting hands control back to the user and cancels automatic narration/focus behavior.
 
 Shared attempt schemas, DATA_SCHEMA_VERSION, coordinate convention, and performance-vector order remain unchanged. No database migration or new runtime dependency is required. Existing Webpack/Tailwind integration remains in place.
+
+Segment Timing now compares normalized active-time shares across steps (total
+variation, tolerance 0.5), rather than absolute durations against the roughly
+three-second synthetic guide. A uniformly slower pass retains its timing score;
+uneven time allocation lowers it. Each observed interval belongs to the stage
+active until the next frame, so single-frame stages and repeated visits are
+measured correctly. Results explain step timing balance in plain language. Existing
+saved results are not rescored; older timing scores and timing-dependent aggregates
+are not directly comparable with new attempts. Vector order and storage schemas
+remain unchanged.
 
 ## 3. Progress and deletion
 
@@ -60,6 +70,26 @@ GET /api/progress preserves per-skill aggregates and adds global summary statist
 History deletion drains in-flight uploads, pauses retries, deletes only the current anonymous user's cloud history, then clears local copies. A persistent cleanup marker blocks uploads after incomplete cleanup; retry deletion finishes the operation. Stale retry snapshots cannot recreate deleted attempts in the current session. Device-scoped anonymous identity is not authentication; cross-tab concurrent training/deletion is not a new synchronization guarantee.
 
 ## 4. Acceptance and operations
+
+S4 UI polish verification on 2026-10-18:
+
+- Production build, TypeScript, ESLint and whitespace checks passed.
+- Full offline unit suite passed after both repairs: 470 tests, 13 opt-in database tests skipped. Six timing regressions cover uniform slower pacing, uneven pacing, sparse sampling, revisits, missing stages and readable explanations.
+  After the camera framing change, the four room-presentation checks passed again.
+- Final production browser run passed all eight product/Peg Transfer scenarios:
+  responsive public pages, progress/error/deletion states, camera-free sample
+  results/replay, contextual settings with keyboard focus, fullscreen and notices,
+  plus stable frame dimensions through desktop/mobile sample completion, expanded
+  details, settings and connection notices. Both stability tests failed before
+  the repair (two desktop sizes and four mobile sizes), then passed afterward.
+- Development runs also passed camera calibration → completion → review/sync/replay,
+  denied-camera/sample switching, WebGL recovery, offline/storage-unavailable
+  completion, and offline/failed-reference recovery. The Peg Transfer development
+  run completed its product assertions but caught a Next.js prerender Performance
+  measure negative-timestamp error; its final production rerun passed without it.
+- Final screenshots are in ignored `artifacts/acceptance/`, including desktop
+  training and mobile training/results. No new live-service or physical webcam
+  acceptance is claimed. No migration or deployment was performed.
 
 Baseline before UI changes: typecheck and ESLint passed; 455 offline tests passed, 13 opt-in database tests skipped.
 

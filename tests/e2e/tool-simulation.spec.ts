@@ -63,6 +63,7 @@ test("rendered instruments acquire, freeze together through loss, recover, relea
   await expect(page.getByTestId("needle-ownership")).toHaveText("Needle: left-tool");
   await setHands(page, { x: pickupX - 0.015 });
   await expect(page.getByTestId("needle-ownership")).toHaveText("Needle: free");
+  await page.getByRole("button", { name: "Settings & guide", exact: true }).click();
   await page.getByRole("button", { name: "Reset scene" }).click();
   await expect.poll(async () => JSON.parse(await page.getByTestId("needle-state").innerText()).object?.position).toEqual({ x: 0, y: 0.35, z: 0 });
   expect(await page.evaluate(() => (window as unknown as FixtureWindow).cameraRequests)).toBe(1);
@@ -188,6 +189,7 @@ test("completes Needle Passing across all 8 segments, guards early release, and 
   await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: demonstration");
   await expect(page.getByTestId("exercise-ghost-status")).toHaveText("Ghost: visible");
   await expect(page.getByTestId("ghost-toggle")).toHaveCount(0);
+  await page.getByRole("button", { name: "Settings & guide", exact: true }).click();
   await expect(page.getByTestId("ghost-speed-0.5x")).toBeVisible();
   await page.getByTestId("ghost-speed-0.5x").click();
   await expect(page.getByTestId("ghost-playback-summary")).toContainText("Playback: 0.5x");

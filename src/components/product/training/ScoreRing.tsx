@@ -26,7 +26,7 @@ export function ScoreRing({
           cy="50"
           r={r}
           fill="none"
-          stroke="#e3edf3"
+          stroke="var(--border)"
           strokeWidth="9"
         />
         <circle
@@ -42,7 +42,7 @@ export function ScoreRing({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-semibold tabular-nums tracking-tight text-ink">
+        <span className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
           {score}
         </span>
         <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">

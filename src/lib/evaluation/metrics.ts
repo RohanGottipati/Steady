@@ -70,19 +70,17 @@ function normalizedSpeedCurve(samples: AlignedSample[], which: "ref" | "user"): 
   return speeds.map((s) => s / max);
 }
 
+/** Attribute each observed interval to the stage active until the next frame.
+ * Single-frame stages retain their duration; revisits do not include other stages.
+ * Recording timestamps already exclude tracking suspension time. */
 function segmentDurations(frames: readonly MotionFrame[]): Map<string, number> {
-  const by = new Map<string, { min: number; max: number }>();
-  for (const f of frames) {
-    const cur = by.get(f.segmentId);
-    if (!cur) by.set(f.segmentId, { min: f.tMs, max: f.tMs });
-    else {
-      cur.min = Math.min(cur.min, f.tMs);
-      cur.max = Math.max(cur.max, f.tMs);
-    }
+  const durations = new Map<string, number>();
+  for (let i = 1; i < frames.length; i++) {
+    const previous = frames[i - 1];
+    const duration = Math.max(0, frames[i].tMs - previous.tMs);
+    durations.set(previous.segmentId, (durations.get(previous.segmentId) ?? 0) + duration);
   }
-  const out = new Map<string, number>();
-  for (const [id, { min, max }] of by) out.set(id, max - min);
-  return out;
+  return durations;
 }
 
 function worstSample(samples: AlignedSample[], f: (s: AlignedSample) => number) {
@@ -184,17 +182,25 @@ export function speedProfileControl(ctx: Ctx): MetricResult {
 export function segmentTiming(ctx: Ctx): MetricResult {
   const refDur = segmentDurations(ctx.reference.frames);
   const userDur = segmentDurations(ctx.user.frames);
-  const errs: number[] = [];
-  for (const [id, rd] of refDur) {
-    if (rd <= 0) continue;
-    const ud = userDur.get(id) ?? 0;
-    errs.push(Math.abs(ud - rd) / rd);
+  const refTotal = [...refDur.values()].reduce((sum, duration) => sum + duration, 0);
+  const userTotal = [...userDur.values()].reduce((sum, duration) => sum + duration, 0);
+  // Compare time allocation, not the absolute speed of the short synthetic guide.
+  // Total variation is the fraction of attempt time redistributed between stages.
+  let difference = 0;
+  if (refTotal > 0) {
+    if (userTotal <= 0) difference = 1;
+    else {
+      const ids = new Set([...refDur.keys(), ...userDur.keys()]);
+      for (const id of ids) {
+        difference += Math.abs((userDur.get(id) ?? 0) / userTotal - (refDur.get(id) ?? 0) / refTotal) / 2;
+      }
+    }
   }
   return {
     id: "segmentTiming",
-    score: errorToScore(mean(errs), TOLERANCES.timingRatio),
-    rawValue: mean(errs),
-    unit: "relative",
+    score: errorToScore(difference, TOLERANCES.timingRatio),
+    rawValue: difference,
+    unit: "fraction",
     tolerance: TOLERANCES.timingRatio,
   };
 }

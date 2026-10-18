@@ -71,7 +71,7 @@ export function AttemptResultsPanel({
     <section
       aria-label="Attempt evaluation results"
       data-testid="attempt-results-panel"
-      className="space-y-4 rounded-xl border border-emerald-500/60 bg-white p-5 shadow-sm dark:bg-zinc-950"
+      className="space-y-4 rounded-xl border border-emerald-500/60 bg-card p-5 shadow-sm"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

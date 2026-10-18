@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, ChevronsDown } from "lucide-react";
 import { Button } from "../Button";
 import { BracketLabel } from "../brand/BracketLabel";
-import { ListeningPill } from "../brand/ListeningPill";
 import { OperatingRoomPreview } from "@/components/scene/room-preview";
 
 import { HERO_STATS } from "../data/landing";
@@ -39,7 +38,7 @@ export function LandingHero() {
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button
               size="lg"
-              className="rounded-full bg-scrub-100 text-ink hover:bg-white"
+              className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={() => navigate("/train/needle-passing")}
             >
               Enter the OR
@@ -48,7 +47,7 @@ export function LandingHero() {
             <Button
               size="lg"
               variant="ghost"
-              className="rounded-full text-white hover:bg-white/10 hover:text-white"
+              className="rounded-full text-white hover:bg-card/10 hover:text-white"
               onClick={() => navigate("/library")}
             >
               Browse skills
@@ -68,7 +67,7 @@ export function LandingHero() {
         </div>
 
         <div className="lg:col-span-7">
-          <div className="relative aspect-[16/11] overflow-hidden rounded-[24px] border border-white/10 bg-ink-800 shadow-[0_40px_100px_-30px_rgba(0,0,0,0.75)]">
+          <div className="relative aspect-[16/11] overflow-hidden rounded-[24px] border border-white/10 bg-ink-800">
             <OperatingRoomPreview />
 
             {CORNERS.map((c) => (
@@ -97,7 +96,6 @@ export function LandingHero() {
             </div>
           </div>
           <div className="mt-6 flex items-center justify-center gap-4 lg:justify-end">
-            <ListeningPill active={false} />
             <BracketLabel tone="dark">
               Camera stays off until you start
             </BracketLabel>

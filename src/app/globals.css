@@ -2,24 +2,25 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f5f9fc;
-  --foreground: #0a141c;
-  --card: #ffffff;
-  --card-foreground: #0a141c;
-  --popover: #f5f9fc;
-  --popover-foreground: #0a141c;
-  --primary: #0a141c;
-  --primary-foreground: #f5f9fc;
-  --secondary: #e3f0fb;
-  --secondary-foreground: #0a141c;
-  --muted: #eef3f7;
-  --muted-foreground: #5a6a76;
-  --accent: #eef3f7;
-  --accent-foreground: #0a141c;
-  --destructive: #dc2626;
-  --border: #d5e0e8;
-  --input: #d5e0e8;
-  --ring: #0a141c;
+  color-scheme: dark;
+  --background: #0a141c;
+  --foreground: #eef6fb;
+  --card: #0f1c26;
+  --card-foreground: #eef6fb;
+  --popover: #0f1c26;
+  --popover-foreground: #eef6fb;
+  --primary: #c4e0f7;
+  --primary-foreground: #0a141c;
+  --secondary: #172733;
+  --secondary-foreground: #c4e0f7;
+  --muted: #172733;
+  --muted-foreground: #9baeba;
+  --accent: #22343f;
+  --accent-foreground: #eef6fb;
+  --destructive: #e5484d;
+  --border: #293d4b;
+  --input: #293d4b;
+  --ring: #97c8f0;
   --radius: 0.75rem;
 }
 
@@ -166,15 +167,57 @@ select {
 .training-header [aria-pressed="true"] > div {
   color: #0a141c;
 }
+/* Only the viewport row flexes. Text and transient UI never resize the canvas. */
 .workspace {
+  --workspace-controls-height: 96px;
+  --workspace-guidance-height: 176px;
   flex: 1;
   min-height: 0;
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: var(--workspace-controls-height) minmax(0, 1fr) var(--workspace-guidance-height);
   gap: 8px;
   padding: 10px 16px;
   overflow: hidden;
+}
+.workspace[data-sample="true"] {
+  --workspace-controls-height: 144px;
+}
+.workspace-controls {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.workspace-notifications {
+  position: absolute;
+  right: 28px;
+  bottom: calc(var(--workspace-guidance-height) + 30px);
+  z-index: 15;
+  width: min(420px, calc(100% - 56px));
+  max-height: 35%;
+  overflow: auto;
+  pointer-events: none;
+}
+.workspace-notifications > * {
+  pointer-events: auto;
+  background: #0f1c26f5;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px #0004;
+}
+.workspace-notifications:empty {
+  display: none;
+}
+.training-header [data-testid="degraded-notice"] {
+  position: fixed;
+  top: 76px;
+  right: 16px;
+  z-index: 45;
+  width: min(420px, calc(100% - 32px));
+  max-height: 200px;
+  overflow: auto;
 }
 .workspace-toolbar {
   display: flex;
@@ -213,31 +256,90 @@ select {
 }
 .workspace-main {
   flex: 1;
-  min-height: 260px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 12px;
+  min-height: 0;
+  position: relative;
+  display: flex;
 }
 .workspace-viewport {
+  flex: 1;
+  min-width: 0;
   position: relative;
-  min-height: 260px;
+  min-height: 0;
   height: 100%;
   overflow: hidden;
   border: 1px solid #ffffff18;
   border-radius: 22px;
   background: #0f1c26;
 }
+.workspace-scene-guidance {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10;
+  width: min(340px, calc(100% - 24px));
+  padding: 10px 12px;
+  border: 1px solid #ffffff18;
+  border-radius: 16px;
+  background: #0a141ce8;
+  backdrop-filter: blur(12px);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+.workspace-scene-guidance [data-testid="pickup-guidance"] {
+  margin: 5px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12px;
+}
 .workspace-sidebar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 25;
+  width: min(340px, calc(100% - 24px));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: #0f1c26f5;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 16px 64px #0008;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-right: 4px;
+  padding: 16px;
   font-size: 12px;
   scrollbar-width: thin;
   scrollbar-color: #22343f transparent;
+}
+.workspace-sidebar[hidden] {
+  display: none;
+}
+.workspace-primary-actions {
+  flex-shrink: 0;
+}
+.workspace-progression > [data-testid="exercise-danger-status"] {
+  display: block;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.workspace-progression > [data-testid="exercise-danger-status"].text-red-300 {
+  color: #fca5a5;
+}
+.workspace-session-details summary {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.workspace-session-details[open] > div {
+  margin: 8px 0;
+}
+.workspace-primary-actions:empty {
+  display: none;
 }
 .workspace-sidebar > * {
   flex-shrink: 0;
@@ -256,9 +358,6 @@ select {
 }
 .workspace-sidebar > p {
   font-size: 12px;
-}
-.workspace-sidebar > [data-testid="simulation-status"] {
-  color: #97c8f0;
 }
 .workspace-instructions {
   font-size: 12px;
@@ -281,6 +380,10 @@ select {
   border-color: #ffffff18;
 }
 .workspace-progression {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
   flex-shrink: 0;
   padding: 10px 14px;
   background: #ffffff06;
@@ -295,7 +398,7 @@ select {
   padding: 4px 8px;
   font-size: 11px;
 }
-.workspace > [data-testid="fixture-banner"] {
+.workspace-controls > [data-testid="fixture-banner"] {
   flex-shrink: 0;
 }
 .workspace > [aria-label="Simulation diagnostics"] {
@@ -377,26 +480,12 @@ select {
   z-index: 51;
   border-radius: 24px;
   padding: 24px;
-  background: white;
-  color: #0a141c;
+  background: var(--card);
+  color: var(--foreground);
   box-shadow: 0 35px 120px #0008;
 }
 .workspace-results > section {
   border: 0;
-}
-.training-credits {
-  flex-shrink: 0;
-  padding: 8px 20px;
-  border-top: 1px solid #ffffff18;
-  font-size: 11px;
-  color: #ffffff88;
-}
-.training-credits[open] {
-  max-height: 240px;
-  overflow: auto;
-}
-.training-credits footer {
-  color: #c4e0f7;
 }
 .workspace-replay {
   display: flex;
@@ -413,13 +502,13 @@ select {
 }
 @media (max-width: 900px) {
   .training-product {
-    height: auto;
-    min-height: 100dvh;
-    overflow: visible;
+    height: 100dvh;
+    overflow: hidden;
   }
   .training-header {
     flex-wrap: wrap;
-    padding: 12px;
+    padding: 8px 12px;
+    gap: 6px;
   }
   .training-header > section {
     width: 100%;
@@ -433,37 +522,85 @@ select {
     flex: 1;
   }
   .workspace {
-    overflow: visible;
+    --workspace-controls-height: 144px;
+    overflow: hidden;
+    padding: 8px;
+    gap: 6px;
+  }
+  .workspace[data-sample="true"] {
+    --workspace-controls-height: 176px;
+  }
+  .workspace-controls {
+    gap: 6px;
+  }
+  .training-header [data-testid="degraded-notice"] {
+    top: 108px;
   }
   .workspace-main {
-    display: flex;
-    flex-direction: column;
+    min-height: 0;
   }
   .workspace-viewport {
-    height: 52dvh;
-    min-height: 340px;
+    height: 100%;
+    min-height: 0;
   }
   .workspace-sidebar {
-    overflow: visible;
+    overflow-y: auto;
   }
   .workspace-setup {
-    bottom: auto;
-    top: 380px;
-    width: 130px;
+    bottom: 140px;
+    top: auto;
+    left: 20px;
+    width: 100px;
   }
   .workspace-setup[data-expanded="true"] {
-    top: 145px;
-    bottom: auto;
-    max-height: calc(100dvh - 180px);
+    top: 95px;
+    bottom: 8px;
+    max-height: none;
     padding: 8px;
+  }
+  .workspace-toolbar {
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+  .workspace-toolbar > div:first-of-type {
+    display: contents;
+  }
+  .workspace-primary-actions {
+    order: -1;
+  }
+  .workspace-viewport > [aria-label="Scene checkpoint map"] {
+    display: none;
+  }
+  .workspace-scene-guidance {
+    padding: 8px 10px;
+    border-radius: 12px;
+  }
+  .workspace-scene-guidance [data-testid="simulation-status"][data-healthy="true"],
+  .workspace-scene-guidance [data-testid="needle-ownership"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .workspace[data-stage="demonstration"] [data-testid="exercise-instruction"] {
+    display: none;
+  }
+  .workspace-toolbar h2 {
+    display: none;
+  }
+  .workspace button {
+    min-height: 32px;
+  }
+  .workspace-progression {
+    padding: 8px 10px;
   }
   .workspace-progression > div {
     flex-direction: column;
     align-items: flex-start;
   }
   .workspace > [aria-label="Simulation diagnostics"] {
-    position: static;
-    width: 100%;
+    width: calc(100% - 32px);
     max-height: 180px;
   }
   .workspace-replay {
@@ -480,8 +617,8 @@ select {
 }
 @media (max-width: 900px) {
   .workspace {
-    height: auto;
-    min-height: 650px;
+    height: calc(100dvh - 90px);
+    min-height: 0;
   }
 }
 

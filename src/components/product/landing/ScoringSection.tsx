@@ -17,7 +17,7 @@ export function ScoringSection() {
       SCORE_CATEGORIES.length,
   );
   return (
-    <section className="w-full border-y border-border bg-scrub-50">
+    <section className="w-full border-y border-border bg-background">
       <div className="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-2 lg:items-center">
         <div>
           <BracketLabel>Motion-level evaluation</BracketLabel>
@@ -46,10 +46,10 @@ export function ScoringSection() {
             ))}
           </ul>
         </div>
-        <div className="rounded-3xl border-[1.5px] border-ink bg-white p-7 shadow-[6px_6px_0_0_#0a141c]">
+        <div className="rounded-3xl border-[1.5px] border-border bg-card p-7">
           <div className="flex items-center justify-between">
             <BracketLabel>Sample attempt · Needle passing</BracketLabel>
-            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-medium text-emerald-800">
+            <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
               Assessment
             </span>
           </div>
@@ -57,14 +57,14 @@ export function ScoringSection() {
             <ScoreRing score={overall} size={124} />
             <div className="text-sm text-muted-foreground">
               <p>
-                Duration <span className="font-medium text-ink">0:21</span>
+                Duration <span className="font-medium text-foreground">0:21</span>
               </p>
               <p>
-                Tissue contacts <span className="font-medium text-ink">0</span>
+                Tissue contacts <span className="font-medium text-foreground">0</span>
               </p>
               <p>
                 Strongest{" "}
-                <span className="font-medium text-ink">
+                <span className="font-medium text-foreground">
                   Efficiency & Safety
                 </span>
               </p>

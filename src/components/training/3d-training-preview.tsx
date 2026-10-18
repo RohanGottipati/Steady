@@ -179,6 +179,43 @@ export function ThreeDTrainingPreview({
     if (!voiceOn) audio.cancel();
   }, [voiceOn, audio]);
   const [showSetup, setShowSetup] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenNotice, setFullscreenNotice] = useState("");
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const settingsPanelRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const update = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
+
+  useEffect(() => {
+    if (!showSettings) return;
+    settingsPanelRef.current?.focus();
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowSettings(false);
+        settingsButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [showSettings]);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        setFullscreenNotice("Fullscreen is unavailable in this browser. The scene already fills your workspace.");
+      }
+    } catch {
+      setFullscreenNotice("Fullscreen could not open. You can continue in this workspace.");
+    }
+  };
   const [replaying, setReplaying] = useState(false);
   const [replayMarker, setReplayMarker] = useState<ReplayMarker | null>(null);
   const [assisted, setAssisted] = useState(true);
@@ -382,6 +419,7 @@ export function ThreeDTrainingPreview({
     <section
       aria-label="Virtual instrument preview"
       className="workspace"
+      data-sample={Boolean(fixtureId)}
       data-stage={
         activeEvaluationBundle
           ? "results"
@@ -390,100 +428,161 @@ export function ThreeDTrainingPreview({
             : exerciseSnapshot.phase
       }
     >
-      <div className="workspace-toolbar">
-        <h2 className="font-mono text-xs uppercase tracking-widest text-white/50">
-          Operating room
-        </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            aria-pressed={voiceOn}
-            onClick={() => {
-              setVoiceOn(!voiceOn);
-              audio.cancel();
-            }}
-          >
-            Voice {voiceOn ? "on" : "off"}
-          </button>
-          {setupPanel && (
+      <div className="workspace-controls">
+        <div className="workspace-toolbar">
+          <h2 className="font-mono text-xs uppercase tracking-widest text-white/50">
+            Operating room
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowSetup(!showSetup)}
-              aria-expanded={showSetup || !calibrated}
+              ref={settingsButtonRef}
+              aria-expanded={showSettings}
+              aria-controls="session-settings"
+              onClick={() => setShowSettings(!showSettings)}
             >
-              Camera & calibration
+              Settings & guide
             </button>
-          )}
-          {runtime.lastReplay && !activeEvaluationBundle && (
+            <button type="button" onClick={() => void toggleFullscreen()}>
+              {fullscreen ? "Exit fullscreen" : "Fullscreen"}
+            </button>
             <button
               type="button"
-              data-testid="open-attempt-replay"
-              className="rounded-md border px-4 py-2"
-              onClick={() => openReplay()}
+              aria-pressed={voiceOn}
+              onClick={() => {
+                setVoiceOn(!voiceOn);
+                audio.cancel();
+              }}
             >
-              Replay latest attempt
+              Voice {voiceOn ? "on" : "off"}
             </button>
-          )}
-          <button
-            type="button"
-            data-testid="quick-single-hand-start"
-            onClick={activateSingleHandQuickStart}
-            className="rounded-md border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            {setupPanel && (
+              <button
+                type="button"
+                onClick={() => setShowSetup(!showSetup)}
+                aria-expanded={showSetup || !calibrated}
+              >
+                Camera & calibration
+              </button>
+            )}
+            {runtime.lastReplay && !activeEvaluationBundle && (
+              <button
+                type="button"
+                data-testid="open-attempt-replay"
+                className="rounded-md border px-4 py-2"
+                onClick={() => openReplay()}
+              >
+                Replay latest attempt
+              </button>
+            )}
+            <button
+              type="button"
+              hidden={Boolean(fixtureId)}
+              data-testid="quick-single-hand-start"
+              onClick={activateSingleHandQuickStart}
+              className="rounded-md border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              Use one hand
+            </button>
+            {(status === "error" || status === "lost") && (
+              <button className="rounded-md border px-4 py-2" onClick={retry}>
+                Retry 3D scene
+              </button>
+            )}
+          </div>
+          <div
+            role="group"
+            aria-label="Training mode"
+            className="workspace-primary-actions flex flex-wrap items-center gap-2 text-sm"
           >
-            Use one hand
-          </button>
-          <button className="rounded-md border px-4 py-2" onClick={reset}>
-            Reset scene
-          </button>
-          {(status === "error" || status === "lost") && (
-            <button className="rounded-md border px-4 py-2" onClick={retry}>
-              Retry 3D scene
-            </button>
-          )}
+            {!onModeChange &&
+              (["learn", "practice", "assessment"] as const).map(
+                (candidate) => (
+                  <button
+                    key={candidate}
+                    type="button"
+                    data-testid={`mode-${candidate}`}
+                    aria-pressed={mode === candidate}
+                    onClick={() => selectMode(candidate)}
+                    className={`rounded-md border px-3 py-1.5 capitalize ${mode === candidate ? "border-emerald-600 bg-emerald-50 font-medium text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-100" : "border-slate-300"}`}
+                  >
+                    {candidate} mode
+                  </button>
+                ),
+              )}
+            {exerciseSnapshot.phase === "demonstration" && (
+              <button
+                type="button"
+                data-testid="start-attempt"
+                className="rounded-md border border-blue-500 bg-primary px-3 py-1.5 font-medium text-primary-foreground"
+                onClick={() => {
+                  exercise.startAttempt();
+                  setUiTick((value) => value + 1);
+                }}
+              >
+                Start attempt
+              </button>
+            )}
+            {exerciseSnapshot.modeHooks.canToggleGhost && (
+              <button
+                type="button"
+                data-testid="ghost-toggle"
+                className="rounded-md border px-3 py-1.5"
+                onClick={() => {
+                  exercise.toggleGhost();
+                  setUiTick((value) => value + 1);
+                }}
+              >
+                {exerciseSnapshot.modeHooks.ghostVisible
+                  ? "Hide ghost"
+                  : "Show ghost"}
+              </button>
+            )}
+          </div>
         </div>
+        {sessionActions && (
+          <div className="workspace-session-actions">{sessionActions}</div>
+        )}
+        {fixtureId && (
+          <div
+            role="region"
+            aria-label="Fixture playback controls"
+            data-testid="fixture-banner"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs text-indigo-950 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-100"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold">Sample pass:</span>
+              <select
+                aria-label="Choose a sample pass"
+                data-testid="fixture-select"
+                value={fixtureId}
+                onChange={(event) =>
+                  onFixtureChange?.(event.target.value as FixtureId)
+                }
+                className="rounded border border-indigo-300 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-indigo-700 dark:bg-zinc-900 dark:text-zinc-100"
+              >
+                {FIXTURE_CATALOG.filter((item) =>
+                  fixtureMatchesSkill(skill.id, item.id),
+                ).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                data-testid="fixture-restart"
+                onClick={reset}
+                className="rounded border border-indigo-300 bg-white px-2.5 py-1 font-medium text-indigo-900 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-100"
+              >
+                Restart sample
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-      {sessionActions && (
-        <div className="workspace-session-actions">{sessionActions}</div>
-      )}
-      {fixtureId && (
-        <div
-          role="region"
-          aria-label="Fixture playback controls"
-          data-testid="fixture-banner"
-          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs text-indigo-950 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-100"
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold">Sample pass:</span>
-            <select
-              aria-label="Choose a sample pass"
-              data-testid="fixture-select"
-              value={fixtureId}
-              onChange={(event) =>
-                onFixtureChange?.(event.target.value as FixtureId)
-              }
-              className="rounded border border-indigo-300 bg-white px-2 py-1 text-xs text-zinc-900 dark:border-indigo-700 dark:bg-zinc-900 dark:text-zinc-100"
-            >
-              {FIXTURE_CATALOG.filter((item) =>
-                fixtureMatchesSkill(skill.id, item.id),
-              ).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              data-testid="fixture-restart"
-              onClick={reset}
-              className="rounded border border-indigo-300 bg-white px-2.5 py-1 font-medium text-indigo-900 dark:border-indigo-700 dark:bg-zinc-900 dark:text-indigo-100"
-            >
-              Restart sample
-            </button>
-          </div>
-        </div>
-      )}
       <div className="workspace-main">
         <div className="workspace-viewport">
           <div
@@ -621,63 +720,55 @@ export function ThreeDTrainingPreview({
               runtime={runtime}
             />
           </SceneBoundary>
+          <div className="workspace-scene-guidance">
+            <p data-testid="simulation-status" data-healthy={status === "ready" && snapshot?.canProgress} aria-live="polite">
+              {status === "error"
+                ? "3D rendering unavailable"
+                : status === "lost"
+                  ? "Simulation paused: 3D context lost"
+                  : status === "loading"
+                    ? "Loading 3D workspace"
+                    : (snapshot?.reason ?? "Calibrate both hands to begin.")}
+            </p>
+            <p
+              data-testid="pickup-guidance"
+              aria-live="polite"
+              className={`rounded-lg border p-3 font-medium ${feedback?.ready ? "border-green-500 bg-emerald-400/10 text-emerald-200" : "border-slate-300"}`}
+            >
+              {feedback?.message ?? "Calibrate both hands to begin."}
+            </p>
+            <p data-testid="needle-ownership">
+              {skill.id === "peg-transfer" ? "Peg" : "Needle"}:{" "}
+              {snapshot?.object.heldBy ?? "free"}
+            </p>
+          </div>
           {status === "loading" && (
             <ViewportLoading label="Loading the operating room" />
           )}
         </div>
         <aside
+          id="session-settings"
+          ref={settingsPanelRef}
+          tabIndex={-1}
+          hidden={!showSettings}
           className="workspace-sidebar"
           aria-label="Session settings and guidance"
         >
-          <div
-            role="group"
-            aria-label="Training mode"
-            className="flex flex-wrap items-center gap-2 text-sm"
-          >
-            {!onModeChange &&
-              (["learn", "practice", "assessment"] as const).map(
-                (candidate) => (
-                  <button
-                    key={candidate}
-                    type="button"
-                    data-testid={`mode-${candidate}`}
-                    aria-pressed={mode === candidate}
-                    onClick={() => selectMode(candidate)}
-                    className={`rounded-md border px-3 py-1.5 capitalize ${mode === candidate ? "border-emerald-600 bg-emerald-50 font-medium text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-100" : "border-slate-300"}`}
-                  >
-                    {candidate} mode
-                  </button>
-                ),
-              )}
-            {exerciseSnapshot.phase === "demonstration" && (
-              <button
-                type="button"
-                data-testid="start-attempt"
-                className="rounded-md border border-blue-500 bg-blue-50 px-3 py-1.5 font-medium text-blue-950"
-                onClick={() => {
-                  exercise.startAttempt();
-                  setUiTick((value) => value + 1);
-                }}
-              >
-                Start attempt
-              </button>
-            )}
-            {exerciseSnapshot.modeHooks.canToggleGhost && (
-              <button
-                type="button"
-                data-testid="ghost-toggle"
-                className="rounded-md border px-3 py-1.5"
-                onClick={() => {
-                  exercise.toggleGhost();
-                  setUiTick((value) => value + 1);
-                }}
-              >
-                {exerciseSnapshot.modeHooks.ghostVisible
-                  ? "Hide ghost"
-                  : "Show ghost"}
-              </button>
-            )}
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold">Session settings & guide</h3>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSettings(false);
+                settingsButtonRef.current?.focus();
+              }}
+            >
+              Close settings
+            </button>
           </div>
+          <button className="self-start rounded-md border px-4 py-2" onClick={reset}>
+            Reset scene
+          </button>
           {mode !== "assessment" && (
             <div
               role="group"
@@ -762,7 +853,7 @@ export function ThreeDTrainingPreview({
               )}
             </div>
           )}
-          <details open className="workspace-instructions">
+          <details className="workspace-instructions">
             <summary>How to use the instruments</summary>
             <ol
               className="grid gap-2 text-sm sm:grid-cols-3"
@@ -770,18 +861,18 @@ export function ThreeDTrainingPreview({
             >
               {skill.id === "peg-transfer" ? (
                 <>
-                  <li className="rounded-lg bg-slate-100 p-3 text-slate-900">
+                  <li className="rounded-lg bg-muted p-3 text-foreground">
                     <strong>1. Reach and grasp</strong>
                     <br />
                     Move an open tip onto the peg on the left post, then pinch.
                   </li>
-                  <li className="rounded-lg bg-slate-100 p-3 text-slate-900">
+                  <li className="rounded-lg bg-muted p-3 text-foreground">
                     <strong>2. Lift and transfer</strong>
                     <br />
                     Lift clear of the post and carry the peg through the midline
                     ring. Bring the other instrument to the peg.
                   </li>
-                  <li className="rounded-lg bg-slate-100 p-3 text-slate-900">
+                  <li className="rounded-lg bg-muted p-3 text-foreground">
                     <strong>3. Place and release</strong>
                     <br />
                     Lower the peg onto the right post and open. Releasing early
@@ -790,19 +881,19 @@ export function ThreeDTrainingPreview({
                 </>
               ) : (
                 <>
-                  <li className="rounded-lg bg-slate-100 p-3 text-slate-900">
+                  <li className="rounded-lg bg-muted p-3 text-foreground">
                     <strong>1. Use ONE Instrument</strong>
                     <br />
                     Use either your Left (cyan) or Right (amber) hand to pass
                     the needle. Keep your other hand visible in camera view.
                   </li>
-                  <li className="rounded-lg bg-slate-100 p-3 text-slate-900">
+                  <li className="rounded-lg bg-muted p-3 text-foreground">
                     <strong>2. Grab the Needle</strong>
                     <br />
                     Move one open tip ring into the top circle until it turns
                     green, then pinch.
                   </li>
-                  <li className="rounded-lg bg-slate-100 p-3 text-slate-900">
+                  <li className="rounded-lg bg-muted p-3 text-foreground">
                     <strong>3. Rings 1 → 2 → 3 → Release</strong>
                     <br />
                     Pass left Ring 1, rotate through center Ring 2, exit right
@@ -858,26 +949,6 @@ export function ThreeDTrainingPreview({
               </span>
             </label>
           </div>
-          <p data-testid="simulation-status" aria-live="polite">
-            {status === "error"
-              ? "3D rendering unavailable"
-              : status === "lost"
-                ? "Simulation paused: 3D context lost"
-                : status === "loading"
-                  ? "Loading 3D workspace"
-                  : (snapshot?.reason ?? "Calibrate both hands to begin.")}
-          </p>
-          <p
-            data-testid="pickup-guidance"
-            aria-live="polite"
-            className={`rounded-lg border p-3 font-medium ${feedback?.ready ? "border-green-500 bg-green-50 text-green-950" : "border-slate-300"}`}
-          >
-            {feedback?.message ?? "Calibrate both hands to begin."}
-          </p>
-          <p data-testid="needle-ownership">
-            {skill.id === "peg-transfer" ? "Peg" : "Needle"}:{" "}
-            {snapshot?.object.heldBy ?? "free"}
-          </p>
           <p className="text-sm text-zinc-500">
             {skill.id === "peg-transfer"
               ? "Use the left instrument to carry the peg and bring the right instrument to the midline. Keep both hands visible unless 1-Hand Mode is on."
@@ -925,78 +996,86 @@ export function ThreeDTrainingPreview({
             ): {ghostSnapshot.actionLabel}
           </p>
         )}
-        <div className="flex flex-wrap justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-          <span data-testid="exercise-ghost-status">
-            Ghost:{" "}
-            {exerciseSnapshot.mode === "assessment"
-              ? "disabled in assessment"
-              : exerciseSnapshot.modeHooks.ghostVisible
-                ? exerciseSnapshot.modeHooks.ghostAutoTriggered
-                  ? "visible (auto-assist)"
-                  : "visible"
-                : "hidden"}
-          </span>
-          <span data-testid="ghost-playback-summary">
-            {exerciseSnapshot.mode === "assessment"
-              ? "Playback: off"
-              : `Playback: ${ghostSnapshot.speed}x · ${ghostSnapshot.syncMode} (${Math.round(ghostSnapshot.normalizedProgress * 100)}%)`}
-          </span>
-          <span
-            data-testid="exercise-danger-status"
-            className={
-              exerciseSnapshot.inDangerZone ? "font-semibold text-red-600" : ""
-            }
-          >
-            Safety:{" "}
-            {exerciseSnapshot.inDangerZone
-              ? "Warning — inside tissue-wall danger zone"
-              : `Clear (violations: ${exerciseSnapshot.dangerZoneCount})`}
-          </span>
-        </div>
-        <ol
-          aria-label="Exercise segments"
-          className="grid grid-cols-4 gap-1.5 text-xs sm:grid-cols-8"
+        <span
+          data-testid="exercise-danger-status"
+          className={
+            exerciseSnapshot.inDangerZone ? "font-semibold text-red-300" : ""
+          }
         >
-          {skill.segments.map((segment, index) => {
-            const completed =
-              exerciseSnapshot.phase === "complete" ||
-              index < exerciseSnapshot.segmentIndex;
-            const current =
-              exerciseSnapshot.phase === "active" &&
-              index === exerciseSnapshot.segmentIndex;
-            return (
-              <li
-                key={segment.id}
-                data-testid={`segment-${segment.id}`}
-                className={`rounded border px-2 py-1 text-center ${completed ? "border-emerald-600 bg-emerald-50 text-emerald-950" : current ? "border-sky-500 bg-sky-50 font-semibold text-sky-950" : "border-slate-200 text-slate-500"}`}
-              >
-                {segment.title}
-              </li>
-            );
-          })}
-        </ol>
+          Safety:{" "}
+          {exerciseSnapshot.inDangerZone
+            ? "Warning — inside tissue-wall danger zone"
+            : `Clear (violations: ${exerciseSnapshot.dangerZoneCount})`}
+        </span>
+        <details className="workspace-session-details">
+          <summary>Session details</summary>
+          <div className="flex flex-wrap justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+            <span data-testid="exercise-ghost-status">
+              Ghost:{" "}
+              {exerciseSnapshot.mode === "assessment"
+                ? "disabled in assessment"
+                : exerciseSnapshot.modeHooks.ghostVisible
+                  ? exerciseSnapshot.modeHooks.ghostAutoTriggered
+                    ? "visible (auto-assist)"
+                    : "visible"
+                  : "hidden"}
+            </span>
+            <span data-testid="ghost-playback-summary">
+              {exerciseSnapshot.mode === "assessment"
+                ? "Playback: off"
+                : `Playback: ${ghostSnapshot.speed}x · ${ghostSnapshot.syncMode} (${Math.round(ghostSnapshot.normalizedProgress * 100)}%)`}
+            </span>
+          </div>
+          <ol
+            aria-label="Exercise segments"
+            className="grid grid-cols-4 gap-1.5 text-xs sm:grid-cols-8"
+          >
+            {skill.segments.map((segment, index) => {
+              const completed =
+                exerciseSnapshot.phase === "complete" ||
+                index < exerciseSnapshot.segmentIndex;
+              const current =
+                exerciseSnapshot.phase === "active" &&
+                index === exerciseSnapshot.segmentIndex;
+              return (
+                <li
+                  key={segment.id}
+                  data-testid={`segment-${segment.id}`}
+                  className={`rounded border px-2 py-1 text-center ${completed ? "border-emerald-600 bg-emerald-400/10 text-emerald-200" : current ? "border-sky-500 bg-sky-400/10 font-semibold text-sky-200" : "border-slate-200 text-slate-500"}`}
+                >
+                  {segment.title}
+                </li>
+              );
+            })}
+          </ol>
+        </details>
       </div>
-      {runtime.error && (
-        <div role="alert" className="rounded-lg border border-amber-500 p-3">
-          <p>{runtime.error}</p>
-          <button
-            type="button"
-            onClick={reset}
-            className="mt-2 rounded border px-3 py-1"
+      <div className="workspace-notifications">
+        {fullscreenNotice && (
+          <p role="status" className="text-xs text-scrub-200">{fullscreenNotice}</p>
+        )}
+        {runtime.error && (
+          <div role="alert" className="rounded-lg border border-amber-500 p-3">
+            <p>{runtime.error}</p>
+            <button
+              type="button"
+              onClick={reset}
+              className="mt-2 rounded border px-3 py-1"
+            >
+              Restart attempt
+            </button>
+          </div>
+        )}
+        {runtime.message && mode !== "assessment" && (
+          <p
+            role="status"
+            data-testid="live-coaching"
+            className="rounded-lg border border-sky-400 p-3"
           >
-            Restart attempt
-          </button>
-        </div>
-      )}
-      {runtime.message && mode !== "assessment" && (
-        <p
-          role="status"
-          data-testid="live-coaching"
-          className="rounded-lg border border-sky-400 p-3"
-        >
-          {runtime.message}
-        </p>
-      )}
+            {runtime.message}
+          </p>
+        )}
+      </div>
       {activeEvaluationBundle && review && (
         <Dialog.Root
           open

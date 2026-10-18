@@ -9,7 +9,7 @@ import { emptyControlSnapshot, type ControlSnapshot } from "@/lib/vision/control
 import { makeHandFrame, identityQuat } from "../fixtures/contracts";
 import type { SceneDiagnostics } from "@/components/scene/training-scene";
 
-const runtime = vi.hoisted(() => ({ lost: false, frames: new Set<(_: unknown, delta: number) => void>(), three: {} as { gl: { domElement: HTMLCanvasElement; getContext: () => { isContextLost: () => boolean } }; camera: PerspectiveCamera; size: { width: number; height: number } } }));
+const runtime = vi.hoisted(() => ({ lost: false, frames: new Set<(_: unknown, delta: number) => void>(), three: {} as { gl: { domElement: HTMLCanvasElement; getContext: () => { isContextLost: () => boolean } }; camera: PerspectiveCamera; invalidate: () => void; size: { width: number; height: number } } }));
 vi.mock("@react-three/fiber", async () => {
   const React = await import("react");
   return {
@@ -124,7 +124,7 @@ describe("scene frame and lifecycle integration", () => {
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     runtime.lost = false;
-    runtime.three = { gl: { domElement: document.createElement("canvas"), getContext: () => ({ isContextLost: () => runtime.lost }) }, camera: new PerspectiveCamera(), size: { width: 800, height: 420 } };
+    runtime.three = { gl: { domElement: document.createElement("canvas"), getContext: () => ({ isContextLost: () => runtime.lost }) }, camera: new PerspectiveCamera(), invalidate: vi.fn(), size: { width: 800, height: 420 } };
     runtime.frames.clear();
   });
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });

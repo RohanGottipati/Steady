@@ -102,7 +102,7 @@ export default function ProgressPage() {
         </Link>
         <div className="mt-6 flex flex-wrap items-end justify-between gap-5">
           <div>
-            <BracketLabel>Anonymous · device-scoped</BracketLabel>
+            <BracketLabel>Practice insights</BracketLabel>
             <h1 className="mt-3 text-4xl font-semibold tracking-tight">
               Your progress
             </h1>
@@ -117,7 +117,7 @@ export default function ProgressPage() {
                 data-testid="delete-history"
                 disabled={deleting}
                 onClick={() => void remove()}
-                className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-white px-5 py-2 text-sm text-red-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-full border border-red-400/30 bg-card px-5 py-2 text-sm text-red-300 disabled:opacity-50"
               >
                 <Trash2 className="h-4 w-4" aria-hidden />
                 {deleting ? "Deleting…" : "Delete my attempt history"}
@@ -128,7 +128,7 @@ export default function ProgressPage() {
           <p
             role="alert"
             data-testid="delete-error"
-            className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+            className="mt-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-300"
           >
             {deleteError}
           </p>
@@ -145,7 +145,7 @@ export default function ProgressPage() {
         {state.kind === "unconfigured" && (
           <p
             data-testid="progress-unconfigured"
-            className="mt-10 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900"
+            className="mt-10 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-6 text-sm text-amber-200"
           >
             Cloud progress is unavailable in this environment. Attempts can
             still be saved on this device and reviewed immediately after
@@ -158,7 +158,7 @@ export default function ProgressPage() {
         {state.kind === "error" && (
           <p
             role="alert"
-            className="mt-10 rounded-2xl border bg-white p-6 text-sm"
+            className="mt-10 rounded-2xl border bg-card p-6 text-sm"
           >
             Could not load progress right now.{" "}
             <button onClick={() => void retry()} className="underline">
@@ -176,7 +176,7 @@ export default function ProgressPage() {
               ].map((stat) => (
                 <div
                   key={stat.label}
-                  className="rounded-2xl border bg-white px-4 py-3"
+                  className="rounded-2xl border bg-card px-4 py-3"
                 >
                   <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">
                     {stat.label}
@@ -190,7 +190,7 @@ export default function ProgressPage() {
             {state.data.progress.length === 0 ? (
               <div
                 data-testid="progress-empty"
-                className="mt-10 rounded-2xl border border-dashed border-ink/30 bg-white p-10 text-center"
+                className="mt-10 rounded-2xl border border-dashed border-border bg-card p-10 text-center"
               >
                 <h2 className="font-medium">No synced attempts yet.</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -199,7 +199,7 @@ export default function ProgressPage() {
                 </p>
                 <Link
                   href="/library"
-                  className="mt-5 inline-block rounded-full bg-ink px-5 py-2 text-sm text-white"
+                  className="mt-5 inline-block rounded-full bg-primary px-5 py-2 text-sm text-primary-foreground"
                 >
                   Choose a skill
                 </Link>
@@ -231,7 +231,7 @@ function ProgressCard({ skill }: { skill: SkillProgress }) {
   return (
     <li
       data-testid={`progress-skill-${skill.skillId}`}
-      className="rounded-2xl border-[1.5px] border-ink bg-white p-6 shadow-[4px_4px_0_0_#0a141c]"
+      className="rounded-2xl border-[1.5px] border-border bg-card p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -247,7 +247,7 @@ function ProgressCard({ skill }: { skill: SkillProgress }) {
           </p>
         </div>
         {delta !== null && (
-          <span className="rounded-full bg-scrub-100 px-3 py-1 text-xs">
+          <span className="rounded-full bg-secondary px-3 py-1 text-xs">
             {delta > 0 ? "+" : ""}
             {delta} over recent attempts
           </span>
@@ -259,7 +259,7 @@ function ProgressCard({ skill }: { skill: SkillProgress }) {
           { label: "Average", value: skill.avgScore },
           { label: "Most recent", value: skill.latestScore },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-xl bg-scrub-50 px-3 py-2.5">
+          <div key={stat.label} className="rounded-xl bg-background px-3 py-2.5">
             <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
               {stat.label}
             </dt>

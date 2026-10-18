@@ -1,10 +1,9 @@
 import type { ReactNode } from "react";
 import { SiteHeader } from "./SiteHeader";
 import { SiteFooter } from "./SiteFooter";
-import { SiteCredits } from "@/components/site-credits";
 export function SiteShell({
   children,
-  dark = false,
+  dark = true,
 }: {
   children: ReactNode;
   dark?: boolean;
@@ -20,7 +19,6 @@ export function SiteShell({
       <SiteHeader tone={dark ? "dark" : "light"} />
       {children}
       <SiteFooter />
-      <SiteCredits />
     </div>
   );
 }

@@ -16,13 +16,13 @@ export function trainingCameraPose(
 ) {
   const target = trainingPointToWorld(focus);
   const distance =
-    2.2 /
+    1.45 /
     Math.tan((25 * Math.PI) / 180) /
     Math.min(Math.max(aspect, 0.45), 1.4);
   return {
     target,
     position: target
       .clone()
-      .add(new Vector3(0, 1.45, 1.9).normalize().multiplyScalar(distance)),
+      .add(new Vector3(0, 2.4, 1.3).normalize().multiplyScalar(distance)),
   };
 }

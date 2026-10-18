@@ -27,12 +27,12 @@ export function HowItWorks() {
             return (
               <li
                 key={item.id}
-                className="relative rounded-2xl border-[1.5px] border-ink bg-white p-6 shadow-[4px_4px_0_0_#0a141c]"
+                className="relative rounded-2xl border-[1.5px] border-border bg-card p-6"
               >
                 <div className="flex items-center justify-between">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl border-[1.5px] border-ink bg-scrub-100">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl border-[1.5px] border-border bg-secondary">
                     <Icon
-                      className="h-7 w-7 text-ink"
+                      className="h-7 w-7 text-foreground"
                       strokeWidth={2.2}
                       aria-hidden
                     />

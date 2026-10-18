@@ -34,7 +34,10 @@ test("peg transfer trains on the shared route while coming-soon skills stay gate
   const canvas = page.getByLabel("3D instrument workspace").locator("canvas");
   await expect(canvas).toBeVisible();
   expect((await canvas.boundingBox())?.height).toBeGreaterThan(250);
+  await page.getByRole("button", { name: "Settings & guide", exact: true }).click();
+  await page.getByText("How to use the instruments", { exact: true }).click();
   await expect(page.getByText("Lift clear of the post")).toBeVisible();
+  await page.getByRole("button", { name: "Close settings", exact: true }).click();
   await page.getByRole("button", { name: /Assessment/ }).click();
   await expect(page.getByTestId("exercise-ghost-status")).toHaveText("Ghost: disabled in assessment");
   await expect(page.getByTestId("ghost-toggle")).toHaveCount(0);

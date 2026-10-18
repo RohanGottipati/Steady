@@ -153,6 +153,13 @@ export function toAttemptResult(
 // Factual, deterministic summary — the AI review layer (B9) elaborates on this;
 // it never recomputes the numbers.
 function explain(m: MetricResult): MetricExplanation {
+  if (m.id === "segmentTiming") {
+    return {
+      id: "segmentTiming",
+      score: m.score,
+      text: `Step timing balance differs from the guide by ${Math.round(m.rawValue * 100)}%. This compares the share of active time spent on each step; overall speed is not scored.`,
+    };
+  }
   const parts = [`${m.id}: ${m.score}/100`];
   if (m.unit !== undefined) parts.push(`${round(m.rawValue)} ${m.unit}`);
   if (m.tolerance !== undefined) parts.push(`tolerance ${round(m.tolerance)}`);

@@ -55,6 +55,11 @@ test("public pages use the new design and real catalog at desktop and narrow wid
   await expect(
     page.getByText("Camera stays off until you start"),
   ).toBeVisible();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect(page.getByRole("heading", { name: "Credits", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Anonymous · device-scoped · no account")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Licenses & notices" })).toBeVisible();
+  await expect(page.getByLabel("Demonstration of the Steady operating room").locator("canvas")).toBeVisible();
   await page.screenshot({
     path: "artifacts/acceptance/landing-desktop.png",
     fullPage: true,
@@ -173,8 +178,13 @@ test("sample workspace is responsive, offers reduced graphics and never requests
     path: "artifacts/acceptance/training-desktop.png",
     fullPage: true,
   });
+  await page.getByRole("button", { name: "Settings & guide", exact: true }).click();
   await page.getByRole("checkbox", { name: /Reduced graphics/ }).check();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Settings & guide", exact: true })).toBeFocused();
+  await expect(page.getByRole("complementary", { name: "Session settings and guidance" })).toBeHidden();
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "artifacts/acceptance/training-mobile.png", fullPage: true });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth + 1,
@@ -194,3 +204,64 @@ test("sample workspace is responsive, offers reduced graphics and never requests
   ).toBeVisible();
   expect(cameras).toBe(0);
 });
+
+
+test("immersive workspace keeps settings contextual and supports fullscreen", async ({ page }) => {
+  await page.goto("/train/needle-passing?fixture=needle-pass-good");
+  await expect(page.getByTestId("viewport-loading")).toHaveCount(0);
+  const viewport = page.locator(".workspace-viewport");
+  await expect(viewport).toBeVisible();
+  const scene = await viewport.boundingBox();
+  expect(scene!.width).toBeGreaterThan(1100);
+  const settings = page.getByRole("button", { name: "Settings & guide", exact: true });
+  await expect(settings).toHaveAttribute("aria-expanded", "false");
+  await settings.click();
+  await expect(settings).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("checkbox", { name: /Reduced graphics/ })).toBeVisible();
+  await page.getByRole("button", { name: "Close settings" }).click();
+  await expect(settings).toBeFocused();
+  await page.getByRole("button", { name: "Fullscreen", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Exit fullscreen", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
+  await page.getByRole("button", { name: "Exit fullscreen", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Fullscreen", exact: true })).toBeVisible();
+  await page.goto("/notices");
+  await expect(page.getByRole("heading", { name: "Licenses & notices", exact: true })).toBeVisible();
+  await expect(page.getByText(/Hand tracking uses the MediaPipe/)).toBeVisible();
+});
+
+
+for (const width of [1280, 390]) {
+  test(`training frame stays the same size through live updates at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/train/needle-passing?fixture=needle-pass-late-rotation");
+    const viewport = page.locator(".workspace-viewport");
+    await expect(viewport.locator("canvas")).toBeVisible();
+    await expect(page.getByTestId("viewport-loading")).toHaveCount(0);
+    await page.evaluate(() => {
+      const observed = document.querySelector(".workspace-viewport")!;
+      const sizes: string[] = [];
+      const observer = new ResizeObserver(([entry]) => {
+        sizes.push(`${Math.round(entry.contentRect.width)}x${Math.round(entry.contentRect.height)}`);
+      });
+      observer.observe(observed);
+      Object.assign(window, { trainingFrameSizes: sizes, trainingFrameObserver: observer });
+    });
+    await page.getByText("Session details", { exact: true }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+    await expect(page.getByTestId("degraded-notice")).toBeVisible();
+    await page.getByTestId("dismiss-degraded-notice").click();
+    await page.getByRole("button", { name: "Settings & guide", exact: true }).click();
+    await page.getByRole("button", { name: "Close settings", exact: true }).click();
+    await expect(page.getByTestId("attempt-results-panel")).toBeVisible({ timeout: 30_000 });
+    const sizes = await page.evaluate(() => {
+      const state = window as unknown as {
+        trainingFrameSizes: string[]; trainingFrameObserver: ResizeObserver;
+      };
+      state.trainingFrameObserver.disconnect();
+      return state.trainingFrameSizes;
+    });
+    expect(sizes.length).toBeGreaterThan(0);
+    expect([...new Set(sizes)]).toHaveLength(1);
+  });
+}

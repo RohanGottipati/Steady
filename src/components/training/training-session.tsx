@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { SteadyMark } from "@/components/product/brand/SteadyMark";
-import { SiteCredits } from "@/components/site-credits";
 import {
   HandControlPanel,
   WorkspaceGuide,
@@ -237,6 +236,7 @@ function TrainingSessionView({
               <button
                 type="button"
                 className="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950"
+                hidden={Boolean(fixtureId)}
                 disabled={active || state.status === "starting"}
                 onClick={handleStartCamera}
               >
@@ -245,6 +245,7 @@ function TrainingSessionView({
               <button
                 type="button"
                 className="rounded-md border px-4 py-2 text-sm disabled:opacity-50"
+                hidden={Boolean(fixtureId)}
                 disabled={!active && state.status !== "starting"}
                 onClick={stop}
               >
@@ -338,10 +339,6 @@ function TrainingSessionView({
         onFixtureChange={selectFixture}
       />
 
-      <details className="training-credits">
-        <summary>Credits & reference information</summary>
-        <SiteCredits />
-      </details>
       {debug && (
         <dl
           aria-label="Tracking diagnostics"

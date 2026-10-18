@@ -36,9 +36,9 @@ export default function LibraryPage() {
             return (
               <li
                 key={mode.id}
-                className="flex gap-3 rounded-2xl border bg-white p-4"
+                className="flex gap-3 rounded-2xl border bg-card p-4"
               >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-ink bg-scrub-100">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-secondary">
                   <Icon className="h-4 w-4" aria-hidden />
                 </span>
                 <div>

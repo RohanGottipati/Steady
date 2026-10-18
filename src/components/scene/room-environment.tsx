@@ -55,7 +55,7 @@ export function TrainingField({ children }: { children: ReactNode }) {
   );
 }
 export function RoomCamera({ landing = false }: { landing?: boolean }) {
-  const { camera, size } = useThree();
+  const { camera, size, invalidate } = useThree();
   useEffect(() => {
     if (!(camera instanceof PerspectiveCamera)) return;
     const pose = trainingCameraPose(size.width / Math.max(size.height, 1));
@@ -67,6 +67,7 @@ export function RoomCamera({ landing = false }: { landing?: boolean }) {
       camera.lookAt(pose.target);
     }
     camera.updateProjectionMatrix();
-  }, [camera, size.width, size.height, landing]);
+    invalidate();
+  }, [camera, size.width, size.height, landing, invalidate]);
   return null;
 }

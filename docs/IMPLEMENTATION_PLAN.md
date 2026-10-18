@@ -13,6 +13,17 @@
 
 Constraints: no mouse-training mode, no new exercise scene, no recording-schema/metric-order changes, no imported fake history or synthetic calibration, no automatic migrations/seeds on the configured service. Existing fixture sessions remain isolated from live services.
 
+## S4 — dark UI and immersive workspace polish (2026-10-18)
+
+Use one dark palette across public pages, cards, progress and results. Remove the
+landing waveform and anonymous identity labels; move expanded attribution to
+`/notices` with a footer link. Give the trainer the full available scene width,
+a closer surgeon camera, contextual pickup/tracking guidance, browser fullscreen,
+and a dismissible settings/guide panel. Reserve stable control/guidance rows and
+float transient coaching/error/connection messages so active training never resizes
+the canvas. Preserve calibration video, primary
+attempt controls, safety status and all runtime/scoring/storage contracts.
+
 ## AI-Optimized Implementation Plan
 
 **Project type:** Hack the Valley healthcare training prototype  
@@ -1829,7 +1840,12 @@ For metrics where higher is better, use an appropriate monotonic mapping.
 ### Timing and safety
 
 15. **Segment Timing**  
-    Duration per segment relative to expert distribution or expected bounds.
+    Compare each step's share of active attempt time with the reference distribution,
+    independent of overall speed. Accumulate intervals up to the next frame under
+    the previously active step, summing revisits. Use total variation between time
+    shares with tolerance 0.5. The short synthetic demonstration supplies pacing
+    distribution, not an absolute speed requirement. Old saved scores are retained;
+    timing scores from before this repair are not directly comparable.
 
 16. **Speed Profile Control**  
     Compare normalized speed curve shape and whether the user slows for precision sections.

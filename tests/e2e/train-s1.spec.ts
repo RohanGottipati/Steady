@@ -341,6 +341,7 @@ test("S1 fixture pauses through WebGL loss and restarts cleanly after restoratio
   });
   await expect(page.getByTestId("simulation-status")).toContainText("context lost");
   const paused = JSON.parse(await page.getByTestId("exercise-state").innerText()) as { frameCount: number };
+  await page.getByRole("button", { name: "Settings & guide", exact: true }).click();
   await page.getByTestId("ghost-speed-0.5x").click();
   expect((JSON.parse(await page.getByTestId("exercise-state").innerText()) as { frameCount: number }).frameCount).toBe(paused.frameCount);
   await page.evaluate(() => (window as unknown as Window & { s1GlLoss: WEBGL_lose_context }).s1GlLoss.restoreContext());

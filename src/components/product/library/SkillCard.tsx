@@ -34,26 +34,26 @@ export function SkillCard({
   return (
     <article
       className={cn(
-        "group flex h-full flex-col rounded-2xl border-[1.5px] bg-white p-5 transition-all",
+        "group flex h-full flex-col rounded-2xl border-[1.5px] bg-card p-5 transition-all",
         available
-          ? "border-ink shadow-[4px_4px_0_0_#0a141c] hover:-translate-y-0.5 hover:shadow-[6px_6px_0_0_#0a141c]"
-          : "border-dashed border-ink/40",
+          ? "border-border hover:-translate-y-0.5 hover:border-scrub-400/50"
+          : "border-dashed border-border",
       )}
     >
       <div className="flex items-start justify-between">
         <span
           className={cn(
             "flex h-12 w-12 items-center justify-center rounded-xl border-[1.5px]",
-            available ? "border-ink bg-scrub-100" : "border-ink/30 bg-muted",
+            available ? "border-border bg-secondary" : "border-border bg-muted",
           )}
         >
           <Icon
-            className={cn("h-6 w-6", available ? "text-ink" : "text-ink/40")}
+            className={cn("h-6 w-6", available ? "text-foreground" : "text-foreground/40")}
             aria-hidden
           />
         </span>
         {available ? (
-          <Badge className="rounded-full bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+          <Badge className="rounded-full bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/10">
             Ready to train
           </Badge>
         ) : (

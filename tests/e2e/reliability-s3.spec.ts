@@ -22,6 +22,7 @@ test("fixture mode recovers from offline and a failed reference load without liv
 
   await context.setOffline(true);
   await expect(page.getByTestId("degraded-notice")).toContainText("Network is unavailable");
+  await page.getByRole("button", { name: "Settings & guide", exact: true }).click();
   await page.getByTestId("ghost-reference-select").selectOption("jigsaws-expert-v1");
   await expect(page.getByRole("alert").filter({ hasText: "Could not load" })).toBeVisible();
   await page.getByTestId("dismiss-reference-error").click();
