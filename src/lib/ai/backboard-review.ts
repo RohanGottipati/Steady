@@ -2,6 +2,7 @@ import "server-only";
 
 import { AI_REVIEW_SYSTEM_PROMPT, type AiReview } from "@/types/ai";
 import { validatedReview, type ReviewRequest } from "./review-contract";
+import type { CoachingDocument } from "./coaching-retrieval";
 import { selectFocusMarker } from "@/lib/evaluation/focus-marker";
 
 const BACKBOARD_URL = "https://app.backboard.io/api/threads/messages";
@@ -50,7 +51,13 @@ function safeJson(text: string): unknown {
  */
 export async function requestBackboardReview(
   request: ReviewRequest,
-  deps: { fetchFn?: typeof fetch; env?: Record<string, string | undefined>; timeoutMs?: number } = {},
+  deps: {
+    fetchFn?: typeof fetch;
+    env?: Record<string, string | undefined>;
+    timeoutMs?: number;
+    /** Optional Tiger coaching docs; empty/absent means metrics-only review. */
+    coachingContext?: CoachingDocument[];
+  } = {},
 ): Promise<AiReview> {
   const env = deps.env ?? process.env;
   const apiKey = env.BACKBOARD_API_KEY?.trim();
@@ -58,6 +65,7 @@ export async function requestBackboardReview(
   const model = env.BACKBOARD_MODEL_NAME?.trim() || "gemini-2.5-flash";
   if (!apiKey) throw new ReviewUnavailableError("Backboard is not configured.");
 
+  const coachingContext = deps.coachingContext ?? [];
   const fetchFn = deps.fetchFn ?? fetch;
   let response: Response;
   try {
@@ -74,8 +82,12 @@ export async function requestBackboardReview(
         memory: "off",
         web_search: "off",
         json_output: true,
-        system_prompt: `${AI_REVIEW_SYSTEM_PROMPT}\nReturn an object with summary (string), strengths (1-3 strings), improvements (1-3 strings), largestDifference ({segmentId, explanation}), replayNarration (string). Explain the supplied focus marker in largestDifference and replayNarration. Use only supplied measurements and never invent numbers. If there is no focus marker, explain the weakest metric without inventing a moment.`,
-        content: JSON.stringify({ measurements: request, focusMarker: selectFocusMarker(request.worstMoments) }),
+        system_prompt: `${AI_REVIEW_SYSTEM_PROMPT}\nReturn an object with summary (string), strengths (1-3 strings), improvements (1-3 strings), largestDifference ({segmentId, explanation}), replayNarration (string). Explain the supplied focus marker in largestDifference and replayNarration. Use only supplied measurements and never invent numbers. Optional coachingContext snippets may be cited when relevant but must not contradict the measurements. If there is no focus marker, explain the weakest metric without inventing a moment.`,
+        content: JSON.stringify({
+          measurements: request,
+          focusMarker: selectFocusMarker(request.worstMoments),
+          coachingContext,
+        }),
       }),
       signal: AbortSignal.timeout(deps.timeoutMs ?? 8_000),
     });

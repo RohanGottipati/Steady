@@ -1,9 +1,9 @@
 # Project Context
 
-Last updated: 2026-10-17
-Updated by: PR #15 review fixes
-Current branch: integration/a7-s-completion (base origin/main ab25dcd)
-Current milestone: A7 and S0–S4 implementation and automated acceptance complete
+Last updated: 2026-10-18
+Updated by: B9 rebase — Tiger coaching retrieval on top of PR #15 review stack
+Current branch: b9 (rebased onto origin/main after #15)
+Current milestone: A7 and S0–S4 complete; B9 coaching retrieval grounded on existing review service
 Demo-critical status: YELLOW — physical rehearsal and isolated live-database checks pending
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -102,7 +102,10 @@ comments: marker explanations, quiet optional review, provider request limits,
 and upload limits. Merge and deployment remain outside this workflow.
 Source worktree file hashes were checked against the recovery snapshots.
 
-Full B9 retrieval, B10 progress/history/telemetry, and B12 analytics remain separate.
+B9 Tiger coaching retrieval (`src/lib/ai/coaching-retrieval.ts`) now grounds
+`/api/review` via `review-handler` → `requestBackboardReview` (empty/unavailable
+corpus degrades to metrics-only). B10 progress/history/telemetry and B12 BM25/
+vector analytics remain separate.
 
 ## 4. Acceptance evidence and remaining sign-off
 
