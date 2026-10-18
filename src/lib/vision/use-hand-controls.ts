@@ -11,6 +11,7 @@ import type { TrackingStatus } from "./types";
 export function useHandControls(tracking: ReturnType<typeof useHandTracking>) {
   const { videoRef, snapshotRef: rawRef, state } = tracking;
   const snapshotRef = useRef(emptyControlSnapshot());
+  const diagnosticsRef = useRef<HandControlsController["diagnostics"] | null>(null);
   const controllerRef = useRef<HandControlsController | null>(null);
   const statusRef = useRef<TrackingStatus>("idle");
   const planarRef = useRef(false);
@@ -38,6 +39,7 @@ export function useHandControls(tracking: ReturnType<typeof useHandTracking>) {
         controller.update(rawRef.current, now, { width: video.videoWidth, height: video.videoHeight });
       } else controller.suspend(now);
       snapshotRef.current = controller.snapshot;
+      diagnosticsRef.current = controller.diagnostics;
       animation = requestAnimationFrame(frame);
     };
     const visibility = () => {
@@ -61,7 +63,7 @@ export function useHandControls(tracking: ReturnType<typeof useHandTracking>) {
     return () => {
       clearTimeout(initial); clearInterval(interval); cancelAnimationFrame(animation);
       document.removeEventListener("visibilitychange", visibility);
-      controller.reset(); controllerRef.current = null; snapshotRef.current = emptyControlSnapshot();
+      controller.reset(); controllerRef.current = null; snapshotRef.current = emptyControlSnapshot(); diagnosticsRef.current = null;
     };
   }, [videoRef, rawRef]);
 
@@ -91,6 +93,9 @@ export function useHandControls(tracking: ReturnType<typeof useHandTracking>) {
   const quickCalibrate = () => {
     const video = videoRef.current, controller = controllerRef.current;
     if (!controller) return;
+    // The shortcut sits below the camera. Keep the preview visible during the
+    // new steady capture: browsers may throttle offscreen video frame callbacks.
+    video?.scrollIntoView?.({ block: "center", behavior: "auto" });
     singleHandRef.current = true;
     setSingleHandState(true);
     controller.quickCalibrate({ width: video?.videoWidth || 1280, height: video?.videoHeight || 720 });
@@ -106,7 +111,7 @@ export function useHandControls(tracking: ReturnType<typeof useHandTracking>) {
     snapshotRef.current = controller.snapshot;
     setUi({ calibration: { ...controller.calibration.state }, profile: controller.calibration.profile, snapshot: projectControlUi(controller.snapshot) });
   };
-  return { snapshotRef, ui, calibrate, cancel, quickCalibrate, singleHand, setSingleHand, setPlanar: (enabled: boolean) => {
+  return { snapshotRef, diagnosticsRef, ui, calibrate, cancel, quickCalibrate, singleHand, setSingleHand, setPlanar: (enabled: boolean) => {
     planarRef.current = enabled; controllerRef.current?.setPlanar(enabled);
   } };
 }

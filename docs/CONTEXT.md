@@ -1,10 +1,10 @@
 # Project Context
 
 Last updated: 2026-10-18
-Updated by: B12 — Tiger search, vector similarity, and hyperfunction analytics (live)
-Current branch: b12 (branched from main after B11 merged; PR to main pending)
-Current milestone: A7, S0–S4, B9, B10, B11 merged to main; B12 search/similarity/analytics built live on Tiger
-Demo-critical status: YELLOW — physical rehearsal still pending; live-database search/analytics now verified
+Updated by: A2 surgical posture calibration and main integration follow-up
+Current branch: main (integrated on origin/main 1dd0b92)
+Current milestone: A7, S0–S4 and B9–B12 merged; A2 natural-posture mapping, lateral rotation and recovery fixes integrated
+Demo-critical status: YELLOW — physical posture recheck pending; upstream live-database search/analytics verification preserved
 
 ## 0. Agent Operating Rules (READ FIRST)
 
@@ -217,7 +217,129 @@ is artifacts/demo/steady-backup.mp4 (also .webm); results, replay, and Peg Trans
 screenshots were visually inspected. Recording completed without page errors or
 live service requests.
 
-## 5. Supporting documentation
+## 5. Surgical Posture Calibration
+
+Goal: map a relaxed palms-down/slightly inward working posture into the existing
+canonical instrument space. Initial user testing prompted lateral rotation and
+recovery fixes; final physical acceptance after those fixes remains pending.
+
+Inspection completed before implementation: `src/lib/vision/{landmarker,backends,
+tracking-controller,hand-identity,types,hand-geometry,calibration,
+workspace-calibration,control-types,hand-controls,pinch,use-hand-controls,
+control-ui,preview-coordinates}.ts`, the tracking worker/hook, One Euro filter,
+camera calibration/preview UI, training session, instrument/training scene,
+tool simulation, exercise controller/runtime/configs, attempt evaluator,
+ghost/reference playback, replay controller/types, cloud sync, shared hand/tool/
+motion/geometry schemas, and related unit/browser tests. Read CONTEXT,
+IMPLEMENTATION_PLAN, HAND_TRACKING and installed Next environment guidance.
+
+Owned changes: existing vision calibration/mapping and calibration UI/diagnostics,
+their fixtures/tests, and documentation. Existing ToolControlTarget, shared schemas,
+simulation/exercise/evaluation, ghost data, persistence and replay contracts remain
+unchanged. Baseline relevant unit suites: six files, 88 tests passed.
+
+Previous behavior used a camera-space delta (`current * inverse(neutral)`), asked
+for palms facing the camera during workspace capture, and required a spread-open
+neutral ratio of 0.55. Quick start captured rotation/scale once and retained preset
+image centers. The new default captures the user's relaxed lower working posture
+as neutral while preserving canonical instrument rest positions/orientations.
+
+- Basis uses world landmarks 0/5/9/17. SDK points remain untouched; control points
+  use the existing `(-x,-y,-z)` conversion once. Forward is wrist→middle MCP (+Y),
+  across is pinky→index MCP orthogonalized against forward (+X), and normal is
+  across×forward (+Z). Left across/normal are both negated to normalize anatomical
+  handedness while retaining a proper rotation. Preview mirroring stays display-only.
+- Neutral capture independently requires at least 30 distinct valid frames over
+  750 ms (normally 1–1.5 seconds). Confidence is assigned handedness probability
+  ≥0.75, not landmark accuracy. Existing position/scale/angle stability bounds and
+  scheduling gaps under the existing 200 ms tracking grace are tolerated; explicit
+  missing/invalid observations reset incomplete captures immediately. Pinch retains
+  its 120 ms evidence gap limit. Completed neutral hands survive interruptions of the
+  other hand. Centers/scales use medians; orientation uses hemisphere-aligned
+  incremental slerp. Thumb/index need only be slightly separated (ratio >0.15).
+- Guided stages remain neutral → pinch (750 ms) → per-hand four-arrow workspace
+  capture (1,500 valid ms, 120 ms sustained arrows). Existing 15/45-second timeouts,
+  cancellation, completed arrows and workspace-only retry remain. Closed ratio must
+  be ≤0.5 and ≥0.15 below the neutral/open value. Keep palms down/inward throughout.
+- Quaternion order: `R = inverse(Qneutral) * Qcurrent`; tool-relative rotation is
+  `C * R * inverse(C)` and target is `QtoolNeutral * constrain(toolRelative)`.
+  C and both QtoolNeutral values are explicitly identity because the current models
+  already use +Y shafts/+X jaw opening. No renderer or ghost offset is added.
+  YXZ Euler is used only for limits/directional mapping/debug: X pitch ±50°, Y shaft roll ±80°, Z yaw
+  uses direction -1 after clamping to correct the inverted lateral wrist sweep
+  reported during physical QA; pitch, roll and position directions are unchanged.
+  Yaw limits are ±60°, then the existing configurable total cap (default 90°). All filtering and
+  display interpolation remain quaternion-based.
+- Position uses displacement around each captured SDK image center, aspect-correct
+  mirrored X/upward Y, existing calibrated directional ranges, ±0.75 XY travel and
+  rests (-0.5,0,0)/(0.5,0,0). One-hand rest remains (0,0,0). Quick start now uses
+  the same sampler for neutral position/scale/orientation and cannot publish a
+  usable target before capture; each newly appearing hand is captured independently.
+  Neutral sampling runs independently of the subsequent three-frame tool recovery.
+  Its preset ranges/pinch thresholds remain (enter 0.3312, release 0.396).
+- Pinch stays 3D world thumb-tip/index-tip distance divided by MCP palm width.
+  Guided thresholds remain `closed + 0.28*(open-closed)` / `closed + 0.40*(open-closed)`
+  with 100 ms debounce. Missing input never creates a release. Tracking still holds
+  transforms/grip for 200 ms and pauses progression immediately on missing input.
+  After user-reported stuttering during surgery, live motion accepts variable
+  inference cadence within that freshness window and resumes a brief gap on the
+  next valid frame. Initial/prolonged-loss/suspended recovery still requires three
+  valid frames; pinch evidence still resets on gaps over 120 ms. Existing
+  rotation-confidence and jump gates remain. No predicted samples earn progress.
+- Depth stays apparent-width-relative, `clamp(2*(scale/neutralScale-1),-1,1)*0.15`.
+  Planar/Easy pickup behavior is unchanged. Z alone now uses One Euro 1.5 Hz,
+  beta 0.25, derivative cutoff 1 Hz; XY and orientation retain 3 Hz/beta 0.75 with
+  1 Hz derivative/angular-speed filtering. Display response remains 40/s.
+- Mapping flag: `NEXT_PUBLIC_SURGICAL_POSTURE_MAPPING` is enabled unless `false`.
+  Restart/rebuild and recalibrate to use the temporary legacy fallback. Additional
+  palm-normal/relative-angle/target diagnostics require development plus `?debug=1`,
+  sample refs at 4 Hz, and are absent from production. They open in a collapsible
+  overlay to avoid displacing the webcam. Quick start scrolls the preview into
+  view while capturing, preventing offscreen video callback throttling. Existing
+  debug UI is preserved. CameraPreviewFrame keeps the same live video/canvas in a
+  small floating preview when its inline anchor scrolls offscreen, avoiding browser
+  video-callback throttling during exercises without restarting tracking.
+- ToolControlTarget and shared HandFrame/MotionFrame/ToolFrame schemas, coordinate
+  version, performance-vector ordering, ghost data, recording/evaluation/replay and
+  Tiger upload contracts are unchanged. `HandFrame.palmRotation` still matches the
+  mapped canonical control rotation. Raw landmarks remain transient; stored replay
+  continues containing authoritative canonical tools, not raw hand-relative poses.
+
+Changed implementation: hand-geometry.ts, calibration.ts, hand-controls.ts,
+control-types.ts, control-ui.ts, use-hand-controls.ts, camera/hand-control-panel.tsx,
+camera/camera-preview-frame.tsx and both training/development preview consumers;
+related unit/browser fixtures/tests (including train-s1.spec.ts's durable Ring 1
+checkpoint assertion) and CONTEXT/HAND_TRACKING/IMPLEMENTATION_PLAN/
+DEMO_RUNBOOK documentation. No new dependency or external service was added.
+
+Verification on integrated main: full offline suite 455 passed, 13 opt-in database
+tests skipped; typecheck, lint and production build passed. Full browser run passed
+22 of 23 scenarios; the remaining depth-assistance scenario timed out during
+calibration setup at the helper's old five-second pinch wait. The helper now allows
+the app's existing 15-second stage budget, and that scenario passed its targeted
+rerun (27.8 seconds). No product timing or evaluation semantics changed for this fix.
+The new lower-palms-down browser scenario passed independent movement, shaft roll,
+pinch/release and loss/recovery. Training-page completion with mocked model review,
+sync retry, IndexedDB and replay passed; quick-start completion/replay without
+network or IndexedDB passed after the preview-visibility and independent neutral
+capture fixes. Targeted browser reruns also passed main-thread tracking fallback and
+WebGL recovery. All 23 browser scenarios have passed across the integrated full run
+and the targeted rerun; there has not been a second complete run after the helper
+timeout adjustment. These are synthetic hand observations, not real hands.
+The user tried real hands and reported inverted lateral rotation and repeated loss
+interruptions; both received targeted mapping/recovery fixes. Full physical
+neutral/movement/wrist axes/pinch/release, overlap/loss and a live Needle Passing
+attempt with persistence/review/replay still require acceptance after these fixes.
+No real camera or live Tiger/provider success is claimed by synthetic tests.
+
+Known limits: webcam field of view must include the desk working area. Complete
+overlap/edge-on hands can defeat tracking; tilt slightly toward the camera while
+retaining the natural posture. Apparent-width depth is also affected by palm tilt;
+use the existing planar/Easy pickup fallback if needed. Extreme out-of-range wrist
+pitch can cross an Euler branch; the constrained working range is the supported
+interaction. Retain the legacy switch until physical acceptance is recorded.
+
+## 6. Supporting documentation
 
 Architecture and task definitions: docs/IMPLEMENTATION_PLAN.md.
 Simulation/replay contracts: docs/SIMULATION.md and docs/A6_PLAN.md.

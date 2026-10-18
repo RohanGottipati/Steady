@@ -7,6 +7,7 @@ import { useHandTracking } from "@/lib/vision/use-hand-tracking";
 import { useHandControls } from "@/lib/vision/use-hand-controls";
 import type { TrackingDiagnostics } from "@/lib/vision/types";
 import { HandControlPanel, WorkspaceGuide } from "./hand-control-panel";
+import { CameraPreviewFrame } from "./camera-preview-frame";
 import { ThreeDTrainingPreview } from "@/components/training/3d-training-preview";
 
 export function HandTrackingPreview() {
@@ -77,10 +78,10 @@ export function HandTrackingPreview() {
       </div>
       <p role="status" aria-live="polite">Status: {state.status}{state.message ? ` — ${state.message}` : ""}</p>
       <WorkspaceGuide calibration={controls.ui.calibration} />
-      <div className="relative overflow-hidden rounded-lg bg-zinc-950">
+      <CameraPreviewFrame active={active}>
         <video ref={videoRef} muted playsInline className="block aspect-video w-full -scale-x-100 object-contain" aria-label="Mirrored webcam preview" />
         <canvas ref={canvasRef} hidden={!debug} className="pointer-events-none absolute inset-0 h-full w-full object-contain" aria-hidden="true" />
-      </div>
+      </CameraPreviewFrame>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">Video is processed in this browser and is not uploaded or recorded. Stop releases the camera.{debug ? " Cyan marks the left hand and amber marks the right." : ""}</p>
       <HandControlPanel controls={controls} running={state.status === "running"} debug={debug} />
       <ThreeDTrainingPreview

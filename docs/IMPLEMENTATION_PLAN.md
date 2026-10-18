@@ -1227,7 +1227,8 @@ Use a hand-lock layer:
 
 Calibration duration target: 2-4 seconds.
 
-A2 implements automatic neutral/open (750 ms), closed pinch (750 ms), and
+A2 implements automatic natural surgical neutral (at least 30 valid frames over
+750 ms, typically 1–1.5 seconds), closed pinch (750 ms), and
 open-hand workspace sweep (at least 1,500 ms) stages. Those durations count valid
 samples; pose transitions, insufficient motion and retries extend elapsed time.
 Neutral/pinch time out after 15 foreground seconds each; workspace allows 45.
@@ -1322,9 +1323,13 @@ Then:
 
 Do not allow unrestricted 360-degree instrument flips.
 
-A2 reconstructs the orthonormal basis after transforming points to the canonical
-convention, uses `current * inverse(neutral)`, limits relative rotation to 90°,
-and smooths with adaptive quaternion slerp. Assigned-label confidence below 0.5
+A2's surgical posture mapper reconstructs the orthonormal basis after transforming
+points to the canonical convention, corrects left across/normal together, and uses
+`inverse(neutral) * current` in the calibrated hand's local frame. Instrument +Y
+is the shaft, so X is pitch, Y roll and Z yaw. Limits are ±50°/±80°/±60° plus the
+existing 90° total cap; adaptive quaternion slerp remains. The build-time flag
+`NEXT_PUBLIC_SURGICAL_POSTURE_MAPPING=false` restores legacy mapping/calibration.
+See CONTEXT.md's Surgical Posture Calibration section. Assigned-label confidence below 0.5
 holds rotation; it is not treated as a geometric accuracy estimate.
 
 ## 8.10 Depth

@@ -69,7 +69,9 @@ async function completeNeedlePass(page: Page) {
   await expect(page.getByTestId("needle-ownership")).toHaveText("Needle: left-tool");
 
   pose = await guideLeftTip(page, -0.16, 0.24, pose, { ratio: 0.1 });
-  await expect(page.getByTestId("exercise-segment")).toContainText("Segment: entry");
+  // Entry may already have advanced by the 4 Hz UI sample. Verify the durable
+  // checkpoint rather than requiring this transient stage to remain visible.
+  await expect.poll(async () => JSON.parse(await page.getByTestId("exercise-state").innerText()).completedTargetIds).toContain("ring-1");
 
   pose = await guideLeftTip(page, 0, 0.18, pose, { ratio: 0.1, rotationZ: -0.35 });
   await expect(page.getByTestId("exercise-segment")).toContainText("Segment: rotation");
@@ -356,7 +358,7 @@ test("S1 produces results offline when device storage is unavailable", async ({ 
   await page.getByRole("button", { name: "Start camera", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Status: running");
   await page.getByTestId("quick-single-hand-start").click();
-  await expect(page.getByTestId("calibration-status")).toContainText("Calibration: ready");
+  await expect(page.getByTestId("calibration-status")).toContainText("Calibration: ready", { timeout: 15_000 });
   await expect(page.getByTestId("simulation-status")).toHaveText("Simulation ready");
   await context.setOffline(true);
   try {

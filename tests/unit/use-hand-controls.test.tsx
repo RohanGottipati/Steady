@@ -46,7 +46,7 @@ describe("hand control hook lifecycle", () => {
     };
     const calibrate = async () => {
       await act(async () => controls.calibrate());
-      for (let i = 0; i < 22; i++) await tick();
+      for (let i = 0; i < 32; i++) await tick();
       for (let i = 0; i < 22; i++) await tick(0.1);
       for (let i = 0; i < 48; i++) await tick(0.9, i / 44 * Math.PI * 2);
       expect(controls.snapshotRef.current.calibrated).toBe(true);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Quaternion } from "three";
 import { HandControlsController } from "@/lib/vision/hand-controls";
-import { quaternion } from "@/lib/vision/hand-geometry";
+import { quaternion, SURGICAL_ROTATION_LIMITS } from "@/lib/vision/hand-geometry";
 import { handFrameSchema } from "@/types";
 import { calibrateControls, cameraSize, controlFrame, type HandOptions } from "../fixtures/hand-controls";
 
@@ -21,7 +21,7 @@ it("quick start captures each visible open hand's neutral wrist instead of clamp
   for (const side of ["left", "right"] as const) {
     const controller = new HandControlsController();
     controller.quickCalibrate(cameraSize);
-    for (let index = 1; index <= 8; index++) {
+    for (let index = 1; index <= 40; index++) {
       const frame = controlFrame(index * 40, { rotationZ: 0.3 }, { rotationZ: -0.2 });
       frame[side === "left" ? "right" : "left"] = null;
       controller.update(frame, index * 40, cameraSize);
@@ -61,7 +61,7 @@ describe("guided calibration", () => {
   it("requires distinct open/closed poses and a nonzero workspace", () => {
     const controller = new HandControlsController();
     controller.beginCalibration(0, cameraSize);
-    for (let t = 40; t <= 1000; t += 40) controller.update(controlFrame(t), t, cameraSize);
+    for (let t = 40; t <= 1400; t += 40) controller.update(controlFrame(t), t, cameraSize);
     expect(controller.calibration.state.stage).toBe("pinch");
     for (let t = 1040; t <= 2000; t += 40) controller.update(controlFrame(t, { ratio: 0.8 }, { ratio: 0.8 }), t, cameraSize);
     expect(controller.calibration.state.stage).toBe("pinch");
@@ -100,7 +100,7 @@ describe("guided workspace recovery", () => {
       if (!right) frame.right = null;
       controller.update(frame, time, cameraSize);
     };
-    for (let i = 0; i < 22; i++) tick();
+    for (let i = 0; i < 32; i++) tick();
     for (let i = 0; i < 22; i++) tick({ ratio: 0.1 }, { ratio: 0.1 });
     expect(controller.calibration.state.stage).toBe("workspace");
     const hold = (left: HandOptions | null, right: HandOptions | null = {}) => { for (let i = 0; i < 6; i++) tick(left, right); };
@@ -178,7 +178,7 @@ describe("canonical hand control targets", () => {
       if (seconds <= 4) continue;
       const target = controller.snapshot.left.target!;
       const position = target.position.x + 0.5;
-      const rotation = 2 * Math.atan2(target.rotation.z, target.rotation.w);
+      const rotation = -2 * Math.atan2(target.rotation.z, target.rotation.w);
       positionSin += position * sine; positionCos += position * cosine;
       rotationSin += rotation * sine; rotationCos += rotation * cosine;
     }
@@ -226,7 +226,7 @@ describe("canonical hand control targets", () => {
     expect(controller.snapshot.left.target!.position.z).toBe(0);
     expect(() => new HandControlsController({ xyTravel: NaN })).toThrow();
   });
-  it("holds grip through brief loss, pauses immediately, and recovers independently without an automatic release", () => {
+  it("holds grip through brief loss, pauses immediately, and resumes on the next valid frame without an automatic release", () => {
     const { controller, tick, now } = ready();
     for (let i = 0; i < 6; i++) tick({ ratio: 0.1 });
     expect(controller.snapshot.left.target!.jawClosed).toBe(true);
@@ -236,14 +236,34 @@ describe("canonical hand control targets", () => {
     expect(controller.snapshot.left.hand).toBeNull();
     expect(controller.snapshot.left.target).toBe(held);
     expect(controller.snapshot.canProgress).toBe(false);
-    tick(); tick();
-    expect(controller.snapshot.left.status).toBe("recovering");
     tick();
     expect(controller.snapshot.canProgress).toBe(true);
     expect(controller.snapshot.left.target!.jawClosed).toBe(true);
     tick(); tick(); tick();
     expect(controller.snapshot.left.target!.jawClosed).toBe(false);
     expect(controller.snapshot.right.target!.jawClosed).toBe(false);
+  });
+  it("keeps moving at variable inference cadence within freshness instead of repeatedly restarting recovery", () => {
+    const { controller, now } = ready();
+    let time = now();
+    for (let i = 0; i < 12; i++) {
+      time += i % 2 ? 150 : 170;
+      controller.update(controlFrame(time, { x: 0.67 }), time, cameraSize);
+      expect(controller.snapshot.left.status).toBe("tracking");
+      expect(controller.snapshot.canProgress).toBe(true);
+    }
+    expect(controller.snapshot.left.target!.position.x).toBeGreaterThan(-0.5);
+  });
+  it("still requires three fresh frames after prolonged loss", () => {
+    const { controller, now } = ready();
+    let time = now() + 240;
+    controller.update({ ...controlFrame(time), left: null }, time, cameraSize);
+    expect(controller.snapshot.left.status).toBe("lost");
+    for (let i = 0; i < 3; i++) {
+      time += 40;
+      controller.update(controlFrame(time), time, cameraSize);
+      expect(controller.snapshot.canProgress).toBe(i === 2);
+    }
   });
   it("expires frozen video, ignores invalid/reordered input, and does not refresh a held pose", () => {
     const { controller, now } = ready();
@@ -291,7 +311,7 @@ describe("canonical hand control targets", () => {
     for (let i = 0; i < 100; i++) tick({ rotationZ: Math.PI * 0.8 });
     const rotation = quaternion(controller.snapshot.left.target!.rotation);
     expect(rotation.length()).toBeCloseTo(1);
-    expect(new Quaternion().angleTo(rotation)).toBeCloseTo(Math.PI / 2, 3);
+    expect(new Quaternion().angleTo(rotation)).toBeCloseTo(SURGICAL_ROTATION_LIMITS.yaw, 3);
     expect(controller.snapshot.left.rotationHeld).toBe(false);
   });
   it("keeps hand identities through normal crossing without assigning by screen side", () => {

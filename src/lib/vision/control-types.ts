@@ -2,6 +2,8 @@ import type { HandFrame, Quat, ToolState, Vec3 } from "@/types";
 
 export type HandSlot = "left" | "right";
 export const HAND_SLOTS: readonly HandSlot[] = ["left", "right"];
+/** Build-time emergency fallback; changing modes requires fresh calibration. */
+export const USE_SURGICAL_POSTURE_MAPPING = process.env.NEXT_PUBLIC_SURGICAL_POSTURE_MAPPING !== "false";
 export interface VideoDimensions { width: number; height: number }
 export interface HandCalibration {
   /** Unmirrored normalized image center; scale/range use image-height units. */
@@ -30,6 +32,8 @@ export interface CalibrationState {
   workspace?: WorkspaceProgress;
   retryStage?: "workspace";
   secondsRemaining?: number;
+  /** Independent neutral capture progress; memory-only, not recording metadata. */
+  neutralHands?: Record<HandSlot, number>;
 }
 /** A3 computes instrument tips and owns held objects; A2 supplies only controls. */
 export type ToolControlTarget = Pick<ToolState, "id" | "position" | "rotation" | "jawClosed">;

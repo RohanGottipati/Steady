@@ -52,9 +52,12 @@ asset-license inventory for model URL, checksum, and attribution.
 
 Start the camera, then select **Calibrate controls**. The three automatic stages are:
 
-1. **Neutral/open:** hold both open hands steady for 750 ms of valid observations.
+1. **Natural neutral:** place both hands above your desk as if holding instruments,
+   palms mostly down and slightly inward, wrists relaxed and fingers curved. Keep
+   thumb/index slightly apart. Each hand independently needs at least 30 valid
+   observations spanning 750 ms (typically 1–1.5 seconds).
 2. **Pinch:** close each thumb/index pair and hold for 750 ms.
-3. **Workspace:** keep palms open toward the camera. Follow the arrow checklist
+3. **Workspace:** keep palms mostly down/inward and thumb/index apart. Follow the arrow checklist
    above the webcam and move **one hand at a time** from its neutral position left,
    right, up and down in the mirrored preview. Hold briefly until each arrow checks
    off, then follow the next prompt. Keep the other hand relaxed and visible.
@@ -64,20 +67,22 @@ Start the camera, then select **Calibrate controls**. The three automatic stages
 
 The three seconds are valid sampling time, not a guaranteed wall-clock duration.
 Both hands must eventually be observed. Invalid geometry, ambiguous labels, wrong
-poses, sample gaps over 120 ms, or instability reset the stationary stage's sample
-window. In workspace, each hand is captured independently; invalid input or gaps
+poses, scheduling gaps of 200 ms or more, or instability reset an unfinished neutral capture
+for that hand; explicit missing/invalid observations reset it immediately. A completed
+neutral survives the other hand's interruptions. Pinch retains its paired stationary
+window and 120 ms gap limit. In workspace, each hand is captured independently; invalid input or gaps
 reset only its unfinished directional holds, not confirmed directions. Missing
 hands cannot earn credit or finish calibration. Neutral/pinch time out after 15
 foreground seconds each; workspace allows 45 seconds. **Retry workspace** preserves
 confirmed arrows and neutral/pinch measurements; **Start calibration over** or
 cancel clears everything. Background time is excluded from all stage timeouts.
 
-Calibration uses median centers/scales/pinch ratios, sign-aligned quaternion
-averaging for a stable neutral palm, and the median of each confirmed directional
+Calibration uses median centers/scales/pinch ratios, hemisphere-aligned incremental
+slerp for a stable neutral palm, and the median of each confirmed directional
 hold for workspace range. Each excursion must reach at least 0.035 image-height
 units and remain there for 120 ms across at least three valid observations. A
-single-frame outlier cannot check off an arrow. Neutral
-pinch ratio must be at least 0.55; closed ratio must be at most 0.5 and at least
+single-frame outlier cannot check off an arrow. Relaxed neutral
+pinch ratio must exceed 0.15; closed ratio must be at most 0.5 and at least
 0.15 below open. These are prototype defaults, not anatomical or clinical criteria.
 
 ### Reusable interface
@@ -96,9 +101,27 @@ The deterministic implementation is `HandControlsController` in
 constructor accepts `ControlMappingOptions` overrides for rest positions, XY
 travel, maximum depth and rotation. No shared schemas or schema version changed.
 
+**One-hand quick start** keeps preset pinch thresholds/ranges, but now captures
+30 stable observations of position, scale and orientation before enabling each
+hand. A second hand has its own capture; switching to two-hand mode cannot enable
+it early. Keep thumb/index above the default release ratio (0.396) during quick
+capture. Use guided calibration for user-specific open/closed pinch thresholds.
+The shortcut scrolls the webcam preview into view for steady capture; browsers
+can throttle offscreen video callbacks. The development wrist diagnostics open
+as a collapsible overlay so they do not push the camera out of view. A shared
+CameraPreviewFrame keeps the same live video/canvas floating when scrolled offscreen
+in both the exercise and development preview. Neutral sampling precedes and runs
+independently of the three-frame tool recovery gate.
+
 `CalibrationProfile` contains video dimensions and independent left/right profiles
 with neutral center, apparent palm scale, neutral rotation, open/closed pinch,
 derived enter/release thresholds, and positive left/right/down/up movement ranges.
+Live motion accepts variable inference cadence within 200 ms freshness. A brief
+tracking gap freezes the tool and pauses progression, then resumes on the next valid
+observation; initial, suspended or prolonged-loss recovery still requires three
+frames. Pinch debounce retains its stricter 120 ms evidence gap. This avoids repeated
+recovery starvation while rendering the exercise without predicting motion.
+
 Profiles are tied to the current camera stream and dimensions. Stop, error,
 restart, stream replacement, format change, unmount and Activity teardown clear
 them. Backend fallback and ordinary tab suspension preserve them with recovery
@@ -132,8 +155,13 @@ Image center displacement maps once to user-right/up coordinates. Apparent palm
 width uses image aspect ratio; local world coordinates provide palm basis and
 scale-independent pinch, never absolute scene position. World points are reflected
 into the control convention before reconstructing a right-handed orthonormal
-basis. Reflection matrices themselves are not converted to quaternions. Relative
-orientation is `current * inverse(neutral)` in the canonical basis.
+basis. Reflection matrices themselves are not converted to quaternions. Surgical
+mapping preserves wrist-to-middle-MCP as local +Y, orthogonalizes across against
+it, and negates Left across/normal together to normalize anatomical handedness.
+Relative orientation is `inverse(neutral) * current` in the calibrated local frame.
+Hand-to-tool correction and both tool neutral quaternions are explicitly identity:
+the instruments already use +Y along their shafts and +X for jaw opening. No
+renderer/model or reference trajectory rotation is added.
 
 Default rest positions are left `(-0.5, 0, 0)` and right `(0.5, 0, 0)`, with ±0.75
 scene-unit XY travel around each rest. Depth is
@@ -148,7 +176,12 @@ Quaternion smoothing uses the same base cutoff/gain with a 1 Hz smoothed angular
 speed and shortest-path spherical interpolation. The generic filter's defaults
 remain unchanged. These control settings replace the initial 1 Hz / beta 0.5
 tuning after Person A reported slight lag throughout movement.
-Relative orientation is capped at 90°. A jump over 60° within 120 ms holds the
+Depth alone uses min cutoff 1.5 Hz, beta 0.25, derivative cutoff 1 Hz for stronger
+noise suppression; XY and orientation responsiveness are unchanged.
+Relative orientation uses YXZ Euler only at the limiting/debug boundary: X pitch
+±50°, Y shaft roll ±80°, Z workspace yaw ±60° with centralized direction -1
+(correcting the user's reported inverted left/right wrist sweep), plus the existing configurable 90°
+total cap. Filtering/rendering return to quaternions. A jump over 60° within 120 ms holds the
 previous orientation; a stable new pose is accepted after three consistent samples
 and smoothly approached. Degenerate geometry never produces a fabricated pose.
 Synthetic 0.5 Hz motion tests at 20/30 tracking FPS showed about 119–121 ms of
@@ -157,6 +190,10 @@ position **and** rotation filter phase lag below 70 ms, while suppressing inject
 stationary jitter to less than 45% RMS amplitude. These measure filter response,
 not camera-to-display latency; target-Mac verification remains necessary.
 The numeric HUD samples at 4 Hz independently of the canvas/display loop.
+With development `?debug=1`, the surgical diagnostics additionally show assigned
+handedness/confidence, per-hand calibration, palm normal, relative angles,
+normalized pinch/grip, and canonical target position/quaternion. It is omitted
+from production, even with the existing debug query enabled.
 A3 should additionally
 interpolate display transforms without changing the control/evaluation stream.
 
@@ -164,6 +201,12 @@ Each hand's enter threshold is `closed + 0.28 * (open - closed)` and release is
 `closed + 0.40 * (open - closed)`. State changes require 100 ms of uninterrupted
 observations beyond the appropriate threshold. The deadband preserves grip.
 Calibration thresholds and live measured ratios are displayed in debug mode.
+
+`NEXT_PUBLIC_SURGICAL_POSTURE_MAPPING` defaults to enabled. Set it to `false` and
+restart/rebuild for temporary legacy calibration/mapping, then recalibrate. The
+flag is captured at build time; do not switch an existing profile between modes.
+Legacy mode retains the prior basis, camera-space delta, neutral gate, quick
+capture and depth filtering. Keep this fallback until physical posture sign-off.
 
 ### Loss and recovery
 
@@ -174,8 +217,9 @@ Missing or invalid hands clear `hand` and inhibit `canProgress` immediately.
 Targets and grip remain held: `grace` before 200 ms, `lost` afterward. Visibility
 and backend suspension mark controls unavailable immediately.
 
-Recovery requires three consecutive valid frames per hand, with gaps at most
-120 ms. Positions resume from the held target with fresh filter derivatives;
+Initial, suspended and prolonged-loss recovery requires three consecutive valid
+frames per hand within the 200 ms freshness window. A gap shorter than 200 ms
+resumes on the next valid observation. Positions resume from the held target with fresh filter derivatives;
 pinch evidence restarts while retaining the last grip state. Reopening after
 recovery still requires the debounce interval. Neither an absent hand nor a
 background tab auto-releases anything. A3/A4 must honor `canProgress` and treat held

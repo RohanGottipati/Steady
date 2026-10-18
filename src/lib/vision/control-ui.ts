@@ -77,5 +77,6 @@ export function calibrationUiKey(state: CalibrationState): string {
     retryStage: state.retryStage ?? null,
     secondsRemaining: state.secondsRemaining ?? null,
     workspace: state.workspace ?? null,
+    neutralHands: state.neutralHands ?? null,
   });
 }

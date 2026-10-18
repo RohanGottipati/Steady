@@ -10,6 +10,16 @@ Both build paths use the same source styles and dependencies.
 
 ## Judge path (about three minutes)
 
+For physical calibration, keep elbows low and hands naturally above the desk,
+palms mostly downward/slightly inward, wrists relaxed and fingers curved. Capture
+neutral, pinch, then follow workspace arrows without presenting palms to the
+screen. Keep the hands inside the webcam's field of view. Development
+`/train/needle-passing?fixture=off&debug=1` exposes wrist/target diagnostics.
+Physical posture acceptance is pending a guided session; synthetic browser checks
+do not certify back-of-hand tracking. The temporary fallback is
+`NEXT_PUBLIC_SURGICAL_POSTURE_MAPPING=false` followed by restart/rebuild and fresh
+calibration.
+
 1. Open `/library` without `debug=1`. Point out the two available skills and the
    two clearly marked upcoming skills. Credits are below the page content.
 2. Choose Needle Passing. Explain that camera video stays on this device.

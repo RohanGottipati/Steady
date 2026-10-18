@@ -42,23 +42,24 @@ export async function setHands(page: Page, left: HandOptions | null, right: Hand
   await page.evaluate(input => { (window as unknown as FixtureWindow).handInput = input; }, { left, right });
 }
 
-export async function calibrate(page: Page) {
+export async function calibrate(page: Page, left: HandOptions = {}, right: HandOptions = {}) {
+  await setHands(page, left, right);
   await page.getByRole("button", { name: /^(Calibrate controls|Retry calibration|Recalibrate controls)$/ }).click();
-  await expect(page.getByTestId("calibration-status")).toContainText("Calibration: pinch");
-  await setHands(page, { ratio: 0.1 }, { ratio: 0.15 });
-  await expect(page.getByTestId("calibration-status")).toContainText("Calibration: workspace");
-  await page.evaluate(() => {
+  await expect(page.getByTestId("calibration-status")).toContainText("Calibration: pinch", { timeout: 15_000 });
+  await setHands(page, { ...left, ratio: 0.1 }, { ...right, ratio: 0.15 });
+  await expect(page.getByTestId("calibration-status")).toContainText("Calibration: workspace", { timeout: 15_000 });
+  await page.evaluate(({ left, right }) => {
     const fixture = window as unknown as FixtureWindow;
     let frame = 0;
     fixture.workspaceTimer = window.setInterval(() => {
       const angle = frame++ / 60 * Math.PI * 2;
       fixture.handInput = {
-        left: { x: 0.7 + 0.08 * Math.cos(angle), y: 0.5 + 0.08 * Math.sin(angle) },
-        right: { x: 0.3 + 0.08 * Math.cos(angle), y: 0.5 + 0.08 * Math.sin(angle) },
+        left: { ...left, x: (left.x ?? 0.7) + 0.08 * Math.cos(angle), y: (left.y ?? 0.5) + 0.08 * Math.sin(angle) },
+        right: { ...right, x: (right.x ?? 0.3) + 0.08 * Math.cos(angle), y: (right.y ?? 0.5) + 0.08 * Math.sin(angle) },
       };
     }, 40);
-  });
+  }, { left, right });
   await expect(page.getByTestId("calibration-status")).toContainText("Calibration: ready", { timeout: 12_000 });
-  await page.evaluate(() => { const fixture = window as unknown as FixtureWindow; clearInterval(fixture.workspaceTimer); fixture.handInput = { left: {}, right: {} }; });
+  await page.evaluate(({ left, right }) => { const fixture = window as unknown as FixtureWindow; clearInterval(fixture.workspaceTimer); fixture.handInput = { left, right }; }, { left, right });
   await expect(page.getByTestId("control-readiness")).toHaveText("Controls ready");
 }

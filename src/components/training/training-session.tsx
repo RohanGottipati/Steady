@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { HandControlPanel, WorkspaceGuide } from "@/components/camera/hand-control-panel";
+import { CameraPreviewFrame } from "@/components/camera/camera-preview-frame";
 import { defaultFixtureForSkill, fixtureMatchesSkill, resolveFixtureIdFromSearch, type FixtureId } from "@/lib/exercise/fixture-playback";
 import { isDebugEnabled } from "@/lib/ui/debug-query";
 import type { SkillCatalogEntry } from "@/lib/skills/types";
@@ -223,7 +224,7 @@ function TrainingSessionView({
 
         <div className="grid gap-4 lg:grid-cols-2" hidden={Boolean(fixtureId)}>
           <div className="space-y-2">
-            <div className="relative overflow-hidden rounded-lg bg-zinc-950">
+            <CameraPreviewFrame active={active}>
               <video
                 ref={videoRef}
                 muted
@@ -237,7 +238,7 @@ function TrainingSessionView({
                 className="pointer-events-none absolute inset-0 h-full w-full object-contain"
                 aria-hidden="true"
               />
-            </div>
+            </CameraPreviewFrame>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               Raw webcam video stays in your browser and is never uploaded.
               {debug ? " Cyan marks the left hand and amber marks the right." : ""}
