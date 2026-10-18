@@ -131,7 +131,10 @@ in `src/types/skill.ts`): scene-aligned phase segments, metric weights keyed to 
 canonical performance-vector metrics, coaching rules, and the committed JIGSAWS
 reference with attribution. `getSkillBlueprint()` (`src/lib/skills/catalog.ts`)
 feeds a "what you'll practice / how it's scored" preview on the coming-soon
-`/train/[skillId]` page, so cards no longer dead-end. The site credits JIGSAWS
+`/train/[skillId]` page, so cards no longer dead-end. The preview lists the
+phase segments, renders the metric weights heaviest-first with above-baseline
+(>1) metrics visually emphasised, and surfaces the authored coaching rules as a
+"Coaching focus" list so no blueprint field is inert. The site credits JIGSAWS
 line now covers these two skills, not just the Needle Passing ghost. The
 blueprints never fit/score/launch the raw reference (G1–G15, raw metre scale);
 each flips to a full `SkillDefinition` once an A-series trainer scene lands.
@@ -139,11 +142,12 @@ B11's functional-training portion remains gated on that scene. See
 `docs/DATA_LICENSES.md` and `IMPLEMENTATION_PLAN.md` §B11 Status.
 
 Acceptance (offline, no live DB): typecheck, ESLint, and the production build
-pass; `/api/progress` and `/progress` appear in the route table. The unit suite
-is 399 passed / 6 opt-in DB tests skipped, plus one pre-existing unrelated failure
-in `replay-narration-preview.test.tsx` (`Blob.stream` in the jsdom/Node
-environment, confirmed failing on clean main). Migration 0002 is not yet applied
-to the live Tiger service (no DB access on this host).
+pass; `/train/suturing` and `/train/knot-tying` prerender as static coming-soon
+previews. The unit suite is 407 passed / 6 opt-in DB tests skipped, plus one
+pre-existing unrelated failure in `replay-narration-preview.test.tsx`
+(`Blob.stream` in the jsdom/Node environment, confirmed failing on clean main).
+Migration 0002 is not yet applied to the live Tiger service (no DB access on this
+host).
 
 ## 4. Acceptance evidence and remaining sign-off
 
