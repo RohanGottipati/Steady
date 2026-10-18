@@ -1,7 +1,7 @@
 # Tiger Data Project Context
 
-Last updated: 2026-10-17 00:30
-Updated by: B0 migrations
+Last updated: 2026-10-18
+Updated by: B10 progress rework (migration 0002 added to repo)
 
 ## 1. Service Status
 - Tiger project ID: p2r9lzrn7s
@@ -10,7 +10,9 @@ Updated by: B0 migrations
 - TimescaleDB version: 2.30.2
 - Service plan/free vs standard: free
 - Region: us-east-1
-- Current migration version: 0001_init (applied; tracked in `schema_migrations`)
+- Current migration version: 0001_init (applied; tracked in `schema_migrations`).
+  0002_progress added to repo (continuous aggregates + Hypercore columnstore policies,
+  idempotent); not yet applied to the live service — no DB access on this host.
 - Cloud sync smoke test: not-run
 - Optional fork support available: unknown
 
@@ -27,7 +29,9 @@ Never put a database password, API secret, or full connection string in this fil
 - vectorscale: enabled (0.9.0) via `0001_init`
 - pg_textsearch: enabled (1.5.1) via `0001_init`
 - vector (pgvector): enabled (0.8.7, pulled in by vectorscale CASCADE)
-- timescaledb_toolkit/hyperfunctions: not verified
+- timescaledb_toolkit/hyperfunctions: not verified — not required by 0002. The
+  per-second rollup keeps only avg/max aggregates; percentile distributions
+  (`percentile_agg`) are deferred to B12, which will gate on the extension.
 
 ## 3. Core Data Model
 Relational:
@@ -62,6 +66,13 @@ Continuous aggregates:
   hypertables are not filled here. If Tiger is unconfigured or the write fails, the
   route returns 503 and the browser keeps the local attempt.
 - Recent telemetry stays queryable for replay/history.
+- B10 `/api/progress` reads per-skill aggregates straight from `attempt_scores`
+  (never raw motion/metric samples) so a just-synced attempt appears before the
+  next CAGG refresh; returns 503 when Tiger is unconfigured/unreachable.
+- B10 delete-history (`DELETE /api/attempts`) erases the anonymous user's rows
+  across the telemetry/score/attempt tables in one transaction; the client also
+  clears its local IndexedDB copies so a later retry cannot resurrect them. The
+  anonymous user ID is the device-scoped capability token (no account system).
 - Older telemetry converts to Hypercore columnstore according to policy.
 - Retention policy:
 - Optional tiering policy if plan supports it:
@@ -77,18 +88,21 @@ Vector similarity:
 - Similarity meaning: similarity of simulator performance profiles, not clinical equivalence.
 
 ## 6. Hyperfunctions in Use
-- time_bucket:
-- percentile_agg / approx_percentile:
+- time_bucket: 0002 daily progress CAGG and per-second motion CAGG.
+- percentile_agg / approx_percentile: deferred to B12 (needs timescaledb_toolkit).
 - time_weight:
 - state tracking:
 - lttb/asap_smooth:
 
 ## 7. Policies / Jobs
-- Continuous aggregate refresh:
-- Columnstore:
+- Continuous aggregate refresh: defined in 0002 for `user_skill_daily_progress`
+  (hourly) and `attempt_motion_1s` (15 min); each `add_*_policy` call is guarded
+  so re-running the migration is idempotent.
+- Columnstore: 0002 converts `motion_samples`/`metric_samples` chunks older than
+  7 days to Hypercore columnstore (guarded, idempotent).
 - Retention:
 - Custom jobs:
-- Last verified:
+- Last verified: not applied to live service yet (no DB access on this host).
 
 ## 8. AI-Agent Database Workflow
 Before schema/query work:
