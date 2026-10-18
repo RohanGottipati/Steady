@@ -21,7 +21,8 @@
     "verify:ai": "node scripts/setup/verify-ai-services.mjs",
     "audio:coach": "node --experimental-strip-types scripts/audio/generate-coach-clips.mjs",
     "db:migrate": "node scripts/tiger/migrate.mjs",
-    "db:seed": "node scripts/tiger/seed.mjs"
+    "db:seed": "node scripts/tiger/seed.mjs",
+    "test:live": "node scripts/verify/live-smoke.mjs"
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.73.0",

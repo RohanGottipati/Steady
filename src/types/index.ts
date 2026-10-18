@@ -13,3 +13,5 @@ export * from "./evaluation";
 export * from "./coaching";
 export * from "./attempt";
 export * from "./ai";
+
+export * from "./progress";

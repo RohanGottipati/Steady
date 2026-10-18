@@ -1,40 +1,60 @@
-import Link from "next/link";
+import { SiteShell } from "@/components/product/layout/SiteShell";
 import { SkillGrid } from "@/components/library/skill-grid";
 import { getSkillCatalog } from "@/lib/skills/catalog";
-
-export const metadata = {
-  title: "Surgical Skills Library — Steady",
+import { BracketLabel } from "@/components/product/brand/BracketLabel";
+import { MODE_INFO } from "@/components/product/data/skills";
+import { BookOpen, ClipboardCheck, Dumbbell } from "lucide-react";
+export const metadata = { title: "Surgical Skills Library — Steady" };
+const icons = {
+  learn: BookOpen,
+  practice: Dumbbell,
+  assessment: ClipboardCheck,
 };
-
 export default function LibraryPage() {
-  const skills = getSkillCatalog();
-
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-12">
-      <div className="mb-8 space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/"
-            className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-          >
-            ← Home
-          </Link>
-          <Link
-            href="/progress"
-            className="text-sm text-zinc-500 underline-offset-4 hover:text-zinc-700 hover:underline dark:hover:text-zinc-300"
-          >
-            Your progress
-          </Link>
+    <SiteShell>
+      <main
+        id="main-content"
+        className="mx-auto w-full max-w-7xl flex-1 px-6 py-12"
+      >
+        <BracketLabel>Skills library</BracketLabel>
+        <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <h1 className="text-4xl font-semibold tracking-tight">
+            Surgical Skills Library
+          </h1>
+          <p className="max-w-md text-sm text-muted-foreground">
+            Needle Passing and Peg Transfer are ready in the 3D operating room.
+            Preview the blueprints for upcoming skills.
+          </p>
         </div>
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-          Surgical Skills Library
-        </h1>
-        <p className="max-w-2xl text-zinc-600 dark:text-zinc-400">
-          Needle Passing is ready. The other skills are listed, but you cannot train them yet.
-        </p>
-      </div>
-
-      <SkillGrid skills={skills} />
-    </main>
+        <ul
+          aria-label="Training modes"
+          className="mt-8 grid gap-3 sm:grid-cols-3"
+        >
+          {MODE_INFO.map((mode) => {
+            const Icon = icons[mode.id];
+            return (
+              <li
+                key={mode.id}
+                className="flex gap-3 rounded-2xl border bg-white p-4"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-ink bg-scrub-100">
+                  <Icon className="h-4 w-4" aria-hidden />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold">{mode.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {mode.description}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="mt-10">
+          <SkillGrid skills={getSkillCatalog()} />
+        </div>
+      </main>
+    </SiteShell>
   );
 }

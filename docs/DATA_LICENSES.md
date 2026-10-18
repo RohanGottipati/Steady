@@ -1,5 +1,10 @@
 # Data Licenses
 
+## Product UI reference labels (2026-10-18)
+
+The new landing/library/workspace UI reads availability and reference labels from the canonical catalog. Both playable scenes use authored synthetic guides for deterministic scoring. Optional JIGSAWS Needle Passing playback is a display/reference-demonstration choice, not the evaluation source. The supplied UI archive's claims about LASK expert data are not used. Upcoming Suturing/Knot Tying previews retain the attributed JIGSAWS references below without claiming playable scenes.
+
+
 Track external dataset licenses and redistribution constraints before including any source data in the repository.
 
 Per plan §7.2, before integrating any **real** dataset, confirm and record its

@@ -1,25 +1,26 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f9fc;
+  --foreground: #0a141c;
   --card: #ffffff;
-  --card-foreground: #171717;
-  --popover: #ffffff;
-  --popover-foreground: #171717;
-  --primary: #18181b;
-  --primary-foreground: #fafafa;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
+  --card-foreground: #0a141c;
+  --popover: #f5f9fc;
+  --popover-foreground: #0a141c;
+  --primary: #0a141c;
+  --primary-foreground: #f5f9fc;
+  --secondary: #e3f0fb;
+  --secondary-foreground: #0a141c;
+  --muted: #eef3f7;
+  --muted-foreground: #5a6a76;
+  --accent: #eef3f7;
+  --accent-foreground: #0a141c;
   --destructive: #dc2626;
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #18181b;
-  --radius: 0.5rem;
+  --border: #d5e0e8;
+  --input: #d5e0e8;
+  --ring: #0a141c;
+  --radius: 0.75rem;
 }
 
 @theme inline {
@@ -49,31 +50,441 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --card: #0a0a0a;
-    --card-foreground: #ededed;
-    --popover: #0a0a0a;
-    --popover-foreground: #ededed;
-    --primary: #fafafa;
-    --primary-foreground: #18181b;
-    --secondary: #27272a;
-    --secondary-foreground: #fafafa;
-    --muted: #27272a;
-    --muted-foreground: #a1a1aa;
-    --accent: #27272a;
-    --accent-foreground: #fafafa;
-    --destructive: #ef4444;
-    --border: #27272a;
-    --input: #27272a;
-    --ring: #d4d4d8;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+@theme {
+  --color-ink: #0a141c;
+  --color-ink-900: #070e14;
+  --color-ink-800: #0f1c26;
+  --color-ink-700: #172733;
+  --color-ink-600: #22343f;
+  --color-scrub-50: #f2f8fd;
+  --color-scrub-100: #e3f0fb;
+  --color-scrub-200: #c4e0f7;
+  --color-scrub-300: #97c8f0;
+  --color-scrub-400: #62a9e6;
+  --color-scrub-500: #3b8ad8;
+  --color-scrub-600: #2a6fba;
+  --color-scrub-700: #22598f;
+  --color-drape: #2b6f86;
+  --color-vital: #2fd38a;
+  --color-caution: #f2a93b;
+  --color-alert: #e5484d;
+  --animate-bar: bar 1.05s ease-in-out infinite;
+  --animate-blink: blink 1.6s ease-in-out infinite;
+  @keyframes bar {
+    0%,
+    100% {
+      transform: scaleY(0.3);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+  @keyframes blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.25;
+    }
+  }
+}
+* {
+  border-color: var(--border);
+}
+:focus-visible {
+  outline: 2px solid #3b8ad8;
+  outline-offset: 3px;
+}
+button:not(:disabled),
+summary,
+select {
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Product workspace keeps the live renderer and controls inside one viewport. */
+.training-product {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #0a141c;
+  color: #eef6fb;
+}
+.training-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  padding: 10px 20px;
+  border-bottom: 1px solid #ffffff18;
+}
+.training-back {
+  font-size: 13px;
+  color: #ffffffaa;
+  white-space: nowrap;
+}
+.training-header > section {
+  margin-left: auto;
+}
+.training-header > section > h2 {
+  display: none;
+}
+.training-header [aria-pressed] {
+  border-radius: 999px;
+  padding: 8px 16px;
+  border-color: #ffffff20;
+  background: transparent;
+  text-align: center;
+}
+.training-header [aria-pressed] > div {
+  color: #ffffff99;
+}
+.training-header [aria-pressed] > div + div {
+  display: none;
+}
+.training-header [aria-pressed="true"] {
+  background: #e3f0fb;
+}
+.training-header [aria-pressed="true"] > div {
+  color: #0a141c;
+}
+.workspace {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px;
+  overflow: hidden;
+}
+.workspace-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ffffff14;
+}
+.workspace button,
+.workspace-replay button,
+.workspace select,
+.workspace-replay select {
+  border-radius: 999px;
+  font-size: 12px;
+}
+.workspace button:not([class*="bg-"]),
+.workspace-replay button {
+  background: #ffffff08;
+  border-color: #ffffff25;
+  padding: 7px 12px;
+}
+.workspace button:hover:not(:disabled),
+.workspace-replay button:hover:not(:disabled) {
+  border-color: #97c8f0;
+}
+.workspace-session-actions {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.workspace-session-actions p {
+  font-size: 11px;
+  color: #ffffff99;
+}
+.workspace-main {
+  flex: 1;
+  min-height: 260px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 12px;
+}
+.workspace-viewport {
+  position: relative;
+  min-height: 260px;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid #ffffff18;
+  border-radius: 22px;
+  background: #0f1c26;
+}
+.workspace-sidebar {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+  font-size: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #22343f transparent;
+}
+.workspace-sidebar > * {
+  flex-shrink: 0;
+}
+.workspace-sidebar > [aria-label="Training mode"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.workspace-sidebar > [aria-label="Ghost playback controls"] {
+  border-color: #ffffff15;
+  background: #ffffff05;
+}
+.workspace-sidebar > [aria-label="Ghost playback controls"] select {
+  max-width: 170px;
+}
+.workspace-sidebar > p {
+  font-size: 12px;
+}
+.workspace-sidebar > [data-testid="simulation-status"] {
+  color: #97c8f0;
+}
+.workspace-instructions {
+  font-size: 12px;
+  border-bottom: 1px solid #ffffff18;
+  padding: 8px 0;
+}
+.workspace-instructions ol {
+  display: block;
+}
+.workspace-instructions li {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.workspace-options {
+  display: flex;
+  flex-direction: column;
+}
+.workspace-options label {
+  font-size: 12px;
+  border-color: #ffffff18;
+}
+.workspace-progression {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  background: #ffffff06;
+  border: 1px solid #ffffff12;
+  border-radius: 18px;
+  font-size: 11px;
+}
+.workspace-progression > progress {
+  height: 4px;
+}
+.workspace-progression [data-testid="ghost-action-banner"] {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.workspace > [data-testid="fixture-banner"] {
+  flex-shrink: 0;
+}
+.workspace > [aria-label="Simulation diagnostics"] {
+  position: absolute;
+  bottom: 160px;
+  left: 30px;
+  width: min(480px, 60%);
+  max-height: 100px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 12px;
+  background: #070e14dd;
+}
+.workspace-setup {
+  position: absolute;
+  z-index: 20;
+  left: 32px;
+  bottom: 170px;
+  width: 160px;
+}
+.workspace-setup[data-expanded="false"] .workspace-camera {
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.workspace-setup[data-expanded="false"]
+  .workspace-camera
+  > :not(.camera-calibration-grid) {
+  display: none;
+}
+.workspace-setup[data-expanded="false"] .camera-calibration-grid {
+  display: block;
+}
+.workspace-setup[data-expanded="false"]
+  .camera-calibration-grid
+  > :not(:first-child),
+.workspace-setup[data-expanded="false"]
+  .camera-calibration-grid
+  > :first-child
+  > p {
+  display: none;
+}
+.workspace-setup[data-expanded="true"] {
+  position: absolute;
+  inset: 110px 12px 12px;
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 16px;
+  border-radius: 24px;
+  background: #070e14ed;
+  backdrop-filter: blur(8px);
+  overflow: auto;
+}
+.workspace-setup[data-expanded="true"] .workspace-camera {
+  width: 100%;
+  max-width: 920px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.workspace-results-overlay {
+  position: fixed;
+  inset: 0;
+  background: #070e14aa;
+  backdrop-filter: blur(6px);
+  z-index: 50;
+  pointer-events: none;
+}
+.workspace-results {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(860px, calc(100% - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  z-index: 51;
+  border-radius: 24px;
+  padding: 24px;
+  background: white;
+  color: #0a141c;
+  box-shadow: 0 35px 120px #0008;
+}
+.workspace-results > section {
+  border: 0;
+}
+.training-credits {
+  flex-shrink: 0;
+  padding: 8px 20px;
+  border-top: 1px solid #ffffff18;
+  font-size: 11px;
+  color: #ffffff88;
+}
+.training-credits[open] {
+  max-height: 240px;
+  overflow: auto;
+}
+.training-credits footer {
+  color: #c4e0f7;
+}
+.workspace-replay {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: auto;
+  padding: 16px;
+}
+.workspace-replay > [role="group"] {
+  padding: 10px;
+  border: 1px solid #ffffff18;
+  border-radius: 18px;
+}
+@media (max-width: 900px) {
+  .training-product {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+  .training-header {
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+  .training-header > section {
+    width: 100%;
+    margin-left: 0;
+  }
+  .training-header > section > div {
+    display: flex;
+    gap: 6px;
+  }
+  .training-header [aria-pressed] {
+    flex: 1;
+  }
+  .workspace {
+    overflow: visible;
+  }
+  .workspace-main {
+    display: flex;
+    flex-direction: column;
+  }
+  .workspace-viewport {
+    height: 52dvh;
+    min-height: 340px;
+  }
+  .workspace-sidebar {
+    overflow: visible;
+  }
+  .workspace-setup {
+    bottom: auto;
+    top: 380px;
+    width: 130px;
+  }
+  .workspace-setup[data-expanded="true"] {
+    top: 145px;
+    bottom: auto;
+    max-height: calc(100dvh - 180px);
+    padding: 8px;
+  }
+  .workspace-progression > div {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .workspace > [aria-label="Simulation diagnostics"] {
+    position: static;
+    width: 100%;
+    max-height: 180px;
+  }
+  .workspace-replay {
+    min-height: calc(100dvh - 150px);
+  }
+}
+
+/* Keep the standalone development preview bounded as well. */
+.workspace {
+  height: calc(100dvh - 90px);
+}
+.training-product .workspace {
+  height: auto;
+}
+@media (max-width: 900px) {
+  .workspace {
+    height: auto;
+    min-height: 650px;
+  }
+}
+
+/* Results are non-modal: session mode and camera controls remain reachable. */
+.workspace-results { top: 180px; transform: translateX(-50%); max-height: calc(100dvh - 204px); }
+@media(max-width:900px) { .workspace-results { top: 320px; max-height: calc(100dvh - 344px); } }

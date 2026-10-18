@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { handleDeleteHistory, handleProgressRequest } from "@/lib/db/history-handlers";
+import {
+  handleDeleteHistory,
+  handleProgressRequest,
+} from "@/lib/db/history-handlers";
 import type { RateLimiter } from "@/lib/voice/rate-limit";
 
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -21,18 +24,30 @@ function del(query = `?anonymousUserId=${USER}`) {
 describe("GET /api/progress handler", () => {
   it("400s on a missing or malformed anonymousUserId", async () => {
     expect((await handleProgressRequest(get(""))).status).toBe(400);
-    expect((await handleProgressRequest(get("?anonymousUserId=not-a-uuid"))).status).toBe(400);
+    expect(
+      (await handleProgressRequest(get("?anonymousUserId=not-a-uuid"))).status,
+    ).toBe(400);
   });
 
   it("503s when progress is unavailable (null)", async () => {
-    const res = await handleProgressRequest(get(), { getProgress: async () => null });
+    const res = await handleProgressRequest(get(), {
+      getProgress: async () => null,
+    });
     expect(res.status).toBe(503);
   });
 
   it("returns the progress payload when available", async () => {
-    const res = await handleProgressRequest(get(), { getProgress: async () => [] });
+    const res = await handleProgressRequest(get(), {
+      getProgress: async () => ({
+        progress: [],
+        summary: { attempts: 0, bestScore: null, avgScore: null },
+      }),
+    });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ progress: [] });
+    expect(await res.json()).toEqual({
+      progress: [],
+      summary: { attempts: 0, bestScore: null, avgScore: null },
+    });
   });
 
   it("429s when rate limited before touching the database", async () => {
@@ -41,7 +56,10 @@ describe("GET /api/progress handler", () => {
       rateLimiter: blockingLimiter,
       getProgress: async () => {
         called = true;
-        return [];
+        return {
+          progress: [],
+          summary: { attempts: 0, bestScore: null, avgScore: null },
+        };
       },
     });
     expect(res.status).toBe(429);
@@ -52,21 +70,29 @@ describe("GET /api/progress handler", () => {
 describe("DELETE /api/attempts handler", () => {
   it("400s on a missing or malformed anonymousUserId", async () => {
     expect((await handleDeleteHistory(del(""))).status).toBe(400);
-    expect((await handleDeleteHistory(del("?anonymousUserId=nope"))).status).toBe(400);
+    expect(
+      (await handleDeleteHistory(del("?anonymousUserId=nope"))).status,
+    ).toBe(400);
   });
 
   it("503s when Tiger is unconfigured", async () => {
-    const res = await handleDeleteHistory(del(), { deleteHistory: async () => "unconfigured" });
+    const res = await handleDeleteHistory(del(), {
+      deleteHistory: async () => "unconfigured",
+    });
     expect(res.status).toBe(503);
   });
 
   it("502s when the delete write fails", async () => {
-    const res = await handleDeleteHistory(del(), { deleteHistory: async () => "failed" });
+    const res = await handleDeleteHistory(del(), {
+      deleteHistory: async () => "failed",
+    });
     expect(res.status).toBe(502);
   });
 
   it("confirms deletion on success", async () => {
-    const res = await handleDeleteHistory(del(), { deleteHistory: async () => "synced" });
+    const res = await handleDeleteHistory(del(), {
+      deleteHistory: async () => "synced",
+    });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "deleted" });
   });

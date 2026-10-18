@@ -15,21 +15,12 @@ function resolveSql(deps: ProgressDeps): SqlLike | null {
   return deps.sql === undefined ? getDb() : deps.sql;
 }
 
-export interface SkillProgress {
-  skillId: string;
-  attempts: number;
-  bestScore: number;
-  avgScore: number;
-  latestScore: number;
-  latestAt: string;
-  avgCategoryScores: {
-    precision: number;
-    control: number;
-    technique: number;
-    coordination: number;
-    efficiencySafety: number;
-  };
-}
+import type {
+  SkillProgress,
+  ProgressOverview,
+  ProgressPoint,
+} from "@/types/progress";
+export type { SkillProgress } from "@/types/progress";
 
 /**
  * Read per-skill progress for an anonymous user from the compact `attempt_scores`
@@ -39,10 +30,10 @@ export interface SkillProgress {
  * a just-synced attempt appears before the next CAGG refresh. Returns `null` when
  * Tiger is unconfigured/unreachable so the page degrades to a local-only notice.
  */
-export async function getUserProgress(
+export async function getUserProgressOverview(
   anonymousUserId: string,
   deps: ProgressDeps = {},
-): Promise<SkillProgress[] | null> {
+): Promise<ProgressOverview | null> {
   const sql = resolveSql(deps);
   if (!sql) return null;
   try {
@@ -59,13 +50,17 @@ export async function getUserProgress(
         avg_technique: number;
         avg_coordination: number;
         avg_efficiency_safety: number;
+        trend: ProgressPoint[];
+        total_attempts: number;
+        total_best_score: number;
+        total_avg_score: number;
       }[]
     >`
       with ranked as (
-        select skill_id, overall_score, completed_at,
+        select skill_id, attempt_id, overall_score, completed_at,
                precision_score, control_score, technique_score,
                coordination_score, efficiency_safety_score,
-               row_number() over (partition by skill_id order by completed_at desc) as rn
+               row_number() over (partition by skill_id order by completed_at desc, attempt_id desc) as rn
         from attempt_scores
         where anonymous_user_id = ${anonymousUserId}
       )
@@ -79,18 +74,27 @@ export async function getUserProgress(
              avg(control_score) as avg_control,
              avg(technique_score) as avg_technique,
              avg(coordination_score) as avg_coordination,
-             avg(efficiency_safety_score) as avg_efficiency_safety
+             avg(efficiency_safety_score) as avg_efficiency_safety,
+             jsonb_agg(jsonb_build_object('attemptId', attempt_id, 'completedAt', completed_at, 'overallScore', overall_score)
+               order by completed_at asc, attempt_id asc) filter (where rn <= 20) as trend,
+             (sum(count(*)) over ())::int as total_attempts,
+             max(max(overall_score)) over () as total_best_score,
+             sum(sum(overall_score)) over () / nullif(sum(count(*)) over (), 0) as total_avg_score
       from ranked
       group by skill_id
       order by max(completed_at) filter (where rn = 1) desc
     `;
-    return rows.map(r => ({
+    const progress: SkillProgress[] = rows.map((r) => ({
       skillId: r.skill_id,
+      trend: r.trend ?? [],
       attempts: r.attempts,
       bestScore: Math.round(r.best_score),
       avgScore: Math.round(r.avg_score),
       latestScore: Math.round(r.latest_score),
-      latestAt: typeof r.latest_at === "string" ? r.latest_at : new Date(r.latest_at).toISOString(),
+      latestAt:
+        typeof r.latest_at === "string"
+          ? r.latest_at
+          : new Date(r.latest_at).toISOString(),
       avgCategoryScores: {
         precision: Math.round(r.avg_precision),
         control: Math.round(r.avg_control),
@@ -99,9 +103,28 @@ export async function getUserProgress(
         efficiencySafety: Math.round(r.avg_efficiency_safety),
       },
     }));
+    const first = rows[0];
+    return {
+      progress,
+      summary: {
+        attempts: Number(first?.total_attempts ?? 0),
+        bestScore: first ? Math.round(first.total_best_score) : null,
+        avgScore: first ? Math.round(first.total_avg_score) : null,
+      },
+    };
   } catch {
     return null;
   }
+}
+
+/** Compatibility helper for consumers that need only per-skill aggregates. */
+export async function getUserProgress(
+  anonymousUserId: string,
+  deps: ProgressDeps = {},
+): Promise<SkillProgress[] | null> {
+  return (
+    (await getUserProgressOverview(anonymousUserId, deps))?.progress ?? null
+  );
 }
 
 /**
@@ -118,11 +141,11 @@ export async function deleteUserHistory(
   const sql = resolveSql(deps);
   if (!sql) return "unconfigured";
   try {
-    await sql.begin(async tx => {
+    await sql.begin(async (tx) => {
       const ids = await tx<{ id: string }[]>`
         select id from attempts where anonymous_user_id = ${anonymousUserId}
       `;
-      const attemptIds = ids.map(r => r.id);
+      const attemptIds = ids.map((r) => r.id);
       if (attemptIds.length) {
         await tx`delete from coaching_events where attempt_id in ${tx(attemptIds)}`;
         await tx`delete from metric_samples where attempt_id in ${tx(attemptIds)}`;

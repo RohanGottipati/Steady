@@ -55,7 +55,7 @@ export async function requestAttemptReview(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(25_000),
     });
     if (response.status === 204) return { source: "deterministic", review, notice: null };
     if (!response.ok) return { source: "deterministic", review, notice: REVIEW_UNAVAILABLE };

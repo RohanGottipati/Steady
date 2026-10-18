@@ -1,5 +1,13 @@
 # Decisions Log
 
+### 2026-10-18 — Integrate the supplied UI over the existing runtime
+
+- Keep Next.js/React/Tailwind/R3F and existing runtime contracts. Adapt supplied branding/scenery instead of importing the Vite router, bundled design system, simulated calibration, mouse controller, mock scores or fake history.
+- Batch static room geometry, apply one presentation transform, and keep canonical coordinates untouched. Use perspective camera fitting and transformed replay focus; manual orbit yields control to the user.
+- Add real bounded score trends and exact all-history summaries to the existing progress endpoint without a migration. Protect deletion from concurrent local upload retries and report incomplete cleanup.
+- Separate offline browser acceptance, fresh-user live smoke checks on the configured service, and physical hand/audio/performance sign-off. Do not run migration/seed integration tests against the configured shared service.
+
+
 Record architectural and product decisions here as they are made.
 
 ### 2026-10-17 - A7/S integration review ownership and build acceptance

@@ -1,9 +1,9 @@
 import {
   deleteUserHistory,
-  getUserProgress,
+  getUserProgressOverview,
   type HistoryStatus,
-  type SkillProgress,
 } from "@/lib/db/progress-queries";
+import type { ProgressOverview } from "@/types/progress";
 import { createRateLimiter, type RateLimiter } from "@/lib/voice/rate-limit";
 import { rateLimitRequest } from "@/lib/reliability/request-guards";
 
@@ -15,15 +15,20 @@ const progressLimiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
 const deleteLimiter = createRateLimiter({ limit: 10, windowMs: 60_000 });
 
 function requireUser(request: Request): string | Response {
-  const anonymousUserId = new URL(request.url).searchParams.get("anonymousUserId")?.trim();
+  const anonymousUserId = new URL(request.url).searchParams
+    .get("anonymousUserId")
+    ?.trim();
   if (!anonymousUserId || !UUID.test(anonymousUserId)) {
-    return Response.json({ error: "anonymousUserId is required" }, { status: 400 });
+    return Response.json(
+      { error: "anonymousUserId is required" },
+      { status: 400 },
+    );
   }
   return anonymousUserId;
 }
 
 export interface ProgressHandlerDeps {
-  getProgress?: (anonymousUserId: string) => Promise<SkillProgress[] | null>;
+  getProgress?: (anonymousUserId: string) => Promise<ProgressOverview | null>;
   rateLimiter?: RateLimiter;
 }
 
@@ -36,16 +41,24 @@ export async function handleProgressRequest(
   request: Request,
   deps: ProgressHandlerDeps = {},
 ): Promise<Response> {
-  const limited = rateLimitRequest(request, deps.rateLimiter ?? progressLimiter);
+  const limited = rateLimitRequest(
+    request,
+    deps.rateLimiter ?? progressLimiter,
+  );
   if (limited) return limited;
   const user = requireUser(request);
   if (user instanceof Response) return user;
 
-  const progress = await (deps.getProgress ?? ((id: string) => getUserProgress(id)))(user);
+  const progress = await (
+    deps.getProgress ?? ((id: string) => getUserProgressOverview(id))
+  )(user);
   if (progress === null) {
-    return Response.json({ error: "cloud sync not configured" }, { status: 503 });
+    return Response.json(
+      { error: "cloud sync not configured" },
+      { status: 503 },
+    );
   }
-  return Response.json({ progress });
+  return Response.json(progress, { headers: { "Cache-Control": "no-store" } });
 }
 
 export interface DeleteHandlerDeps {
@@ -67,8 +80,14 @@ export async function handleDeleteHistory(
   const user = requireUser(request);
   if (user instanceof Response) return user;
 
-  const status = await (deps.deleteHistory ?? ((id: string) => deleteUserHistory(id)))(user);
+  const status = await (
+    deps.deleteHistory ?? ((id: string) => deleteUserHistory(id))
+  )(user);
   if (status === "synced") return Response.json({ status: "deleted" });
-  if (status === "unconfigured") return Response.json({ error: "cloud sync not configured" }, { status: 503 });
+  if (status === "unconfigured")
+    return Response.json(
+      { error: "cloud sync not configured" },
+      { status: 503 },
+    );
   return Response.json({ error: "delete failed" }, { status: 502 });
 }

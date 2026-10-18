@@ -1,10 +1,10 @@
 # Project Context
 
 Last updated: 2026-10-18
-Updated by: A2 surgical posture calibration and main integration follow-up
-Current branch: main (integrated on origin/main 1dd0b92)
-Current milestone: A7, S0–S4 and B9–B12 merged; A2 natural-posture mapping, lateral rotation and recovery fixes integrated
-Demo-critical status: YELLOW — physical posture recheck pending; upstream live-database search/analytics verification preserved
+Updated by: UI1–UI6 product UI integration
+Current milestone: supplied Steady UI integrated; automated and scoped live-service acceptance complete
+Working state: UI1–UI6 delivery on main; no deployment performed
+Physical acceptance: pending on target Mac/Chrome
 
 ## 0. Agent Operating Rules (READ FIRST)
 
@@ -33,189 +33,51 @@ truth for the current project state — it records what exists and where it is.
    freely, but wait for the human to say to commit or push. Never commit or push on
    your own initiative, even when work looks complete.
 
-## 1. Integration ownership and interfaces
+## 1. Current product
 
-The user authorized completion of A7 and S0–S4 plus the dependencies required by
-those tasks, on one new integration branch. This authorizes coordinated edits to
-Person A's runtime/simulation/scene/vision surfaces, Person B's review/voice/storage/
-database/product surfaces, and their shared training/results UI. Record changes
-here; do not change shared schema version or performance-vector ordering.
+Steady is a browser-based, webcam-controlled surgical motion simulator. The current journey is landing → library → calibration/training → deterministic results → comparison replay → synced progress.
 
-The integration preserves the four sibling task worktrees and all four stashes.
-Recovery snapshots of task files, original bases, diffs, and statuses are stored at
-`/private/tmp/steady-integration-_jg0y_h9`. They contain the task edits, not secrets.
-Do not blindly restore the older autostash: it contains superseded A6 work.
+- Needle Passing and Peg Transfer train through the same runtime in Learn, Practice, and Assessment modes.
+- Suturing and Knot Tying provide authored blueprints, not playable trainer scenes.
+- Canonical synthetic guides drive deterministic scoring. The optional JIGSAWS Needle Passing ghost is demonstration-only. LASK recordings are not included.
+- The UI archive supplies branding, page layouts, and procedural room scenery. Its mock calibration, mouse training, scoring, fake history, bundled design system, and Vite routing are not imported.
+- Raw video and landmarks stay local. Webcam attempts retain the newest 20 local results/tool recordings; cloud sync is optional. Fixture sessions do not call live review, speech, or upload services.
 
-Intended interfaces: existing AttemptUploadPayload for local-first cloud copies;
-validated AiReview from compact deterministic measurements; one accepted review
-per attempt shared by results and replay; one audio manager per session. Shared
-src/types contracts and DATA_SCHEMA_VERSION remain unchanged. Test-only route
-helpers belong in ordinary library modules.
+## 2. UI architecture and invariants
 
-## 2. Current working state
+Public pages share the new product header/footer and canonical skill-card presentation. Available training routes use the dark workspace with real camera/calibration controls, persistent video, mode/ghost/voice controls, checkpoints, reduced graphics, results, and replay.
 
-- The integration branch combines the merged S0/S1 baseline (S1 PR #12), A6
-  canonical replay, B7 voice, B8 results (PR #14), and the recovered A7/S2/S3/S4 work.
-- Needle Passing and Peg Transfer share TrainingRuntime, ExerciseController,
-  recording, deterministic scoring, ghost playback, and replay. Peg Transfer's
-  canonical guide is generated from authored synthetic control frames through the
-  same simulation. Suturing and knot tying remain explicitly upcoming.
-- Results and replay share one accepted review per attempt. The completed B9
-  dependency validates compact measured evidence and provider output, uses
-  X-API-Key, and preserves deterministic review when unavailable. Scores remain
-  deterministic. Reset discards stale responses; opening replay freezes its review.
-  Selecting a different replay issue updates its explanation and highlight without
-  restarting narration. An unconfigured/disabled review provider is a quiet 204;
-  configured provider failures retain the fallback notice.
-- One session audio manager cancels narration on takeover/reset/exit. Fixture
-  sessions never call live review, upload, or speech services.
-- Training remains local-first with cache/sync retries, idempotent transactional
-  ingestion, offline/storage/service notices, and visible render recovery.
-  S4 adds loading states, scene/material polish, hidden debug controls, and credits.
-  Public review and upload routes use the speech limiter's per-IP mechanism
-  (20/minute and 30/minute respectively, per warm instance). Streaming body limits
-  are 64 KiB and 1 MiB; review text and upload sample/event arrays are bounded
-  before provider/database access. Shared recording schemas are unchanged.
-- Default development and production builds use Webpack with the installed
-  Tailwind loader in Next's existing CSS pipeline. The isolated E2E development
-  directory avoids interfering with an existing local development server.
-- Shared src/types contracts, DATA_SCHEMA_VERSION, performance-vector ordering,
-  and tracked git-crypt-encrypted .env.local are unchanged.
+The existing TrainingRuntime, tracking/calibration controllers, recording, evaluator, accepted review ownership, and per-session AudioManager remain authoritative. UI stages derive from those systems; there is no prototype simulation or timer-driven calibration. Per-frame motion stays in refs; HUD sampling remains bounded.
 
-## 3. Task ledger and branches
+The room is a static presentation layer rendered through the installed React Three Fiber stack. Geometry is batched by shared material. Training-local coordinates are placed on the table once; evaluation, stored tools, collision tests, and replay records remain canonical. Replay cameras transform local focus points into world space. Orbiting hands control back to the user and cancels automatic narration/focus behavior.
 
-| Task | Source branch | Delivered status on integration/a7-s-completion |
-| --- | --- | --- |
-| S0 | Historical bootstrap and contracts | Build and offline regression acceptance passed |
-| S1 | integration/s1-training-results | Merged PR #12; combined browser regression passed |
-| A7 | person-a/a7-additional-skill-scenes | Both skills integrated; exercise/scoring/replay acceptance passed |
-| B9 dependency | S3 partial review service | Validated review service and shared results/replay ownership complete |
-| S2 | integration/s2-ai-narrated-replay | Focus, narration, cancellation, fallback and manual takeover passed |
-| S3 | integration/s3-reliability-performance | Automated resilience/sync acceptance passed; physical performance and real SQL pending |
-| S4 | integration/s4-final-polish | UI/build/browser acceptance complete; physical rehearsal pending |
+Shared attempt schemas, DATA_SCHEMA_VERSION, coordinate convention, and performance-vector order remain unchanged. No database migration or new runtime dependency is required. Existing Webpack/Tailwind integration remains in place.
 
-The original four task worktrees and their WIP branches remain untouched, including
-S2/S3/S4's original conflict state. All four stashes remain preserved. The combined
-result is delivered on this integration branch, based on origin/main ab25dcd
-(verified current before publication), in PR #15. Review fixes address all four
-comments: marker explanations, quiet optional review, provider request limits,
-and upload limits. Merge and deployment remain outside this workflow.
-Source worktree file hashes were checked against the recovery snapshots.
+## 3. Progress and deletion
 
-B9 Tiger coaching retrieval (`src/lib/ai/coaching-retrieval.ts`) now grounds
-`/api/review` via `review-handler` → `requestBackboardReview` (empty/unavailable
-corpus degrades to metrics-only).
+GET /api/progress preserves per-skill aggregates and adds global summary statistics and up to 20 chronological real score points per skill. Global averages are calculated before rounding; charts and improvement labels describe only the recent window. Category bars represent all-history averages. Reads use attempt_scores, not raw telemetry. Existing UUID validation, user scoping, rate limiting, and 503 fallback remain.
 
-B10 (PR #17, reworked) builds on main's existing upload stack instead of
-duplicating it. The earlier PR #17 was based on pre-#15 main and shipped a
-parallel sync queue, a second anonymous-id key, and start-vs-completion timestamp
-drift; that is dropped. The rework adds, on top of `cloud-sync.ts`/
-`persist-attempt.ts`: a `/progress` page and `GET /api/progress` reading per-skill
-aggregates from `attempt_scores` (`src/lib/db/progress-queries.ts`), and a
-`DELETE /api/attempts` delete-history path. New public GET/DELETE routes go
-through `history-handlers.ts`, which reuses the shared per-IP limiter (progress
-30/min, delete 10/min) and validates the anonymous user id as a UUID. The progress
-page uses the single `anonymousUserId()` (`steady.anonymousUserId`) and
-`retryUnsyncedAttempts()` (which honours `NEXT_PUBLIC_ENABLE_CLOUD_SYNC`), checks
-the DELETE response, and clears local IndexedDB copies on success so a retry
-cannot resurrect deleted history. Migration `0002_progress.sql` adds the daily
-progress CAGG and Hypercore columnstore policies (idempotent). (The earlier note
-that `0002` was unapplied and that `percentile_agg` had to be deferred was
-superseded by B12: `0002` was in fact applied, and `timescaledb_toolkit` 1.26.0
-is enabled on the live service.)
+History deletion drains in-flight uploads, pauses retries, deletes only the current anonymous user's cloud history, then clears local copies. A persistent cleanup marker blocks uploads after incomplete cleanup; retry deletion finishes the operation. Stale retry snapshots cannot recreate deleted attempts in the current session. Device-scoped anonymous identity is not authentication; cross-tab concurrent training/deletion is not a new synchronization guarantee.
 
-B11 delivers the achievable part of "Additional
-reference motions and skill configs" without fabricating a trainer scene. Suturing
-and Knot Tying stay `coming-soon`, but each now has an authored, schema-validated
-*skill blueprint* (`src/data/skills/{suturing,knot-tying}.ts`, `skillBlueprintSchema`
-in `src/types/skill.ts`): scene-aligned phase segments, metric weights keyed to the
-canonical performance-vector metrics, coaching rules, and the committed JIGSAWS
-reference with attribution. `getSkillBlueprint()` (`src/lib/skills/catalog.ts`)
-feeds a "what you'll practice / how it's scored" preview on the coming-soon
-`/train/[skillId]` page, so cards no longer dead-end. The preview lists the
-phase segments, renders the metric weights heaviest-first with above-baseline
-(>1) metrics visually emphasised, and surfaces the authored coaching rules as a
-"Coaching focus" list so no blueprint field is inert. The site credits JIGSAWS
-line now covers these two skills, not just the Needle Passing ghost. The
-blueprints never fit/score/launch the raw reference (G1–G15, raw metre scale);
-each flips to a full `SkillDefinition` once an A-series trainer scene lands.
-B11's functional-training portion remains gated on that scene. See
-`docs/DATA_LICENSES.md` and `IMPLEMENTATION_PLAN.md` §B11 Status.
+## 4. Acceptance and operations
 
-B12 delivers Tiger search, vector similarity, and hyperfunction analytics against
-the live service (migration `0003_search.sql`, applied and idempotent). It adds a
-StreamingDiskANN cosine index (`attempt_scores_vector_idx`) and a pg_textsearch
-BM25 index (`skill_documents_bm25_idx` over `content`, english), raw-telemetry
-retention policies (90 days on `motion_samples`/`metric_samples`), and one daily
-`steady_refresh_search_stats` maintenance job. New query modules: `similarity.ts`
-(`findSimilarAttempts`, nearest prior same-skill attempts by cosine distance),
-`search.ts` (`searchCoachingDocuments`, BM25 `content <@> to_bm25query(...)`
-where matches score `< 0`), and `analytics.ts` (`getAttemptDeviationStats` p50/p95
-via `percentile_agg`/`approx_percentile` + `time_weight`; `getDownsampledDeviation`
-via `lttb`). `coaching-retrieval.ts` (B9 hook) now grounds the review through BM25
-by expanding weak-metric ids (camelCase → words) into the query, keeping the same
-signature and graceful `[]` fallback — deterministic scores are unchanged. New
-public GET routes `/api/similar-attempts`, `/api/search`, `/api/analytics` reuse
-the shared per-IP limiter (30/min), validate ids, and return 503 when Tiger is
-unavailable. `/api/similar-attempts` and `/api/analytics` require an
-`anonymousUserId` (same ownership gate as `/api/progress`): similarity scopes
-both the query attempt and its neighbours to that user, and analytics checks the
-attempt's owner against `attempts`, so one user's attempt id can never surface
-another user's attempts or telemetry. `db/seeds/0002_coaching_knowledge.sql` seeds the coaching corpus and
-`0003_analytics_demo.sql` seeds synthetic attempts/telemetry under an isolable
-anonymous user so similarity/BM25/analytics have data. See `docs/TIGER_DATA.md`
-§§5–7, 9 and `IMPLEMENTATION_PLAN.md` §B12 Status.
+Baseline before UI changes: typecheck and ESLint passed; 455 offline tests passed, 13 opt-in database tests skipped.
 
-B12 acceptance: typecheck, ESLint, and the production build pass (the three new
-routes register as dynamic). Offline unit suite 434 passed / 11 skipped with one
-pre-existing unrelated failure (`replay-narration-preview.test.tsx`, `Blob.stream`
-in jsdom — confirmed failing on clean main). Live `npm run test:db` adds
-`b12-tiger-search.test.ts`: nearest prior attempt within skill, known-answer BM25
-retrieval, BM25-grounded review context, p95/time-weighted analytics, LTTB
-peak-preserving downsampling, and the per-user ownership scoping (another user's
-id yields no similar attempts and no telemetry) — all 7 pass against the live
-Tiger service.
+UI verification on 2026-10-18:
 
-Acceptance (offline, no live DB): typecheck, ESLint, and the production build
-pass; `/train/suturing` and `/train/knot-tying` prerender as static coming-soon
-previews. The unit suite is 407 passed / 6 opt-in DB tests skipped, plus one
-pre-existing unrelated failure in `replay-narration-preview.test.tsx`
-(`Blob.stream` in the jsdom/Node environment, confirmed failing on clean main).
-Migration 0002 is not yet applied to the live Tiger service (no DB access on this
-host).
+- Full offline suite: 464 passed, 13 opt-in database tests skipped. After the final renderer/timeout fixes, the targeted review/runtime/scene suites passed all 22 checks.
+- TypeScript, ESLint, production build and whitespace checks passed.
+- All 27 development browser scenarios passed across the full run and targeted reruns. The full run exposed an outdated camera-layout assertion, software-rendering calibration load, and results overlapping session controls. These were corrected and the affected scenarios rerun successfully. There was no additional complete 27-test run after the final fixes.
+- Final focused browser run: public responsive pages, camera-free results/replay, denied-camera → samples → mode switching → webcam, and fixture WebGL restoration all passed (4/4). Earlier targeted reruns passed the physical-observation fixtures, depth assistance, actual training completion, storage failure and loss/recovery scenarios.
+- Production Peg Transfer/gated routes and narrated replay passed (2/2).
+- The scoped live smoke passed all four checks: actual upload/duplicate retry/progress/ownership, Backboard review generation, ElevenLabs audio bytes, and deletion/empty-history verification for the fresh test user. Earlier live runs also cleaned up their test users. No migration/shared seed ran.
+- Live evidence: ignored artifacts/acceptance/live-smoke.json and live-speech.mp3. Responsive screenshots are in the same directory. Production preview: http://localhost:3013.
 
-## 4. Acceptance evidence and remaining sign-off
+Rendering now pauses to demand mode during calibration; software WebGL automatically selects the reduced graphics budget. The results panel leaves session controls reachable. Model review retains deterministic notes immediately while allowing 20 seconds for the provider and 25 seconds for the client request; the former eight-second provider budget rejected the live response. Physical tracking, audio-device rehearsal, and the ten-attempt performance checklist must be recorded independently; synthetic observations are not physical sign-off.
 
-- Offline unit suite after review fixes: 48 files passed, one skipped; 380 tests
-  passed and six explicitly opt-in live-database tests skipped. Regression cases
-  cover marker reselection, quiet unconfigured review, provider failures, per-IP
-  isolation/429 retry headers, streamed byte limits, text and all array bounds.
-- Typecheck, ESLint, production build, and git diff whitespace checks passed.
-  Emitted CSS contains compiled Tailwind utilities.
-- Complete development Chromium/WebGL suite: 22 tests passed, covering local
-  MediaPipe worker/main-thread fallback, calibration/loss, both skills, replay,
-  rendering recovery, offline storage, review ownership, and duplicate-sync retry.
-- Final production checks passed for Peg Transfer/gated and unknown routes, and
-  all three replay tests (seeking, focus, narration fallback, renderer recovery,
-  and manual takeover). Fixture browser checks reject live API calls.
-- Provider and ingestion failures/success are dependency-injected or mocked.
-  No paid provider request or cloud database write was used for acceptance.
-  No isolated PostgreSQL service is available on this host; tests do not certify
-  actual concurrent SQL or deployment database permissions. npm run test:db is an
-  explicit mutation-capable opt-in and requires an isolated test database.
+The new opt-in test:live command uses a fresh anonymous user on the configured service. It checks upload/idempotency/progress/ownership, actual review and speech output, then deletes only that user's data in cleanup. It does not migrate or seed. test:db remains reserved for an isolated database because it applies migrations and seeds.
 
-The user selected automated acceptance first. The physical checklist in
-[DEMO_RUNBOOK.md](DEMO_RUNBOOK.md) remains pending: target Mac/Chrome, good/average
-lighting, hand crossing, ten physical attempts, measured rendering/tracking/latency,
-live audio rehearsal, and backup playback on the presentation machine. Synthetic
-fixtures do not certify physical tracking or performance.
-
-The backup command npm run demo:record produces a silent fixture walkthrough and
-screenshots under artifacts/demo/, with on-screen review explanations. Generated
-artifacts are ignored by Git; regenerate after UI changes. The completed backup
-is artifacts/demo/steady-backup.mp4 (also .webm); results, replay, and Peg Transfer
-screenshots were visually inspected. Recording completed without page errors or
-live service requests.
+Run typecheck after build, not concurrently with regeneration of .next/types. E2E uses .next-e2e and a separate port. Regenerate demonstration artifacts after UI changes. Preserve git-crypt attributes and the encrypted tracked environment file.
 
 ## 5. Surgical Posture Calibration
 
@@ -339,11 +201,6 @@ use the existing planar/Easy pickup fallback if needed. Extreme out-of-range wri
 pitch can cross an Euler branch; the constrained working range is the supported
 interaction. Retain the legacy switch until physical acceptance is recorded.
 
-## 6. Supporting documentation
+## 6. Documentation map
 
-Architecture and task definitions: docs/IMPLEMENTATION_PLAN.md.
-Simulation/replay contracts: docs/SIMULATION.md and docs/A6_PLAN.md.
-Demo, fallback paths, and remaining physical checks: docs/DEMO_RUNBOOK.md.
-Licensing: docs/DATA_LICENSES.md, docs/ASSET_LICENSES.md.
-Secrets workflow: docs/GIT_CRYPT.md. Preserve tracked git-crypt-encrypted .env.local.
-Database deployment: docs/TIGER_DATA.md. Service setup: scripts/setup/verify-ai-services.mjs.
+README.md describes the current product and setup. IMPLEMENTATION_PLAN.md retains the subsystem architecture and historical task definitions with a current UI delivery addendum. SIMULATION/HAND_TRACKING document runtime boundaries; TIGER_DATA documents database behavior; DEMO_RUNBOOK separates automated and physical acceptance. A6_PLAN is historical. Asset and dataset provenance remain in their respective licensing documents.

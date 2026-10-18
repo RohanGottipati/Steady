@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
-import { deleteUserHistory, getUserProgress } from "@/lib/db/progress-queries";
+import {
+  deleteUserHistory,
+  getUserProgress,
+  getUserProgressOverview,
+} from "@/lib/db/progress-queries";
 
 const ANON = "00000000-0000-7000-8000-00000000abcd";
 
@@ -42,6 +46,7 @@ describe("getUserProgress", () => {
     expect(progress).toEqual([
       {
         skillId: "needle-passing",
+        trend: [],
         attempts: 2,
         bestScore: 88,
         avgScore: 80,
@@ -81,7 +86,7 @@ describe("deleteUserHistory", () => {
           const text = (first as TemplateStringsArray).join(" ");
           queries.push(text);
           if (text.includes("select id from attempts")) {
-            return Promise.resolve(ids.map(id => ({ id })));
+            return Promise.resolve(ids.map((id) => ({ id })));
           }
           return Promise.resolve([]);
         }
@@ -122,5 +127,59 @@ describe("deleteUserHistory", () => {
     const joined = queries.join("\n");
     expect(joined).not.toContain("delete from motion_samples");
     expect(joined).toContain("delete from attempt_scores");
+  });
+});
+
+describe("progress overview", () => {
+  it("returns an empty summary without inventing scores", async () => {
+    expect(
+      await getUserProgressOverview(ANON, {
+        sql: vi.fn(async () => []) as never,
+      }),
+    ).toEqual({
+      progress: [],
+      summary: { attempts: 0, bestScore: null, avgScore: null },
+    });
+  });
+  it("uses exact global aggregates and returns chronological bounded score points", async () => {
+    const trend = [
+      { attemptId: "a", completedAt: "2026-10-17T00:00:00Z", overallScore: 0 },
+      { attemptId: "b", completedAt: "2026-10-18T00:00:00Z", overallScore: 80 },
+    ];
+    const sql = vi.fn(async (strings: TemplateStringsArray, user: string) => {
+      expect(user).toBe(ANON);
+      const query = strings.join("?");
+      expect(query).toContain("where anonymous_user_id =");
+      expect(query).toContain("filter (where rn <= 20)");
+      expect(query).toContain("order by completed_at asc, attempt_id asc");
+      expect(query).not.toContain("motion_samples");
+      return [
+        {
+          skill_id: "needle-passing",
+          attempts: 21,
+          best_score: 88,
+          avg_score: 50.4,
+          latest_score: 80,
+          latest_at: "2026-10-18T00:00:00Z",
+          avg_precision: 0,
+          avg_control: 10,
+          avg_technique: 20,
+          avg_coordination: 30,
+          avg_efficiency_safety: 40,
+          trend,
+          total_attempts: 30,
+          total_best_score: 99,
+          total_avg_score: 60.49,
+        },
+      ];
+    });
+    const data = await getUserProgressOverview(ANON, { sql: sql as never });
+    expect(data?.summary).toEqual({
+      attempts: 30,
+      bestScore: 99,
+      avgScore: 60,
+    });
+    expect(data?.progress[0].trend).toEqual(trend);
+    expect(data?.progress[0].avgCategoryScores.precision).toBe(0);
   });
 });

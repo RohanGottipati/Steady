@@ -120,10 +120,10 @@ export const updateCloudSyncStatus = markCloudSyncStatus;
 export async function listUnsyncedAttempts(): Promise<SavedAttempt[]> {
   return (await listSavedAttempts()).filter(item => item.cloudSyncStatus !== "synced");
 }
-export function clearSavedAttempts(): Promise<void> {
+export function clearSavedAttempts(): Promise<boolean> {
   memory.clear();
   const clear = writes.then(async () => {
-    try { await (await connect()).clear("attempts"); } catch { /* Best effort in restricted browsers. */ }
+    try { await (await connect()).clear("attempts"); return true; } catch { return false; }
   });
   writes = clear;
   return clear;

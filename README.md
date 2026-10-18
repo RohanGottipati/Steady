@@ -1,157 +1,124 @@
-# Steady — Surgical Motion Trainer
+# Steady
 
-Hardware-free AI surgical motion trainer that uses a laptop webcam to teach precise procedural movements through expert ghost demonstrations, real-time voice coaching, motion-level evaluation, and 3D expert-versus-user replay.
+Steady is a webcam-controlled surgical motion simulator. Practice precise instrument movements with your laptop camera, follow a reference ghost, receive coaching, and compare your recorded movement with the guide in a 3D replay.
 
-## Current training and replay workflow (A7/S1–S4)
+The application is for simulation practice. Its scores describe motion in the simulator; they do not certify clinical competence or predict patient outcomes.
 
-Open `/library`, choose **Needle Passing** or **Peg Transfer**, then select Learn, Practice, or Assessment.
-Start the camera explicitly and calibrate, or select **Use one hand** after starting
-it, holding one open hand still briefly to establish its neutral wrist pose. Learn
-shows a ghost demonstration before the active attempt. Pass the needle
-through Rings 1 → 2 → 3, then open inside the release ring. Results appear on the
-same page: overall score, five categories, strongest/weakest metrics, deviation
-markers, and expandable detail for all 20 deterministic metrics. **Try again** resets
-the attempt while retaining camera calibration; stopping the camera retains a finished
-result. Restarting the camera requires calibration again.
+## What you can do
 
-For a camera-free demonstration, select **Play a sample pass** or open:
+- **Train Needle Passing and Peg Transfer** in a procedural 3D operating room.
+- Choose **Learn**, **Practice**, or **Assessment**. Learn demonstrates the movement first; Practice offers optional guidance; Assessment hides guides and live coaching.
+- Use guided hand calibration or the one-hand quick start. Pinch to grasp and move/rotate your hand to control an instrument.
+- Review an overall score, five categories, all 20 deterministic metrics, and the largest recorded differences.
+- Scrub, slow down, and orbit a 3D replay comparing your motion with the canonical guide.
+- Track synced attempts through per-skill summaries and recent score charts.
+- Preview the authored **Suturing** and **Knot Tying** blueprints. Their trainer scenes are upcoming.
+
+Scoring uses canonical synthetic guides. The optional JIGSAWS Needle Passing demonstration changes the displayed ghost, not the scoring reference. Peg Transfer uses an authored synthetic reference; LASK recordings are not included.
+
+## Try it
+
+Open `/library`, select a skill, and choose a mode. Start the camera explicitly, then follow calibration. Keep your hands naturally above the desk, palms mostly down and slightly inward. The camera preview stays visible while you train.
+
+For a camera-free demonstration, select **Play a sample pass**, or open:
 
 - `/train/needle-passing?fixture=needle-pass-good`
 - `/train/needle-passing?fixture=needle-pass-late-rotation`
 - `/train/peg-transfer?fixture=peg-transfer-good`
 
-Peg Transfer uses the same page. Lift the peg off the left post, meet the other
-instrument at the midline, and release it on the right post. The reference is a
-synthetic fixture, not an acquired LASK recording. Suturing and Knot Tying stay
-marked coming soon.
+Samples run through the real simulation and evaluation engine. They are labelled synthetic, excluded from saved history, and do not call live review, speech, or upload services. `?fixture=off` selects webcam training even when the environment defaults to demonstrations.
 
-The samples animate through the actual simulation and exercise engine. Learn includes its
-three-second demonstration. The perturbed pass scores worse than the clean pass.
-Demo results are labelled and excluded from saved history. `?fixture=off` overrides
-`NEXT_PUBLIC_DEMO_FIXTURE_MODE=true` when switching back to the camera.
+Results appear when the exercise finishes. **Try again** retains calibration; **Replay latest attempt** opens the completed comparison. Stopping the camera preserves a finished result. Restarting the camera requires calibration again.
 
-After completing either kind of attempt, select **Replay latest attempt**. Solid
-cyan/amber tools show your recorded movement; translucent lavender tools show the
-same canonical reference used for scoring, adapted for your working hand. Replay
-works after stopping the camera. It starts from a three-second lead-in before the first
-successful object pickup, clamped to the start, and automatically pauses at the largest
-recorded difference. Its explanation and narration describe the same issue.
-The full recording remains available for scrubbing and scoring.
-Play/pause, scrub, change speed (0.25x/0.5x/1x),
-switch between synchronized comparison and original recorded timing, or jump to
-an issue. Optional smoothing changes only the display. Original timing excludes
-tracking suspensions, just like the recording clock. **Back to training** starts
-a fresh exercise; the latest completed replay remains available until replaced
-by a newer completed attempt or the page is reloaded. Needle pose/visibility and
-the exact adapted reference are memory-only; saved history still contains tool
-motion. See [the replay handoff](docs/SIMULATION.md#a6-recording-and-replay-handoff).
+## Run locally
 
-Webcam attempts save asynchronously to IndexedDB on this device (newest 20). Results
-remain available in memory if storage is restricted or full; the save message tells
-you which applies. Reload retrieval is available through the local cache interface;
-a history/results navigation screen belongs to the later results task. Webcam results are copied to Tiger asynchronously after saving locally; an outage
-keeps the local result and offers Retry sync with the same attempt ID. Raw video stays in the browser; saved replay data contains tool
-telemetry without raw hand landmarks. Optional `?debug=1` exposes landmark overlays, FPS, numerical
-diagnostics, and the result object. Those stay hidden on the default path.
+Use a supported Node.js version for the installed Next.js release (Node 20.9 or newer) and npm. Current Chrome on a Mac is the primary webcam-training target. Camera access requires localhost or HTTPS; the 3D view requires WebGL.
 
-Live coaching is deterministic text with recorded events. Assessment hides the ghost,
-path guide, and coaching. Scoring always uses the unsmoothed canonical synthetic scene
-guide; choosing the optional JIGSAWS ghost changes the demonstration only. Live coaching
-uses ElevenLabs, committed clips, then browser speech. Optional Backboard/Gemini review
-explains supplied measurements and falls back to deterministic notes. Accepted review text
-is shared by results and replay. Fixtures do not call the review, speech, or upload APIs.
-A dedicated history/progress screen and broader analytics remain separate work.
-
-See [the demo runbook](docs/DEMO_RUNBOOK.md) for the judge path, backup recording
-(`npm run build` then `npm run demo:record`), and outstanding physical checks.
-
-## Stack
-
-Next.js App Router · TypeScript · Tailwind · shadcn/ui · MediaPipe · React Three Fiber · Zustand · Zod · Tiger Data (`postgres`) · ElevenLabs · IndexedDB (`idb`)
-
-## Setup
-
-**`.env.local` is intentionally tracked and pushed with git-crypt encryption.**
-Obtain the repository key securely from a maintainer, then unlock this clone:
+This repository intentionally tracks `.env.local` encrypted with git-crypt. Obtain the existing repository key securely from a maintainer and unlock your clone:
 
 ```bash
 brew install git-crypt
 git-crypt unlock /absolute/path/to/repository.git-crypt-key
-```
-
-```bash
-npm install
+npm ci
 npm run dev
 ```
 
-`dev` and `build` first run `prepare:vision`. The first run downloads Google's
-versioned hand model (about 8 MB) and copies matching WASM assets from the installed
-MediaPipe package. Subsequent runs reuse the checksum-verified model offline.
-Webpack is the default dev/build bundler, with the existing Tailwind loader included
-in its CSS pipeline. `npm run dev:turbo` remains available as an alternative.
-Generated model/runtime files are not committed. Deployment builds must run the
-preparation step and include the resulting `public/mediapipe/` assets.
+Do not overwrite the tracked environment file, print its secrets, or initialize a new git-crypt repository. See [the encryption workflow](docs/GIT_CRYPT.md). `.env.example` documents configuration names.
 
-Person A's webcam preview is available during development at
-[`http://localhost:3000/dev/hand-tracking?debug=1`](http://localhost:3000/dev/hand-tracking?debug=1).
-Click **Start camera** to grant access; **Stop camera** releases it. The preview is
-404 in production. Click **Calibrate controls**, hold both open hands still, pinch
-both thumb/index pairs, then follow the workspace arrow checklist. Move one open
-hand at a time left/right/up/down and hold briefly until each arrow is checked.
-Completed arrows survive tracking interruptions; **Retry workspace** keeps the
-earlier open/pinch measurements. Calibration needs at least three seconds of valid samples;
-pose transitions and retries take additional time. The lower canvas previews
-calibrated position, palm orientation, grip and tracking recovery. The 3D workspace
-adds flat tweezers, a needle holder and a practice needle. Keep **Easy pickup**
-enabled, open your thumb/index finger, and move a colored tip ring inside the
-needle’s circle. When it turns green and says **tip aligned**, pinch to pick up;
-open to release. Easy pickup locks tip depth and snaps the needle into the jaws;
-turn it off for free 3D depth (this resets the scene, not calibration). Both instruments freeze if
-either control becomes unavailable. A4 adds the 8-segment **Needle Passing**
-exercise (`Approach -> Grip -> Align -> Entry -> Rotation -> Exit -> Release -> Complete`)
-with three target rings (`ring-1`, `ring-2`, `ring-3`), a curved corridor guide,
-an upper-right release ring, a lower `tissue-wall` danger zone, and **Learn / Practice / Assessment**
-mode controls (Assessment hides ghost and coaching hooks). A5 adds the translucent
-**Ghost renderer** with reference tool-tip path trails, smooth sub-frame `lerp`/`slerp`
-interpolation, **0.5x / 1x** playback speeds, **Progress-coupled / Continuous** sync
-modes, and runtime switching between the canonical synthetic reference and the
-workspace-fitted JIGSAWS `Needle_Passing_E005` expert trial. **Reset scene** restores the needle, exercise progress, and ghost playback without
-recalibrating. Debug mode includes calibrated pinch thresholds, a planar
-depth fallback, and live exercise/ghost telemetry. Calibration stays in memory and must be repeated after restarting
-the camera. See [`docs/HAND_TRACKING.md`](docs/HAND_TRACKING.md) for the raw and
-calibrated interfaces, fallbacks, privacy details, and manual acceptance checklist.
-See [`docs/SIMULATION.md`](docs/SIMULATION.md) for A3/A4/A5 geometry, interaction,
-exercise state machine, ghost playback, rendering interfaces and outstanding physical acceptance checks.
+The development server runs at `http://localhost:3000`. Before development and builds, `prepare:vision` verifies the local hand model and copies matching MediaPipe WASM assets. Its first run downloads the versioned model; later runs reuse the verified cache. Deployment builds must include the generated `public/mediapipe/` assets.
 
-After unlocking, commit and push `.env.local` changes normally; git-crypt encrypts
-them when staged. Keep the tracked file and its encryption rules in place. Do not
-overwrite it with `.env.example` or run `git-crypt init` in an existing clone.
-See [`docs/GIT_CRYPT.md`](docs/GIT_CRYPT.md) for the team and agent workflow.
+Development and production builds use **Webpack**. `npm run dev:turbo` is the optional Turbopack path.
 
-Optional offline dataset tooling:
+## Data, privacy, and optional services
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+Raw camera video and hand landmarks remain in the browser. Completed webcam attempts save tool telemetry and results to IndexedDB, retaining the newest 20 attempts on the device. Restricted storage falls back to the current tab's memory and displays the limitation.
 
-## Scripts
+| Service | Role | Behavior when unavailable |
+| --- | --- | --- |
+| Tiger Data | Anonymous attempt storage, progress, search, similarity, and analytics | Local training/results remain available; progress shows an unavailable notice |
+| Backboard / Gemini | Explanation of measured results | Deterministic review notes remain available |
+| ElevenLabs | Live coaching and replay narration | Committed clips and browser speech provide fallbacks |
+
+Provider credentials stay server-side. Public feature flags control cloud sync, review, voice, and default sample mode. Server speech also requires `SPEECH_ENABLED=true`. See `.env.example` for the complete configuration reference.
+
+`/progress` shows synced history for this browser's anonymous identifier. Global totals cover all synced attempts; charts show the latest 20 attempts per skill, oldest to newest. Category bars show all-history averages. This is device-scoped anonymous identity, not an account or authentication system.
+
+**Delete my attempt history** deletes that identifier's cloud history and clears local copies. Uploads are paused during deletion. If cleanup cannot finish, the UI reports it and automatic uploads remain paused until deletion is retried successfully.
+
+Replay geometry and the exact adapted comparison package remain in memory for the active session. Saved tool telemetry does not provide a historical replay-navigation screen after reload.
+
+## Commands
 
 | Command | Purpose |
-|---------|---------|
-| `npm run dev` | Next.js + Turbopack |
-| `npm run prepare:vision` | Prepare checksum-verified local model and matching WASM assets |
-| `npm run typecheck` | TypeScript strict check |
-| `npm run lint` | ESLint |
-| `npm test` | Vitest unit tests |
-| `npm run test:e2e` | Playwright e2e |
-| `npm run build` | Production build |
+| --- | --- |
+| `npm run dev` | Start the Next.js development server with Webpack |
+| `npm run prepare:vision` | Prepare the verified hand model and local runtime assets |
+| `npm run typecheck` | Check TypeScript |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run the offline unit suite |
+| `npm run test:e2e` | Run Chromium browser acceptance with live services disabled |
+| `npm run build` | Build the production application |
+| `npm start` | Serve the production build |
+| `npm run test:live` | Opt-in scoped database and provider smoke checks |
+| `npm run test:db` | Isolated-database integration suite; applies migrations and seeds |
+| `npm run verify:ai` | Check provider model/voice configuration and request a speech sample |
+| `npm run demo:record` | Record the camera-free backup walkthrough |
+| `npm run db:migrate` / `npm run db:seed` | Explicit database provisioning operations |
 
-## Docs
+Run typecheck after a build completes, rather than concurrently: builds regenerate the Next.js type directory. Browser tests use a separate `.next-e2e` build directory and can use `PLAYWRIGHT_PORT` to avoid an existing server.
 
-- [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) — canonical architecture
-- [`docs/CONTEXT.md`](docs/CONTEXT.md) — living working state
-- [`docs/TIGER_DATA.md`](docs/TIGER_DATA.md) — database context
+For scoped live acceptance, start the app with its configured server credentials, then run:
 
-Read those before coding. Work one task ID at a time.
+```bash
+STEADY_LIVE_TEST=1 STEADY_LIVE_BASE_URL=http://localhost:3000 npm run test:live
+```
+
+This creates a fresh anonymous test user, uploads synthetic score records, checks duplicate retry/progress/ownership, requests one actual model review and speech clip, and deletes only that user's history. It never runs migrations or shared seeds. It writes its report and audio under ignored `artifacts/acceptance/`. Run `test:db` only against a separate test database.
+
+## Troubleshooting
+
+- **Camera denied:** grant browser permission, retry the camera, or use a sample pass.
+- **Hands stop controlling instruments:** bring the active hands into view; use the calibration panel to check readiness or recalibrate. Complete overlap and edge-on poses can defeat tracking.
+- **Depth or pickup is difficult:** keep Easy pickup enabled; one-hand quick start is available for the simplified workflow.
+- **3D rendering is slow:** enable Reduced graphics. Live training keeps the camera fixed; replay allows constrained orbiting.
+- **Cloud or provider outage:** finish the attempt locally. Read the save/sync status before retrying. Progress does not replace unavailable cloud data with invented history.
+- **Debugging:** `?debug=1` exposes diagnostics; `/dev/hand-tracking?debug=1` is development-only.
+
+## Verification status
+
+The UI integration passes the production build, TypeScript, ESLint, 464 offline tests, all 27 development browser scenarios across an initial run and focused reruns, and two production route/replay checks. The scoped live smoke verified Tiger persistence/progress/deletion, Backboard review generation, and ElevenLabs audio. A single complete browser-suite rerun after the last fixes and physical webcam/audio/performance sign-off remain outstanding; see the runbook for exact evidence.
+
+## Architecture and documentation
+
+Next.js App Router · React · TypeScript · Tailwind · MediaPipe · React Three Fiber / Three.js · Zod · IndexedDB · Tiger Data · Backboard · ElevenLabs.
+
+- [Current engineering state](docs/CONTEXT.md)
+- [Architecture and implementation roadmap](docs/IMPLEMENTATION_PLAN.md)
+- [Hand tracking and calibration](docs/HAND_TRACKING.md)
+- [Simulation and replay contracts](docs/SIMULATION.md)
+- [Database architecture](docs/TIGER_DATA.md)
+- [Demo and physical acceptance checklist](docs/DEMO_RUNBOOK.md)
+- [Asset attribution](docs/ASSET_LICENSES.md) and [reference-data licensing](docs/DATA_LICENSES.md)
+- [Design decisions](docs/DECISIONS.md)
+
+Automated camera fixtures do not certify physical hand tracking, audio output, or target-device performance. The demo runbook records those checks separately from automated acceptance.

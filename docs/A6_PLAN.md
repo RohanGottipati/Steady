@@ -1,5 +1,7 @@
 # A6 — Attempt recording and 3D replay
 
+> Historical implementation plan. Replay now runs inside the integrated product workspace, with procedural room scenery, perspective cameras, constrained orbit, and world-space camera focus derived from canonical recorded coordinates. See SIMULATION.md and CONTEXT.md for current behavior.
+
 Implementation baseline: main `a1f1c2a`, including S1 PR #12, pulled with
 `git pull --ff-only origin main` before implementation. Supersedes the earlier
 plan's assumption that the public trainer is a stub.

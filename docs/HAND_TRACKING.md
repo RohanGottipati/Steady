@@ -1,5 +1,14 @@
 # Hand tracking and calibrated controls (A1/A2)
 
+## Product workspace integration (2026-10-18)
+
+The public training routes now use the supplied dark workspace design. Camera access, neutral/pinch/workspace calibration, one-hand quick start and control readiness still come from the existing tracking/control hooks. The archive's timed calibration and pointer controls are excluded.
+
+Start/stop camera and sample selection remain in the session toolbar. Camera & calibration opens the real setup panel. After calibration the same video element becomes a compact visible preview; it is not replaced by a hidden video. This preserves video-frame callbacks and avoids reacquiring the camera when the HUD changes. Results remain available after stopping the camera. Reduced graphics changes rendering only, never tracking thresholds, filters or scoring.
+
+The procedural room rotates/translates the rendered training field, not the hand-to-tool mapping. Display mirroring and canonical recorded tool coordinates retain the contracts documented below. Physical posture and target-machine performance require the runbook's separate acceptance checklist.
+
+
 ## Running and assets
 
 Run `npm install`, then `npm run dev`, and open

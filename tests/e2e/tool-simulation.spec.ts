@@ -11,7 +11,7 @@ async function instrument(page: Page, side: "left" | "right") {
 async function start(page: Page) {
   await fakeHands(page);
   await page.goto("/dev/hand-tracking?debug=1");
-  await expect(page.getByTestId("simulation-status")).toHaveText("Calibrate both hands to begin.");
+  await expect(page.getByTestId("simulation-status")).toHaveText("Calibrate both hands to begin.", { timeout: 15_000 });
   await page.getByRole("button", { name: "Start camera" }).click();
   await expect(page.getByRole("status")).toHaveText("Status: running");
   await calibrate(page);

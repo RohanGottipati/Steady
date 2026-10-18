@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteShell } from "@/components/product/layout/SiteShell";
 import { notFound } from "next/navigation";
 import { TrainingSession } from "@/components/training/training-session";
 import {
@@ -51,8 +52,10 @@ export default async function TrainPage({
     ? Object.entries(blueprint.metricWeights).sort((a, b) => b[1] - a[1])
     : [];
 
+  if (definition) return <main id="main-content"><TrainingSession skill={skill} definition={definition} /></main>;
+
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10">
+    <SiteShell><main id="main-content" className="mx-auto w-full max-w-5xl flex-1 px-6 py-12">
       <Link
         href="/library"
         className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
@@ -154,6 +157,6 @@ export default async function TrainPage({
       ) : (
         <TrainingSession skill={skill} definition={definition} />
       )}
-    </main>
+    </main></SiteShell>
   );
 }

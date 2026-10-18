@@ -1,5 +1,16 @@
 # A3/A4/A5/S1/A6 simulation, training, and replay handoff
 
+## Product UI and room presentation (2026-10-18)
+
+The current product wraps the existing numerical runtime in the new dark workspace. Results and replay retain the same accepted review and per-session AudioManager. Voice can be disabled; text remains available. Sample fixtures retain their no-live-services policy.
+
+Procedural scenery lives under `src/components/scene/scenery/`. `RoomScenery` batches static geometry by material/shadow flags, preserving light targets. Shared material/texture caches are bounded; per-view merged geometry and shadow maps are disposed on teardown. `TrainingField` applies `TRAINING_FIELD` once to instruments, objects, targets, ghost and replay paths. Canonical local positions/quaternions remain the authority for interaction, diagnostics, recording and scoring.
+
+The product uses a perspective camera fitted to the current viewport. `trainingPointToWorld` converts replay focus positions only for presentation. `applyReplayEmphasis` retains an orthographic compatibility path for existing isolated callers/tests; the live product uses transformed perspective focus. Replay orbit is constrained; manual orbit cancels automatic focus/narration. Reduced graphics lowers pixel density and disables shadows without resetting evaluation. Software WebGL selects it automatically; the room uses demand rendering during calibration to leave capacity for tracking.
+
+The landing room is a static, demand-rendered demonstration and never acquires a webcam. Existing lifecycle behavior for visibility, context loss and replay chunk preloading remains in effect. See CONTEXT.md for current acceptance rather than treating older task-specific evidence below as a new physical sign-off.
+
+
 The development-only `/dev/hand-tracking?debug=1` route combines A1/A2 tracking and
 calibration with two kinematic 3D instruments, the A4 Needle Passing exercise
 state machine, and the A5 translucent ghost motion renderer. Start the camera, calibrate, approach
@@ -204,8 +215,9 @@ for narration; broader Tiger retrieval remains separate.
   immediately. `seekTime`, `seekProgress`, `seekMarker`, and `setMode` clear the
   arm so playback cannot snap back. `divergenceEmphasis` is true only during that
   pause. `focusPoint` is the midpoint of the larger displayed tip difference.
-- `ReplayScene` turns the deviation connectors white and moves the orthographic
-  camera onto `focusPoint` while emphasis is on, then restores the overview camera.
+- `ReplayScene` turns the deviation connectors white and frames the transformed
+  `focusPoint` with the perspective product camera while emphasis is on. Manual
+  orbit/timeline control clears the automatic focus pause.
   Reference visibility is turned on at the pause so the existing comparison shows.
 - `ThreeDReplayPreview` shows the sentence immediately. After the scene is ready
   it arms the focus pause, then calls `AudioManager.speak` once. Skip, play,
@@ -354,9 +366,9 @@ were detached cannot leave a stale lost flag or allow progress on a lost context
 
 ## Display and diagnostics
 
-The front-facing orthographic camera is `(0, 0.15, 4)`, looking down -Z. Zoom is
-fit to a 3.6-by-2.6-unit workspace on resize; pixel ratio is capped at 1.5. This
-removes perspective parallax from alignment. Instruments are now flat ridged
+The product uses the fitted perspective camera described in the room presentation
+section above. Pixel ratio is capped at 1.5, or 1 with Reduced graphics. The former
+orthographic camera remains a compatibility path for isolated renderer callers. Instruments are now flat ridged
 tweezers and an angular pistol-grip needle holder, without the old paired finger
 loops. Room, pad/grid, tools, cursors, halo and needle are procedural geometry;
 there are no external model downloads.

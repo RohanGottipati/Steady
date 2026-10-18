@@ -4,12 +4,36 @@ import {
   type CloudSyncStatus,
   type SavedAttempt,
 } from "@/types/attempt";
-import { listSavedAttempts, markCloudSyncStatus } from "./attempt-cache";
+import {
+  clearSavedAttempts,
+  listSavedAttempts,
+  markCloudSyncStatus,
+} from "./attempt-cache";
 
 export type CloudSyncResult = "synced" | "local-only" | "skipped";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const USER_KEY = "steady.anonymousUserId";
+const CLEANUP_KEY = "steady.historyCleanupPending";
+let deletingHistory = false;
+let cleanupRequired = false;
+const deletedAttempts = new Set<string>();
+function cleanupPending() {
+  try {
+    return cleanupRequired || Boolean(localStorage.getItem(CLEANUP_KEY));
+  } catch {
+    return cleanupRequired;
+  }
+}
+function markCleanup(required: boolean) {
+  cleanupRequired = required;
+  try {
+    if (required) localStorage.setItem(CLEANUP_KEY, "1");
+    else localStorage.removeItem(CLEANUP_KEY);
+  } catch {
+    /* The in-memory gate remains active. */
+  }
+}
 const inflight = new Map<string, Promise<CloudSyncResult>>();
 
 export interface SyncOptions {
@@ -22,6 +46,9 @@ export interface SyncOptions {
 
 export function resetCloudSyncForTests(): void {
   inflight.clear();
+  deletingHistory = false;
+  markCleanup(false);
+  deletedAttempts.clear();
 }
 
 export function anonymousUserId(): string {
@@ -37,7 +64,10 @@ export function anonymousUserId(): string {
   }
 }
 
-export function buildAttemptUpload(attempt: SavedAttempt, userId = anonymousUserId()): AttemptUploadPayload | null {
+export function buildAttemptUpload(
+  attempt: SavedAttempt,
+  userId = anonymousUserId(),
+): AttemptUploadPayload | null {
   if (!UUID.test(attempt.result.id) || !UUID.test(userId)) return null;
   const completedAt = new Date(attempt.result.createdAt);
   if (Number.isNaN(completedAt.getTime())) return null;
@@ -47,7 +77,9 @@ export function buildAttemptUpload(attempt: SavedAttempt, userId = anonymousUser
       anonymousUserId: userId,
       skillId: attempt.result.skillId,
       mode: attempt.result.mode,
-      startedAt: new Date(completedAt.getTime() - attempt.result.durationMs).toISOString(),
+      startedAt: new Date(
+        completedAt.getTime() - attempt.result.durationMs,
+      ).toISOString(),
       completedAt: completedAt.toISOString(),
       durationMs: attempt.result.durationMs,
       result: attempt.result,
@@ -64,9 +96,13 @@ function asOptions(options?: SyncOptions | typeof fetch): SyncOptions {
   return options ?? {};
 }
 
-async function runSync(attempt: SavedAttempt, options: SyncOptions): Promise<CloudSyncResult> {
+async function runSync(
+  attempt: SavedAttempt,
+  options: SyncOptions,
+): Promise<CloudSyncResult> {
   const updateStatus = options.updateStatus ?? markCloudSyncStatus;
-  const enabled = options.enabled ?? process.env.NEXT_PUBLIC_ENABLE_CLOUD_SYNC !== "false";
+  const enabled =
+    options.enabled ?? process.env.NEXT_PUBLIC_ENABLE_CLOUD_SYNC !== "false";
   const mark = async (status: CloudSyncStatus) => {
     try {
       await updateStatus(attempt.result.id, status);
@@ -89,9 +125,15 @@ async function runSync(attempt: SavedAttempt, options: SyncOptions): Promise<Clo
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(8_000),
     });
-    const body = await response.json().catch(() => null) as { status?: string; persistence?: string } | null;
+    const body = (await response.json().catch(() => null)) as {
+      status?: string;
+      persistence?: string;
+    } | null;
     const persistence = body?.status ?? body?.persistence;
-    if (!response.ok || (persistence !== "synced" && persistence !== "duplicate")) {
+    if (
+      !response.ok ||
+      (persistence !== "synced" && persistence !== "duplicate")
+    ) {
       await mark("failed");
       return "local-only";
     }
@@ -114,6 +156,8 @@ export function syncSavedAttempt(
 ): Promise<CloudSyncResult> {
   const id = attempt?.result?.id;
   if (!id) return Promise.resolve("local-only");
+  if (deletingHistory || cleanupPending() || deletedAttempts.has(id))
+    return Promise.resolve("skipped");
   const current = inflight.get(id);
   if (current) return current;
   const pending = runSync(attempt, asOptions(options)).finally(() => {
@@ -124,10 +168,14 @@ export function syncSavedAttempt(
 }
 
 /** Retries IndexedDB copies that are still pending or failed. Does not create attempts. */
-export async function retryUnsyncedAttempts(options?: SyncOptions | typeof fetch): Promise<void> {
+export async function retryUnsyncedAttempts(
+  options?: SyncOptions | typeof fetch,
+): Promise<void> {
   let pending: SavedAttempt[] = [];
   try {
-    pending = (await listSavedAttempts()).filter(item => item.cloudSyncStatus !== "synced");
+    pending = (await listSavedAttempts()).filter(
+      (item) => item.cloudSyncStatus !== "synced",
+    );
   } catch {
     return;
   }
@@ -137,5 +185,41 @@ export async function retryUnsyncedAttempts(options?: SyncOptions | typeof fetch
     } catch {
       /* One failed retry must not block the rest of the session. */
     }
+  }
+}
+
+/** Drain current uploads before deletion and block stale retry snapshots from recreating history. */
+export async function deleteAttemptHistory(
+  userId = anonymousUserId(),
+  fetchFn: typeof fetch = fetch,
+): Promise<void> {
+  if (deletingHistory)
+    throw new Error("History deletion is already in progress.");
+  deletingHistory = true;
+  const previousCleanup = cleanupPending();
+  try {
+    await Promise.allSettled([...inflight.values()]);
+    const copies = await listSavedAttempts();
+    markCleanup(true);
+    const response = await fetchFn(
+      `/api/attempts?anonymousUserId=${encodeURIComponent(userId)}`,
+      { method: "DELETE", signal: AbortSignal.timeout(10_000) },
+    );
+    if (!response.ok) {
+      markCleanup(previousCleanup);
+      throw new Error("Could not delete your history. Please try again.");
+    }
+    for (const copy of copies) deletedAttempts.add(copy.result.id);
+    if (!(await clearSavedAttempts()))
+      throw new Error(
+        "Cloud history was deleted, but device cleanup failed. Automatic uploads are paused; retry deletion to finish cleanup.",
+      );
+    markCleanup(false);
+  } catch (error) {
+    // A network failure before a confirmed response may have reached the server.
+    // Keep the cleanup gate rather than re-uploading possibly deleted history.
+    throw error;
+  } finally {
+    deletingHistory = false;
   }
 }

@@ -11,7 +11,7 @@ export interface ProductCredit {
 export const PRODUCT_CREDITS: readonly ProductCredit[] = [
   {
     id: "scene",
-    text: "The operating room, instruments, needle, pegboard, peg, and targets are procedural geometry written for Steady. They are an educational approximation, not a clinical device. No third-party 3D model is included.",
+    text: "The detailed operating room is procedural geometry adapted from the supplied Steady UI source. Instruments, needle, pegboard, peg, and targets use the existing Steady simulation geometry. They are an educational approximation, not a clinical device. No third-party 3D model is included.",
   },
   {
     id: "mediapipe",

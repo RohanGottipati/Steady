@@ -1,4 +1,18 @@
 # Surgical Motion Trainer
+
+> Current product update — 2026-10-18: UI1–UI6 integrates the supplied Steady design into the existing Next.js application. Needle Passing, Peg Transfer, results/replay, and synced progress are implemented. Suturing and Knot Tying remain blueprint previews. The original task descriptions below are architectural history/roadmap, not a statement that every listed item is unfinished. README.md and CONTEXT.md describe the current product.
+
+## UI1–UI6 delivery
+
+1. UI1: shared ink/scrub visual tokens, existing Geist fonts, accessible native/Radix controls; no archive dependency bundle.
+2. UI2: landing, real skill library, upcoming blueprints, shared navigation and credits.
+3. UI3: dark workspace connected to real calibration, persistent camera preview, runtime, results, audio and replay.
+4. UI4: procedural room under React Three Fiber; static mesh batching; one training-local presentation transform; responsive perspective cameras and replay orbit/focus; reduced graphics.
+5. UI5: additive progress overview/trend contract from compact score rows; coordinated history deletion and local cleanup.
+6. UI6: automated/browser/production checks and scoped live-service smoke passed; documentation refreshed. Physical acceptance remains separate and pending; exact run coverage is recorded in CONTEXT.md.
+
+Constraints: no mouse-training mode, no new exercise scene, no recording-schema/metric-order changes, no imported fake history or synthetic calibration, no automatic migrations/seeds on the configured service. Existing fixture sessions remain isolated from live services.
+
 ## AI-Optimized Implementation Plan
 
 **Project type:** Hack the Valley healthcare training prototype  

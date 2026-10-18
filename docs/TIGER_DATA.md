@@ -1,7 +1,22 @@
 # Tiger Data Project Context
 
+## Product progress contract (2026-10-18)
+
+`GET /api/progress?anonymousUserId=<uuid>` now returns `{ progress, summary }`. Each skill retains its existing aggregate fields and adds `trend: [{ attemptId, completedAt, overallScore }]`, limited to the latest 20 attempts and returned oldest-first with attempt ID as timestamp tie-breaker. Summary has `attempts`, `bestScore`, and `avgScore`; empty history has zero attempts and null scores. Summary and per-skill results come from one score-table query/snapshot, with the global mean rounded after aggregation.
+
+The query scopes `attempt_scores` to the anonymous user before ranking/aggregation; it does not read raw motion samples. Existing validation/rate limits remain and successful responses use `Cache-Control: no-store`. Category bars are all-history averages, not latest-attempt values. No new migration or index is applied by this UI integration. Profile larger user histories before adding indexes on a separate development service.
+
+The UI coordinates deletion with pending uploads and clears local copies after the DELETE succeeds. An incomplete cleanup marker prevents automatic retries from restoring deleted history. The identity remains a device-local anonymous UUID, not account authentication.
+
+`npm run test:live` is a separate opt-in smoke harness for the configured service: a fresh anonymous test user, scoped uploads/progress/idempotency/ownership, provider checks, and scoped deletion/verification in cleanup. It does not run migration or seed scripts. The existing `test:db` suite still requires an isolated database because its setup applies migrations and seeds.
+
+
 Last updated: 2026-10-18
 Updated by: B12 search/similarity/analytics (migration 0003 applied live)
+
+### UI integration acceptance
+
+Verified 2026-10-18 against the configured service with a fresh anonymous test user: four synthetic score uploads across both playable skills, duplicate retry without an extra score, accurate global/per-skill summaries, chronological real trends, other-user isolation, and scoped deletion followed by empty history. All test-user cleanup passed. No migration or shared seed was run. The default offline suite still skips mutation-capable isolated-database tests.
 
 ## 1. Service Status
 - Tiger project ID: p2r9lzrn7s

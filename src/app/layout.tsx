@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { SiteCredits } from "@/components/site-credits";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,7 +30,6 @@ export default function RootLayout({
     >
       <body className="flex min-h-dvh flex-col">
         {children}
-        <SiteCredits />
       </body>
     </html>
   );

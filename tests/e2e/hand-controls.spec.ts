@@ -106,11 +106,13 @@ test("lower palms-down hands calibrate, move independently, roll along the shaft
   await expect(leftTarget).toContainText("grip open");
   const stream = await page.locator("video").evaluate(video => (video as HTMLVideoElement).srcObject ? true : false);
   expect(stream).toBe(true);
+  await page.locator("video").evaluate(video => { video.dataset.previewIdentity = "original"; });
   await page.getByLabel("3D instrument workspace", { exact: true }).scrollIntoViewIfNeeded();
-  await expect(page.getByTestId("camera-preview-frame")).toHaveAttribute("data-floating", "true");
+  await expect(page.getByTestId("camera-preview-frame")).toBeVisible();
+  await expect(page.locator("video")).toHaveAttribute("data-preview-identity", "original");
   await expect(page.getByTestId("control-readiness")).toHaveText("Controls ready");
-  await page.getByTestId("camera-preview-anchor").scrollIntoViewIfNeeded();
-  await expect(page.getByTestId("camera-preview-frame")).toHaveAttribute("data-floating", "false");
+  await page.getByRole("button", { name: "Camera & calibration", exact: true }).click();
+  await expect(page.locator("video")).toHaveAttribute("data-preview-identity", "original");
   const production = process.env.PLAYWRIGHT_PRODUCTION === "1";
   await expect(page.getByLabel("Surgical orientation diagnostics", { exact: true })).toHaveCount(production ? 0 : 1);
   if (!production) {

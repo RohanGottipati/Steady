@@ -1,28 +1,29 @@
-import Link from "next/link";
-
+import { SiteShell } from "@/components/product/layout/SiteShell";
+import { LandingHero } from "@/components/product/landing/LandingHero";
+import { HowItWorks } from "@/components/product/landing/HowItWorks";
+import { ScoringSection } from "@/components/product/landing/ScoringSection";
+import { SkillCard } from "@/components/product/library/SkillCard";
+import { skills } from "@/components/product/data/skills";
+import { BracketLabel } from "@/components/product/brand/BracketLabel";
 export default function Home() {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-16">
-      <div className="space-y-3">
-        <p className="text-sm font-medium tracking-[0.2em] text-zinc-500 uppercase">
-          Steady
-        </p>
-        <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-          Surgical Motion Trainer
-        </h1>
-        <p className="max-w-xl text-lg leading-relaxed text-zinc-600 dark:text-zinc-400">
-          Practice needle passing and peg transfer with your laptop camera. Watch the guide, then try the motion yourself.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/library"
-          className="inline-flex h-11 items-center justify-center rounded-md bg-zinc-950 px-5 text-sm font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200"
-        >
-          Choose a skill
-        </Link>
-      </div>
-    </main>
+    <SiteShell dark>
+      <main id="main-content" className="flex-1">
+        <LandingHero />
+        <HowItWorks />
+        <ScoringSection />
+        <section className="mx-auto max-w-7xl px-6 py-20">
+          <BracketLabel>Skills library</BracketLabel>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight">
+            Start with the fundamentals.
+          </h2>
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {skills.map((skill) => (
+              <SkillCard key={skill.id} skill={skill} compact />
+            ))}
+          </div>
+        </section>
+      </main>
+    </SiteShell>
   );
 }

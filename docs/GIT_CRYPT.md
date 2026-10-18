@@ -1,5 +1,10 @@
 # Encrypted files with git-crypt
 
+## UI integration note (2026-10-18)
+
+The UI migration does not replace or modify the tracked encrypted `.env.local`. Non-secret environment documentation is in `.env.example`. Live smoke checks use the running app's server-side configuration and never print provider credentials or database URLs. Keep the encryption workflow below intact.
+
+
 [git-crypt](https://github.com/AGWA/git-crypt) encrypts selected files in Git
 while keeping them readable in an unlocked working directory.
 

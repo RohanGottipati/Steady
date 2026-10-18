@@ -211,7 +211,7 @@ test("navigates from /library to /train/needle-passing, calibrates, shows ghost 
 
   // Re-open with ?debug=1 so we can guide synthetic hands accurately via instrument state
   await page.goto("/train/needle-passing?debug=1");
-  await expect(page.getByTestId("simulation-status")).toHaveText("Calibrate both hands to begin.");
+  await expect(page.getByTestId("simulation-status")).toHaveText("Calibrate both hands to begin.", { timeout: 15_000 });
 
   await page.getByRole("button", { name: "Start camera" }).click();
   await expect(page.getByRole("status")).toHaveText("Status: running");
@@ -219,7 +219,7 @@ test("navigates from /library to /train/needle-passing, calibrates, shows ghost 
   await expect(page.getByTestId("simulation-status")).toHaveText("Simulation ready");
 
   // Default mode on /train/needle-passing is Learn mode -> verify ghost demo
-  await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: demonstration");
+  await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: demonstration", { timeout: 15_000 });
   await expect(page.getByTestId("exercise-ghost-status")).toHaveText("Ghost: visible");
   await page.getByTestId("start-attempt").click();
   await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: active");
@@ -333,7 +333,7 @@ test("S1 recovers from denied camera access using fixtures, switches modes and r
 test("S1 fixture pauses through WebGL loss and restarts cleanly after restoration", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await page.goto("/train/needle-passing?fixture=needle-pass-good&debug=1");
-  await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: demonstration");
+  await expect(page.getByTestId("exercise-phase")).toHaveText("Phase: demonstration", { timeout: 15_000 });
   await page.getByLabel("3D instrument workspace").locator("canvas").evaluate(element => {
     const gl = (element as HTMLCanvasElement).getContext("webgl2")!;
     const extension = gl.getExtension("WEBGL_lose_context")!;

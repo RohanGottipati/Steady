@@ -5,7 +5,7 @@
 Run `npm run build`, then `npm run start`. Use current Chrome on the demo Mac.
 The default build/dev bundler is Webpack, using the installed Tailwind loader in
 Next's existing CSS pipeline. `npm run dev:turbo` retains the Turbopack alternative;
-its CSS worker cannot bind a port in the current agent host, even with escalation.
+Webpack remains the verified default for this checkout.
 Both build paths use the same source styles and dependencies.
 
 ## Judge path (about three minutes)
@@ -20,7 +20,7 @@ do not certify back-of-hand tracking. The temporary fallback is
 `NEXT_PUBLIC_SURGICAL_POSTURE_MAPPING=false` followed by restart/rebuild and fresh
 calibration.
 
-1. Open `/library` without `debug=1`. Point out the two available skills and the
+1. Open the new landing page, then `/library` without `debug=1`. Point out the two available skills and the
    two clearly marked upcoming skills. Credits are below the page content.
 2. Choose Needle Passing. Explain that camera video stays on this device.
 3. For a physical demo, start the camera, calibrate, watch the Learn guide, and
@@ -37,7 +37,8 @@ calibration.
 6. Return to the library and open
    `/train/peg-transfer?fixture=peg-transfer-good`. Show reach, grasp, lift,
    midline meeting, placement, release, results, and replay on the shared engine.
-7. State that this is an educational simulation, with synthetic reference guides.
+7. Open `/progress` to show real synced summaries and the latest 20 score points per skill. Sample attempts do not populate this history.
+8. State that this is an educational simulation, with synthetic reference guides.
 
 ## Backup recording
 
@@ -93,3 +94,23 @@ they do not certify deployment database permissions or actual concurrent SQL.
 `npm test` is offline by default. `npm run test:db` explicitly opts into the live
 bootstrap/health tests, including migration and seed writes to the configured
 database; use an isolated test service for that command.
+
+## Scoped live smoke acceptance
+
+Start the app with its configured server credentials and `SPEECH_ENABLED=true`, then run:
+
+```bash
+STEADY_LIVE_TEST=1 STEADY_LIVE_BASE_URL=http://localhost:3000 npm run test:live
+```
+
+The command creates four synthetic score records for a fresh anonymous test user, verifies upload/retry/progress/ownership, requests a real model review and speech clip, and deletes only that user's records in cleanup. It does not apply migrations or shared seeds. `artifacts/acceptance/live-smoke.json` records each outcome; `live-speech.mp3` permits listening separately. Provider calls may consume the configured account's quota. Normal fixture sessions still do not call live services.
+
+Use the current UI for physical sign-off: check camera permission/retry, actual stage-based calibration, the persistent preview, both playable scenes, Voice off, Reduced graphics, full results, issue focus and manual replay orbit. Verify responsive controls and that stopping the camera preserves completed results. Generated screenshots live under `artifacts/acceptance/`; refresh the backup recording after final UI changes.
+
+## UI acceptance recorded 2026-10-18
+
+Production build/typecheck/lint passed. The offline suite passed 464 tests (13 live-database tests skipped), and final targeted runtime/review/scene tests passed 22 checks. All 27 development browser scenarios passed across the full run and focused reruns; the final four affected UI/switching/recovery scenarios passed together. A single complete final 27-test rerun was not performed. Two production route/replay smoke checks passed.
+
+The fresh-user live smoke verified real Tiger ingestion, idempotent retry, exact progress summaries/trends and ownership isolation, actual Backboard generation, actual ElevenLabs audio, and scoped deletion/empty-history verification. See artifacts/acceptance/live-smoke.json. No migrations or shared seeds were executed. Physical hand tracking, listening through the target audio device and measured ten-attempt performance remain pending.
+
+The results panel is positioned below session controls so camera and mode changes remain usable. Software rendering automatically reduces graphics, and calibration demand-renders the room to preserve camera sampling. Review timeouts are 20 seconds server-side / 25 seconds client-side; deterministic results remain available immediately.

@@ -89,7 +89,7 @@ export async function requestBackboardReview(
           coachingContext,
         }),
       }),
-      signal: AbortSignal.timeout(deps.timeoutMs ?? 8_000),
+      signal: AbortSignal.timeout(deps.timeoutMs ?? 20_000),
     });
   } catch {
     throw new ReviewUnavailableError("Backboard did not respond.");
