@@ -1,7 +1,7 @@
 # Tiger Data Project Context
 
 Last updated: 2026-10-18
-Updated by: B10 progress rework (migration 0002 added to repo)
+Updated by: B12 search/similarity/analytics (migration 0003 applied live)
 
 ## 1. Service Status
 - Tiger project ID: p2r9lzrn7s
@@ -10,9 +10,11 @@ Updated by: B10 progress rework (migration 0002 added to repo)
 - TimescaleDB version: 2.30.2
 - Service plan/free vs standard: free
 - Region: us-east-1
-- Current migration version: 0001_init (applied; tracked in `schema_migrations`).
-  0002_progress added to repo (continuous aggregates + Hypercore columnstore policies,
-  idempotent); not yet applied to the live service — no DB access on this host.
+- Current migration version: 0003_search (applied; tracked in `schema_migrations`).
+  0001_init, 0002_progress (continuous aggregates + Hypercore columnstore) and
+  0003_search (vector/BM25 indexes, retention policies, maintenance job) are all
+  applied to the live service. Each migration is idempotent (re-running 0003 raw
+  is a no-op and creates no duplicate policies/jobs).
 - Cloud sync smoke test: not-run
 - Optional fork support available: unknown
 
@@ -29,9 +31,9 @@ Never put a database password, API secret, or full connection string in this fil
 - vectorscale: enabled (0.9.0) via `0001_init`
 - pg_textsearch: enabled (1.5.1) via `0001_init`
 - vector (pgvector): enabled (0.8.7, pulled in by vectorscale CASCADE)
-- timescaledb_toolkit/hyperfunctions: not verified — not required by 0002. The
-  per-second rollup keeps only avg/max aggregates; percentile distributions
-  (`percentile_agg`) are deferred to B12, which will gate on the extension.
+- timescaledb_toolkit/hyperfunctions: enabled (1.26.0). Confirmed live during
+  B12; `percentile_agg`/`approx_percentile`, `time_weight`, and `lttb` are all
+  available, so B12 no longer gates on or defers the toolkit.
 
 ## 3. Core Data Model
 Relational:
@@ -78,21 +80,40 @@ Continuous aggregates:
 - Optional tiering policy if plan supports it:
 
 ## 5. Search and Retrieval
-BM25:
-- Index: skill_documents_bm25_idx
-- Used for skill instructions, error explanations, and source notes.
+BM25 (pg_textsearch), added in 0003:
+- Index: `skill_documents_bm25_idx` on `skill_documents(content)`
+  `using bm25 (content text_bm25_ops) with (text_config = 'english')`.
+- Query: `content <@> to_bm25query('terms', 'skill_documents_bm25_idx')` returns a
+  NEGATIVE BM25 score for matches and 0 for non-matches, so retrieval filters
+  `< 0` and orders ascending (best match first).
+- Code: `src/lib/db/search.ts` (`searchCoachingDocuments`). `coaching-retrieval.ts`
+  expands weak-metric ids (camelCase → words) into the BM25 query to ground the
+  B9 review. Corpus seeded by `db/seeds/0002_coaching_knowledge.sql`.
+- Used for skill instructions, error-to-coaching retrieval, and source notes.
 
-Vector similarity:
-- Column: attempt_scores.performance_vector vector(20)
-- Index: attempt_scores_vector_idx using StreamingDiskANN
+Vector similarity (added in 0003):
+- Column: `attempt_scores.performance_vector vector(20)`.
+- Index: `attempt_scores_vector_idx using diskann (performance_vector vector_cosine_ops)`
+  (pgvectorscale StreamingDiskANN).
+- Query: `performance_vector <=> q.v` (cosine distance), scoped to the same skill
+  and the same `anonymous_user_id`, excluding the query attempt,
+  `completed_at < q.completed_at` (prior attempts).
+- Code: `src/lib/db/similarity.ts` (`findSimilarAttempts(attemptId, anonymousUserId)`),
+  `/api/similar-attempts?attemptId=…&anonymousUserId=…`. Ownership is required, so
+  an attempt id only ever yields that same user's prior attempts.
 - Similarity meaning: similarity of simulator performance profiles, not clinical equivalence.
 
 ## 6. Hyperfunctions in Use
 - time_bucket: 0002 daily progress CAGG and per-second motion CAGG.
-- percentile_agg / approx_percentile: deferred to B12 (needs timescaledb_toolkit).
-- time_weight:
-- state tracking:
-- lttb/asap_smooth:
+- percentile_agg / approx_percentile: B12 p50/p95 of per-attempt path deviation
+  (`src/lib/db/analytics.ts` → `getAttemptDeviationStats`, `/api/analytics`).
+  Scoped to the attempt's owner (`anonymousUserId` checked against `attempts`,
+  since `metric_samples` carries no owner column).
+- time_weight ('Linear') + average: B12 time-weighted mean path deviation so
+  uneven sampling does not skew the average (same module/route).
+- lttb: B12 downsampled deviation series for replay/progress charts
+  (`getDownsampledDeviation`, `/api/analytics`) — preserves visible peaks.
+- state tracking: not used.
 
 ## 7. Policies / Jobs
 - Continuous aggregate refresh: defined in 0002 for `user_skill_daily_progress`
@@ -100,9 +121,17 @@ Vector similarity:
   so re-running the migration is idempotent.
 - Columnstore: 0002 converts `motion_samples`/`metric_samples` chunks older than
   7 days to Hypercore columnstore (guarded, idempotent).
-- Retention:
-- Custom jobs:
-- Last verified: not applied to live service yet (no DB access on this host).
+- Retention: 0003 drops `motion_samples` and `metric_samples` chunks older than
+  90 days (`add_retention_policy`, guarded by a `policy_retention`/`hypertable_name`
+  existence check in `timescaledb_information.jobs` rather than a catch-all handler,
+  so re-running is a no-op without masking unrelated errors). Compact
+  `attempt_scores` vectors and the daily CAGG are kept indefinitely.
+- Custom jobs: 0003 adds `steady_refresh_search_stats` (daily) — ANALYZEs
+  `attempt_scores`, `metric_samples`, `skill_documents` so the DiskANN/BM25/
+  percentile queries keep choosing their indexes as data grows.
+- Last verified: all three migrations applied and verified live during B12
+  (2026-10-18). Two `policy_retention` jobs + one custom job present; re-applying
+  0003 creates no duplicates.
 
 ## 8. AI-Agent Database Workflow
 Before schema/query work:
@@ -118,10 +147,17 @@ Before schema/query work:
 Record only useful, current information:
 - ingest benchmark:
 - progress query latency:
-- similar-attempt query latency:
-- BM25 query latency:
-- largest current table:
-- notes:
+- similar-attempt query: DiskANN cosine over the synthetic needle-passing set
+  ranks the nearest prior attempt first (B002, distance ~0) then 0.00125 / 0.019
+  / 0.069 — verified by `tests/unit/b12-tiger-search.test.ts`.
+- BM25 query: "movement smoothness jerky trembling" → "Smoothing jerky needle
+  motion"; "danger zone collision safety" → "Avoiding danger zones and
+  collisions" (known-answer, same test).
+- deviation analytics (attempt A, 240 samples): p50 ~0.416, p95 ~0.549, max
+  ~3.318, time-weighted avg ~0.429; LTTB → 20 points still carrying the ~3.3 peak.
+- largest current table: metric_samples (240 synthetic rows for the demo attempt).
+- notes: synthetic analytics rows live under anonymous user
+  `00000000-0000-7000-8000-0000000000b1` (isolable from real progress).
 
 ## 10. Known Limitations
 - Free-plan limitations:

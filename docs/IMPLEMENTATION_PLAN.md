@@ -3601,6 +3601,28 @@ A judge can intentionally perform a bad movement and see/hear the system explain
 - downsampled chart returns substantially fewer points while preserving visible peaks,
 - no feature is added solely for sponsor-name padding.
 
+### Status (2026-10-18)
+
+Complete and verified against the live Tiger service. Migration `0003_search.sql`
+(idempotent) adds the StreamingDiskANN cosine index `attempt_scores_vector_idx`,
+the pg_textsearch BM25 index `skill_documents_bm25_idx` (english), 90-day
+retention policies on `motion_samples`/`metric_samples`, and the daily
+`steady_refresh_search_stats` ANALYZE job. Query modules: `src/lib/db/similarity.ts`
+(nearest prior same-skill attempts, cosine `<=>`), `src/lib/db/search.ts` (BM25
+`content <@> to_bm25query(...)`, matches score `< 0`), `src/lib/db/analytics.ts`
+(`percentile_agg`/`approx_percentile` p50/p95, `time_weight` time-weighted mean,
+`lttb` downsample). `coaching-retrieval.ts` grounds the B9 review through BM25
+(weak-metric ids → search terms) without changing deterministic scores. Routes:
+`/api/similar-attempts`, `/api/search`, `/api/analytics` (shared per-IP limiter,
+503 when Tiger is unavailable). Similarity and analytics require an
+`anonymousUserId` and scope every query to that owner (same gate as
+`/api/progress`), so an attempt id cannot surface another user's attempts or
+telemetry. Coaching corpus + synthetic analytics telemetry
+are seeded (`db/seeds/0002_coaching_knowledge.sql`, `0003_analytics_demo.sql`).
+Acceptance covered by `tests/unit/b12-tiger-search.test.ts` (live, opt-in
+`npm run test:db`) plus offline unit tests for every module/route. The toolkit
+deferral noted under B10/B11 is void: `timescaledb_toolkit` 1.26.0 is enabled.
+
 ---
 
 ## A7 - Additional skill scene configs
