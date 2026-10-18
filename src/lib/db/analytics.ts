@@ -26,11 +26,17 @@ export interface DeviationStats {
  * B12 hyperfunction analytics (plan 18.6): p50/p95 of an attempt's path
  * deviation via `percentile_agg`/`approx_percentile`, plus a `time_weight`
  * time-weighted mean so uneven sampling does not skew the average. Reads the
- * raw `metric_samples` telemetry for a single attempt. Returns `null` when
- * Tiger is unconfigured/unreachable or the attempt has no samples; never throws.
+ * raw `metric_samples` telemetry for a single attempt.
+ *
+ * Scoped to `anonymousUserId`: `metric_samples` carries no owner column, so the
+ * attempt's ownership is checked against `attempts` — a caller can only read
+ * telemetry for an attempt that belongs to the user id they present. Returns
+ * `null` when Tiger is unconfigured/unreachable or the attempt has no samples
+ * for this user; never throws.
  */
 export async function getAttemptDeviationStats(
   attemptId: string,
+  anonymousUserId: string,
   deps: AnalyticsDeps = {},
 ): Promise<DeviationStats | null> {
   const sql = deps.sql === undefined ? getDb() : deps.sql;
@@ -53,6 +59,11 @@ export async function getAttemptDeviationStats(
         count(*)::int as sample_count
       from metric_samples
       where attempt_id = ${attemptId}
+        and exists (
+          select 1 from attempts a
+          where a.id = ${attemptId}
+            and a.anonymous_user_id = ${anonymousUserId}
+        )
     `;
     const row = rows[0];
     if (!row || !row.sample_count || row.p50 == null) return null;
@@ -83,11 +94,13 @@ export interface DownsampleDeps extends AnalyticsDeps {
  * B12 downsampled chart series (plan 18.7): reduce an attempt's path-deviation
  * telemetry to a target number of points with `lttb` (Largest-Triangle-Three-
  * Buckets), which preserves visible peaks and troughs while shrinking the
- * payload. Returns `null` when Tiger is unconfigured/unreachable or on any
- * failure; never throws.
+ * payload. Scoped to `anonymousUserId` the same way as
+ * {@link getAttemptDeviationStats}. Returns `null` when Tiger is
+ * unconfigured/unreachable or on any failure; never throws.
  */
 export async function getDownsampledDeviation(
   attemptId: string,
+  anonymousUserId: string,
   deps: DownsampleDeps = {},
 ): Promise<SeriesPoint[] | null> {
   const sql = deps.sql === undefined ? getDb() : deps.sql;
@@ -100,6 +113,11 @@ export async function getDownsampledDeviation(
         select (lttb(sampled_at, path_deviation, ${points}) -> unnest()).*
         from metric_samples
         where attempt_id = ${attemptId}
+          and exists (
+            select 1 from attempts a
+            where a.id = ${attemptId}
+              and a.anonymous_user_id = ${anonymousUserId}
+          )
       ) as s(t, v)
       order by t
     `;

@@ -26,11 +26,18 @@ export interface SimilarityDeps {
  * performance profile is nearest to the given attempt, within the same skill.
  * Uses the StreamingDiskANN cosine index (`attempt_scores_vector_idx`); cosine
  * distance means "similar simulator performance profile", not clinical
- * equivalence. Returns `null` when Tiger is unconfigured/unreachable so callers
- * can degrade gracefully; never throws.
+ * equivalence.
+ *
+ * Scoped to `anonymousUserId` (the same ownership gate `/api/progress` uses):
+ * both the query attempt and every neighbour must belong to that user, so one
+ * user's attempt id can never surface another user's attempts. Returns `null`
+ * when Tiger is unconfigured/unreachable so callers can degrade gracefully; an
+ * empty array means the user has no prior attempts (or the attempt is not
+ * theirs). Never throws.
  */
 export async function findSimilarAttempts(
   attemptId: string,
+  anonymousUserId: string,
   deps: SimilarityDeps = {},
 ): Promise<SimilarAttempt[] | null> {
   const sql = deps.sql === undefined ? getDb() : deps.sql;
@@ -51,6 +58,7 @@ export async function findSimilarAttempts(
         select performance_vector as v, skill_id, completed_at
         from attempt_scores
         where attempt_id = ${attemptId}
+          and anonymous_user_id = ${anonymousUserId}
         limit 1
       )
       select s.attempt_id::text as attempt_id,
@@ -59,7 +67,8 @@ export async function findSimilarAttempts(
              s.completed_at,
              (s.performance_vector <=> q.v) as distance
       from attempt_scores s, q
-      where s.skill_id = q.skill_id
+      where s.anonymous_user_id = ${anonymousUserId}
+        and s.skill_id = q.skill_id
         and s.attempt_id <> ${attemptId}
         and s.completed_at < q.completed_at
       order by s.performance_vector <=> q.v

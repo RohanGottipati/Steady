@@ -95,15 +95,20 @@ Vector similarity (added in 0003):
 - Column: `attempt_scores.performance_vector vector(20)`.
 - Index: `attempt_scores_vector_idx using diskann (performance_vector vector_cosine_ops)`
   (pgvectorscale StreamingDiskANN).
-- Query: `performance_vector <=> q.v` (cosine distance), scoped to the same skill,
-  excluding the query attempt, `completed_at < q.completed_at` (prior attempts).
-- Code: `src/lib/db/similarity.ts` (`findSimilarAttempts`), `/api/similar-attempts`.
+- Query: `performance_vector <=> q.v` (cosine distance), scoped to the same skill
+  and the same `anonymous_user_id`, excluding the query attempt,
+  `completed_at < q.completed_at` (prior attempts).
+- Code: `src/lib/db/similarity.ts` (`findSimilarAttempts(attemptId, anonymousUserId)`),
+  `/api/similar-attempts?attemptId=…&anonymousUserId=…`. Ownership is required, so
+  an attempt id only ever yields that same user's prior attempts.
 - Similarity meaning: similarity of simulator performance profiles, not clinical equivalence.
 
 ## 6. Hyperfunctions in Use
 - time_bucket: 0002 daily progress CAGG and per-second motion CAGG.
 - percentile_agg / approx_percentile: B12 p50/p95 of per-attempt path deviation
   (`src/lib/db/analytics.ts` → `getAttemptDeviationStats`, `/api/analytics`).
+  Scoped to the attempt's owner (`anonymousUserId` checked against `attempts`,
+  since `metric_samples` carries no owner column).
 - time_weight ('Linear') + average: B12 time-weighted mean path deviation so
   uneven sampling does not skew the average (same module/route).
 - lttb: B12 downsampled deviation series for replay/progress charts
@@ -117,8 +122,10 @@ Vector similarity (added in 0003):
 - Columnstore: 0002 converts `motion_samples`/`metric_samples` chunks older than
   7 days to Hypercore columnstore (guarded, idempotent).
 - Retention: 0003 drops `motion_samples` and `metric_samples` chunks older than
-  90 days (`add_retention_policy`, guarded). Compact `attempt_scores` vectors and
-  the daily CAGG are kept indefinitely.
+  90 days (`add_retention_policy`, guarded by a `policy_retention`/`hypertable_name`
+  existence check in `timescaledb_information.jobs` rather than a catch-all handler,
+  so re-running is a no-op without masking unrelated errors). Compact
+  `attempt_scores` vectors and the daily CAGG are kept indefinitely.
 - Custom jobs: 0003 adds `steady_refresh_search_stats` (daily) — ANALYZEs
   `attempt_scores`, `metric_samples`, `skill_documents` so the DiskANN/BM25/
   percentile queries keep choosing their indexes as data grows.

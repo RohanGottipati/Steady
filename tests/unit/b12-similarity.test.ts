@@ -3,28 +3,34 @@ import { describe, expect, it, vi } from "vitest";
 import { findSimilarAttempts } from "@/lib/db/similarity";
 
 const ATTEMPT = "00000000-0000-7000-8000-00000000b001";
+const USER = "00000000-0000-7000-8000-0000000000b1";
 
 describe("findSimilarAttempts", () => {
   it("returns null when Tiger is unconfigured", async () => {
-    expect(await findSimilarAttempts(ATTEMPT, { sql: null })).toBeNull();
+    expect(await findSimilarAttempts(ATTEMPT, USER, { sql: null })).toBeNull();
   });
 
   it("returns null without throwing when the query rejects", async () => {
     const sql = vi.fn(async () => {
       throw new Error("connection refused");
     });
-    expect(await findSimilarAttempts(ATTEMPT, { sql: sql as never })).toBeNull();
+    expect(await findSimilarAttempts(ATTEMPT, USER, { sql: sql as never })).toBeNull();
   });
 
-  it("ranks prior same-skill attempts by cosine distance, excluding the query attempt", async () => {
-    const sql = vi.fn(async (strings: TemplateStringsArray) => {
+  it("ranks the user's prior same-skill attempts by cosine distance, excluding the query attempt", async () => {
+    const seen: unknown[] = [];
+    const sql = vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join("?");
+      seen.push(...values);
       // DiskANN cosine operator over the score vectors, scoped and prior-only.
       expect(text).toContain("attempt_scores");
       expect(text).toContain("<=>");
       expect(text).toContain("s.skill_id = q.skill_id");
       expect(text).toContain("s.attempt_id <>");
       expect(text).toContain("s.completed_at < q.completed_at");
+      // Scoped to the owning user in both the query CTE and the neighbour set.
+      expect(text).toContain("s.anonymous_user_id =");
+      expect(text).toContain("anonymous_user_id =");
       return [
         {
           attempt_id: "00000000-0000-7000-8000-00000000b002",
@@ -42,7 +48,8 @@ describe("findSimilarAttempts", () => {
         },
       ];
     });
-    const result = await findSimilarAttempts(ATTEMPT, { sql: sql as never, limit: 5 });
+    const result = await findSimilarAttempts(ATTEMPT, USER, { sql: sql as never, limit: 5 });
+    expect(seen).toContain(USER);
     expect(result).toEqual([
       {
         attemptId: "00000000-0000-7000-8000-00000000b002",

@@ -22,18 +22,28 @@ create index if not exists skill_documents_bm25_idx
 -- Retention (plan 18.8) --------------------------------------------------
 -- Raw per-sample telemetry is only needed for recent replay/analytics. Chunks
 -- convert to Hypercore columnstore after 7 days (0002) and are dropped after 90.
--- Compact score vectors and daily aggregates are kept indefinitely. add_*_policy
--- raises if one already exists, so each call is guarded to stay idempotent.
+-- Compact score vectors and daily aggregates are kept indefinitely. Each policy
+-- is added only when `timescaledb_information.jobs` has no matching
+-- `policy_retention` for the hypertable, so re-running is a no-op without
+-- swallowing unrelated errors (mirrors the custom-job guard below).
 do $$
 begin
-  perform add_retention_policy('motion_samples', drop_after => interval '90 days');
-exception when others then null;
+  if not exists (
+    select 1 from timescaledb_information.jobs
+    where proc_name = 'policy_retention' and hypertable_name = 'motion_samples'
+  ) then
+    perform add_retention_policy('motion_samples', drop_after => interval '90 days');
+  end if;
 end $$;
 
 do $$
 begin
-  perform add_retention_policy('metric_samples', drop_after => interval '90 days');
-exception when others then null;
+  if not exists (
+    select 1 from timescaledb_information.jobs
+    where proc_name = 'policy_retention' and hypertable_name = 'metric_samples'
+  ) then
+    perform add_retention_policy('metric_samples', drop_after => interval '90 days');
+  end if;
 end $$;
 
 -- Custom maintenance job (plan 18.9) -------------------------------------

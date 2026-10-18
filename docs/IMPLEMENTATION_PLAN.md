@@ -3614,7 +3614,10 @@ retention policies on `motion_samples`/`metric_samples`, and the daily
 `lttb` downsample). `coaching-retrieval.ts` grounds the B9 review through BM25
 (weak-metric ids → search terms) without changing deterministic scores. Routes:
 `/api/similar-attempts`, `/api/search`, `/api/analytics` (shared per-IP limiter,
-503 when Tiger is unavailable). Coaching corpus + synthetic analytics telemetry
+503 when Tiger is unavailable). Similarity and analytics require an
+`anonymousUserId` and scope every query to that owner (same gate as
+`/api/progress`), so an attempt id cannot surface another user's attempts or
+telemetry. Coaching corpus + synthetic analytics telemetry
 are seeded (`db/seeds/0002_coaching_knowledge.sql`, `0003_analytics_demo.sql`).
 Acceptance covered by `tests/unit/b12-tiger-search.test.ts` (live, opt-in
 `npm run test:db`) plus offline unit tests for every module/route. The toolkit

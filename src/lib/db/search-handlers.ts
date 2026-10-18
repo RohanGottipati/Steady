@@ -21,13 +21,15 @@ function param(request: Request, name: string): string {
 }
 
 export interface SimilarAttemptsDeps {
-  findSimilar?: (attemptId: string) => Promise<SimilarAttempt[] | null>;
+  findSimilar?: (attemptId: string, anonymousUserId: string) => Promise<SimilarAttempt[] | null>;
   rateLimiter?: RateLimiter;
 }
 
 /**
- * GET /api/similar-attempts?attemptId=… — prior attempts with the nearest
- * performance profile (B12 vector similarity). 503 when Tiger is unavailable.
+ * GET /api/similar-attempts?attemptId=…&anonymousUserId=… — the user's own prior
+ * attempts with the nearest performance profile (B12 vector similarity). Scoped
+ * to the user so an attempt id can't surface anyone else's attempts. 503 when
+ * Tiger is unavailable.
  */
 export async function handleSimilarAttempts(
   request: Request,
@@ -37,10 +39,14 @@ export async function handleSimilarAttempts(
   if (limited) return limited;
 
   const attemptId = param(request, "attemptId");
-  if (!UUID.test(attemptId)) {
-    return Response.json({ error: "attemptId is required" }, { status: 400 });
+  const anonymousUserId = param(request, "anonymousUserId");
+  if (!UUID.test(attemptId) || !UUID.test(anonymousUserId)) {
+    return Response.json({ error: "attemptId and anonymousUserId are required" }, { status: 400 });
   }
-  const similar = await (deps.findSimilar ?? (id => findSimilarAttempts(id)))(attemptId);
+  const similar = await (deps.findSimilar ?? ((a, u) => findSimilarAttempts(a, u)))(
+    attemptId,
+    anonymousUserId,
+  );
   if (similar === null) {
     return Response.json({ error: "cloud sync not configured" }, { status: 503 });
   }
@@ -73,15 +79,16 @@ export async function handleCoachingSearch(
 }
 
 export interface DeviationAnalyticsDeps {
-  getStats?: (attemptId: string) => Promise<DeviationStats | null>;
-  getSeries?: (attemptId: string) => Promise<SeriesPoint[] | null>;
+  getStats?: (attemptId: string, anonymousUserId: string) => Promise<DeviationStats | null>;
+  getSeries?: (attemptId: string, anonymousUserId: string) => Promise<SeriesPoint[] | null>;
   points?: number;
   rateLimiter?: RateLimiter;
 }
 
 /**
- * GET /api/analytics?attemptId=… — percentile/time-weighted deviation stats and
- * the LTTB-downsampled deviation series for an attempt's replay chart (B12).
+ * GET /api/analytics?attemptId=…&anonymousUserId=… — percentile/time-weighted
+ * deviation stats and the LTTB-downsampled deviation series for the user's own
+ * attempt (B12). Scoped to the user so telemetry can only be read by its owner.
  * 503 when neither is available (unconfigured or no telemetry).
  */
 export async function handleDeviationAnalytics(
@@ -92,12 +99,16 @@ export async function handleDeviationAnalytics(
   if (limited) return limited;
 
   const attemptId = param(request, "attemptId");
-  if (!UUID.test(attemptId)) {
-    return Response.json({ error: "attemptId is required" }, { status: 400 });
+  const anonymousUserId = param(request, "anonymousUserId");
+  if (!UUID.test(attemptId) || !UUID.test(anonymousUserId)) {
+    return Response.json({ error: "attemptId and anonymousUserId are required" }, { status: 400 });
   }
   const [stats, series] = await Promise.all([
-    (deps.getStats ?? (id => getAttemptDeviationStats(id)))(attemptId),
-    (deps.getSeries ?? (id => getDownsampledDeviation(id, { points: deps.points })))(attemptId),
+    (deps.getStats ?? ((a, u) => getAttemptDeviationStats(a, u)))(attemptId, anonymousUserId),
+    (deps.getSeries ?? ((a, u) => getDownsampledDeviation(a, u, { points: deps.points })))(
+      attemptId,
+      anonymousUserId,
+    ),
   ]);
   if (stats === null && series === null) {
     return Response.json({ error: "analytics unavailable" }, { status: 503 });

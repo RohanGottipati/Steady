@@ -18,6 +18,8 @@ const describeDb = url ? describe : describe.skip;
 
 const A = "00000000-0000-7000-8000-00000000b001"; // most recent synthetic attempt
 const B = "00000000-0000-7000-8000-00000000b002"; // nearly identical profile
+const USER = "00000000-0000-7000-8000-0000000000b1"; // owner of the synthetic attempts
+const OTHER_USER = "00000000-0000-7000-8000-0000000000ff"; // a user who owns nothing
 
 describeDb("B12 Tiger search / similarity / analytics", () => {
   let sql: ReturnType<typeof connect>;
@@ -32,8 +34,8 @@ describeDb("B12 Tiger search / similarity / analytics", () => {
     if (sql) await sql.end({ timeout: 5 });
   });
 
-  it("retrieves nearest prior attempts within the same skill (DiskANN)", async () => {
-    const similar = await findSimilarAttempts(A, { sql, limit: 10 });
+  it("retrieves the user's own nearest prior attempts within the same skill (DiskANN)", async () => {
+    const similar = await findSimilarAttempts(A, USER, { sql, limit: 10 });
     expect(similar).not.toBeNull();
     const ids = similar!.map(s => s.attemptId);
     expect(ids[0]).toBe(B); // closest profile ranks first
@@ -42,6 +44,11 @@ describeDb("B12 Tiger search / similarity / analytics", () => {
     // distances are non-decreasing (nearest-first ordering)
     const d = similar!.map(s => s.distance);
     expect([...d].sort((x, y) => x - y)).toEqual(d);
+  });
+
+  it("does not surface another user's attempts for the same attempt id", async () => {
+    const similar = await findSimilarAttempts(A, OTHER_USER, { sql, limit: 10 });
+    expect(similar).toEqual([]); // attempt is not this user's → nothing to compare against
   });
 
   it("retrieves the expected coaching document for a known BM25 query", async () => {
@@ -67,7 +74,7 @@ describeDb("B12 Tiger search / similarity / analytics", () => {
   });
 
   it("computes p95 and time-weighted deviation with hyperfunctions", async () => {
-    const stats = await getAttemptDeviationStats(A, { sql });
+    const stats = await getAttemptDeviationStats(A, USER, { sql });
     expect(stats).not.toBeNull();
     expect(stats!.sampleCount).toBe(240);
     expect(stats!.p95).toBeGreaterThanOrEqual(stats!.p50);
@@ -75,8 +82,13 @@ describeDb("B12 Tiger search / similarity / analytics", () => {
     expect(stats!.timeWeightedAvg).toBeGreaterThan(0);
   });
 
+  it("does not return another user's telemetry", async () => {
+    expect(await getAttemptDeviationStats(A, OTHER_USER, { sql })).toBeNull();
+    expect(await getDownsampledDeviation(A, OTHER_USER, { sql, points: 20 })).toEqual([]);
+  });
+
   it("downsamples to far fewer points while preserving the peak (LTTB)", async () => {
-    const series = await getDownsampledDeviation(A, { sql, points: 20 });
+    const series = await getDownsampledDeviation(A, USER, { sql, points: 20 });
     expect(series).not.toBeNull();
     expect(series!.length).toBeLessThanOrEqual(20);
     expect(series!.length).toBeLessThan(240 / 4); // substantially fewer than raw

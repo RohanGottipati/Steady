@@ -157,7 +157,11 @@ by expanding weak-metric ids (camelCase → words) into the query, keeping the s
 signature and graceful `[]` fallback — deterministic scores are unchanged. New
 public GET routes `/api/similar-attempts`, `/api/search`, `/api/analytics` reuse
 the shared per-IP limiter (30/min), validate ids, and return 503 when Tiger is
-unavailable. `db/seeds/0002_coaching_knowledge.sql` seeds the coaching corpus and
+unavailable. `/api/similar-attempts` and `/api/analytics` require an
+`anonymousUserId` (same ownership gate as `/api/progress`): similarity scopes
+both the query attempt and its neighbours to that user, and analytics checks the
+attempt's owner against `attempts`, so one user's attempt id can never surface
+another user's attempts or telemetry. `db/seeds/0002_coaching_knowledge.sql` seeds the coaching corpus and
 `0003_analytics_demo.sql` seeds synthetic attempts/telemetry under an isolable
 anonymous user so similarity/BM25/analytics have data. See `docs/TIGER_DATA.md`
 §§5–7, 9 and `IMPLEMENTATION_PLAN.md` §B12 Status.
@@ -167,8 +171,10 @@ routes register as dynamic). Offline unit suite 434 passed / 11 skipped with one
 pre-existing unrelated failure (`replay-narration-preview.test.tsx`, `Blob.stream`
 in jsdom — confirmed failing on clean main). Live `npm run test:db` adds
 `b12-tiger-search.test.ts`: nearest prior attempt within skill, known-answer BM25
-retrieval, BM25-grounded review context, p95/time-weighted analytics, and LTTB
-peak-preserving downsampling — all 5 pass against the live Tiger service.
+retrieval, BM25-grounded review context, p95/time-weighted analytics, LTTB
+peak-preserving downsampling, and the per-user ownership scoping (another user's
+id yields no similar attempts and no telemetry) — all 7 pass against the live
+Tiger service.
 
 Acceptance (offline, no live DB): typecheck, ESLint, and the production build
 pass; `/train/suturing` and `/train/knot-tying` prerender as static coming-soon
