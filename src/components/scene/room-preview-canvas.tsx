@@ -4,6 +4,7 @@ import { Component, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { RoomScenery, TrainingField, RoomCamera } from "./room-environment";
 import { ExerciseTargets } from "./exercise-targets";
+import { TrainingTarget } from "./targets/training-target";
 import { PracticeNeedle } from "./operating-room";
 import { Instrument } from "./instrument";
 class PreviewBoundary extends Component<
@@ -45,6 +46,7 @@ export default function RoomPreviewCanvas() {
         <RoomCamera landing />
         <RoomScenery />
         <TrainingField>
+          <TrainingTarget skillId="needle-passing" />
           <ExerciseTargets />
           <PracticeNeedle />
           <group position={[-0.5, -0.1, 0]}>

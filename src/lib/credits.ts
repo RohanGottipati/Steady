@@ -11,7 +11,15 @@ export interface ProductCredit {
 export const PRODUCT_CREDITS: readonly ProductCredit[] = [
   {
     id: "scene",
-    text: "The detailed operating room is procedural geometry adapted from the supplied Steady UI source. Instruments, needle, pegboard, peg, and targets use the existing Steady simulation geometry. They are an educational approximation, not a clinical device. No third-party 3D model is included.",
+    text: "The detailed operating room is procedural geometry adapted from the supplied Steady UI source. Instruments, needle, pegboard, peg, and targets use the existing Steady simulation geometry. The synthetic tissue pad, knot-tying vessel trainer and pegboard are also procedural. They are an educational approximation, not a clinical device.",
+  },
+  {
+    id: "bodyparts3d",
+    text: "Hepatobiliary anatomy for procedure modules: BodyParts3D, © The Database Center for Life Science licensed under Creative Commons Attribution 4.0 International. Modified (merged, simplified, re-centred, scaled and re-coloured).",
+    links: [
+      { label: "BodyParts3D", href: "https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html" },
+      { label: "License", href: "https://creativecommons.org/licenses/by/4.0/" },
+    ],
   },
   {
     id: "mediapipe",

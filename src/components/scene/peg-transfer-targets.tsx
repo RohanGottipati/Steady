@@ -2,6 +2,7 @@
 
 import { forwardRef, useMemo } from "react";
 import { CatmullRomCurve3, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3 } from "three";
+import { PEG_BOARD_TOP_Z } from "@/data/training-targets";
 import type { ExerciseSnapshot } from "@/lib/exercise/exercise-controller";
 import {
   BOARD_EDGE_ZONE,
@@ -18,6 +19,9 @@ function setMeshColor(root: Group, name: string, hex: string) {
   }
 }
 
+/** Resting colour of the pegboard front rail; it turns red while a tool is inside the board-edge zone. */
+export const BOARD_EDGE_COLOR = "#4b5563";
+
 export function updatePegTransferTargets(root: Group | null, snapshot: ExerciseSnapshot | null) {
   if (!root || !snapshot) return;
   const highlight = snapshot.modeHooks.highlightCurrentTarget;
@@ -28,7 +32,7 @@ export function updatePegTransferTargets(root: Group | null, snapshot: ExerciseS
   }
   const guide = root.getObjectByName("peg-corridor-guide");
   if (guide) guide.visible = snapshot.modeHooks.showPathGuide;
-  setMeshColor(root, BOARD_EDGE_ZONE.id, snapshot.inDangerZone ? "#ef4444" : "#9f1239");
+  setMeshColor(root, BOARD_EDGE_ZONE.id, snapshot.inDangerZone ? "#ef4444" : BOARD_EDGE_COLOR);
 }
 
 function Post({ id, position, color }: { id: string; position: Readonly<{ x: number; y: number; z: number }>; color: string }) {
@@ -66,18 +70,14 @@ export const PegTransferTargets = forwardRef<Group>(function PegTransferTargets(
         </mesh>
       </group>
       <Post id={TARGET_POST.id} position={TARGET_POST.position} color="#94a3b8" />
+      {/* Raised pegboard rail along the canonical board-edge danger band; the collision box itself is unchanged. */}
       <mesh
         name={BOARD_EDGE_ZONE.id}
-        position={[BOARD_EDGE_ZONE.center.x, BOARD_EDGE_ZONE.center.y, BOARD_EDGE_ZONE.center.z - 0.04]}
+        position={[BOARD_EDGE_ZONE.center.x, BOARD_EDGE_ZONE.center.y, PEG_BOARD_TOP_Z + 0.014]}
+        castShadow
       >
-        <boxGeometry
-          args={[
-            BOARD_EDGE_ZONE.halfExtents.x * 2,
-            BOARD_EDGE_ZONE.halfExtents.y * 2,
-            BOARD_EDGE_ZONE.halfExtents.z,
-          ]}
-        />
-        <meshStandardMaterial color="#9f1239" transparent opacity={0.55} />
+        <boxGeometry args={[BOARD_EDGE_ZONE.halfExtents.x * 2, BOARD_EDGE_ZONE.halfExtents.y * 2, 0.028]} />
+        <meshStandardMaterial color={BOARD_EDGE_COLOR} roughness={0.5} metalness={0.2} />
       </mesh>
     </group>
   );

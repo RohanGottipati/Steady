@@ -37,6 +37,10 @@ vi.mock("@/components/scene/pickup-guides", async () => {
   const Guide = forwardRef(function Guide(_, ref) { useImperativeHandle(ref, () => new Group(), []); return null; });
   return { TipCursor: Guide, PickupHalo: Guide };
 });
+vi.mock("@/components/scene/targets/training-target", () => ({
+  TrainingTarget: () => null,
+}));
+
 vi.mock("@/components/scene/exercise-targets", async importOriginal => {
   const actual = await importOriginal<typeof import("@/components/scene/exercise-targets")>();
   const { forwardRef, useImperativeHandle } = await import("react");

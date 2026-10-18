@@ -1,9 +1,9 @@
 # Project Context
 
 Last updated: 2026-10-18
-Updated by: S4 frame stability and B5 segment timing repairs
-Current milestone: S4 stable training canvas and B5 normalized step timing
-Working state: verified S4 UI, frame stability and B5 timing changes; delivery branch main; no deployment performed
+Updated by: V1 surgical training-field visuals (licensed anatomy + exercise targets)
+Current milestone: V1 medically credible training targets on top of S4/B5
+Working state: V1 target visuals verified locally (typecheck, lint, unit, build, e2e baseline-equal to main); branch devin/1792302562-surgical-field-visuals; no deployment performed
 Physical acceptance: pending on target Mac/Chrome
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -62,6 +62,17 @@ measured correctly. Results explain step timing balance in plain language. Exist
 saved results are not rescored; older timing scores and timing-dependent aggregates
 are not directly comparable with new attempts. Vector order and storage schemas
 remain unchanged.
+
+### Training target visuals (V1)
+
+Exercise visuals are a presentational layer inside the existing `TrainingField`; they never feed evaluation, collision, ghost, replay or storage. Training-local frame is unchanged (+X surgeon right, +Y away, +Z up, working plane Z = 0, placed by `TRAINING_FIELD` position `[0, 1.32, -0.05]`, rotation `[-π/2, 0, 0]`, scale `1.2`). Targets sit below Z = 0 on `FIELD_FLOOR_Z = -0.092` so checkpoints, needle, peg and ghost remain above them.
+
+- `src/data/training-targets.ts` — `trainingTargetKind(skillId)` mapping plus target dimensions: needle-passing/suturing → `synthetic-tissue-pad`; knot-tying → `tissue-knot-trainer`; peg-transfer → `peg-transfer-board`; cholecystectomy (future procedure module) → `surgical-anatomy`; anything else → `fallback`. Tissue pad: centre `(0, 0.17)`, 0.8 × 0.5, fat 0.03 + dermis 0.015 + raised skin 0.02, incision at x = 0 from y 0.06–0.30 under Ring 2. Pegboard: tray centre `(0, 0.2)` 1.0 × 0.66 × 0.05, rubber insert, decorative pegs only away from the source/target posts.
+- `src/components/scene/targets/` — `training-target.tsx` (switch), `synthetic-tissue-pad.tsx` (layered skin pad, incision, entry/exit marks under Ring 1/Ring 3, fallback pad), `tissue-knot-trainer.tsx` (clamped vessel + suture over the pad), `peg-transfer-board.tsx` (FLS-style board, never anatomy), `surgical-anatomy.tsx` (Drei `useGLTF` + preload, lazy-loaded so simple exercises never fetch the GLB), `organ-map.ts` (name normalisation, `buildOrganMap`, material-cloning, emissive highlight), `tissue-surface.ts`/`tissue-materials.ts` (procedural skin geometry and cached canvas textures; `performanceMode` uses standard rather than physical material).
+- Danger-zone meshes keep their ids/colour feedback but are restyled: `tissue-wall` is a tissue fold (`#c98676`), `board-edge` is the pegboard front rail (`#4b5563`); both turn red in the zone. Collision boxes in exercise configs are unchanged.
+- Integrated in `training-scene.tsx`, `replay-scene.tsx`, `room-preview-canvas.tsx`. Development viewer: `/dev/training-targets?skill=<id>` (404 outside development) with organ-highlight toggles.
+- Anatomy asset: `public/models/patient/hepatobiliary-anatomy.glb` (~330 KiB, ~23.6k triangles, meshes `liver`, `gallbladder`, `cystic_duct`, `common_hepatic_duct`, `hepatic_artery`, `portal_vein`), built reproducibly by `node scripts/assets/build-hepatobiliary-glb.mjs` from BodyParts3D (CC BY 4.0; see ASSET_LICENSES). Source mm → metres, BodyParts3D Z-up → glTF Y-up (`x, z, -y`), centred on the liver/gallbladder; rendered at position `[0, 0.17, -0.06]`, scale `2.6` in training-local space. `.gitignore` exempts `public/models/patient/*.glb` only.
+- Unit tests: `tests/unit/training-targets.test.ts`, `tests/unit/organ-map.test.ts`. Known pre-existing failure on main: `replay-narration-preview.test.tsx` "cancels in-flight speech…" (`object.stream is not a function`, jsdom Response).
 
 ## 3. Progress and deletion
 

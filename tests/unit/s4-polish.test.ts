@@ -22,6 +22,7 @@ describe("product credits", () => {
     expect(text).toContain("non-commercial");
     expect(text).toContain("procedural geometry");
     expect(text).toContain("LASK is not included");
+    expect(text).toContain("BodyParts3D, © The Database Center for Life Science licensed under Creative Commons Attribution 4.0 International");
     expect(text).not.toMatch(/CC BY/i);
   });
 });
