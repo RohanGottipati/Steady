@@ -14,7 +14,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:db": "STEADY_TIGER_INTEGRATION=1 vitest run tests/unit/b0-tiger-bootstrap.test.ts tests/unit/health-db.test.ts",
+    "test:db": "STEADY_TIGER_INTEGRATION=1 vitest run tests/unit/b0-tiger-bootstrap.test.ts tests/unit/health-db.test.ts tests/unit/b12-tiger-search.test.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "demo:record": "node scripts/demo/record-backup.mjs",

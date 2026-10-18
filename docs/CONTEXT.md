@@ -1,10 +1,10 @@
 # Project Context
 
 Last updated: 2026-10-18
-Updated by: B11 — authored skill blueprints + attribution for the coming-soon skills
-Current branch: b11 (branched from b10; PR to main open)
-Current milestone: A7, S0–S4, and B9 complete on main; B10 progress/history reworked on top; B11 blueprints added
-Demo-critical status: YELLOW — physical rehearsal and isolated live-database checks pending
+Updated by: B12 — Tiger search, vector similarity, and hyperfunction analytics (live)
+Current branch: b12 (branched from main after B11 merged; PR to main pending)
+Current milestone: A7, S0–S4, B9, B10, B11 merged to main; B12 search/similarity/analytics built live on Tiger
+Demo-critical status: YELLOW — physical rehearsal still pending; live-database search/analytics now verified
 
 ## 0. Agent Operating Rules (READ FIRST)
 
@@ -119,9 +119,10 @@ page uses the single `anonymousUserId()` (`steady.anonymousUserId`) and
 `retryUnsyncedAttempts()` (which honours `NEXT_PUBLIC_ENABLE_CLOUD_SYNC`), checks
 the DELETE response, and clears local IndexedDB copies on success so a retry
 cannot resurrect deleted history. Migration `0002_progress.sql` adds the daily
-progress CAGG and Hypercore columnstore policies (idempotent); `percentile_agg`
-is deferred to B12 to avoid a `timescaledb_toolkit` dependency. B10 telemetry
-history and B12 BM25/vector analytics remain separate.
+progress CAGG and Hypercore columnstore policies (idempotent). (The earlier note
+that `0002` was unapplied and that `percentile_agg` had to be deferred was
+superseded by B12: `0002` was in fact applied, and `timescaledb_toolkit` 1.26.0
+is enabled on the live service.)
 
 B11 delivers the achievable part of "Additional
 reference motions and skill configs" without fabricating a trainer scene. Suturing
@@ -140,6 +141,34 @@ blueprints never fit/score/launch the raw reference (G1–G15, raw metre scale);
 each flips to a full `SkillDefinition` once an A-series trainer scene lands.
 B11's functional-training portion remains gated on that scene. See
 `docs/DATA_LICENSES.md` and `IMPLEMENTATION_PLAN.md` §B11 Status.
+
+B12 delivers Tiger search, vector similarity, and hyperfunction analytics against
+the live service (migration `0003_search.sql`, applied and idempotent). It adds a
+StreamingDiskANN cosine index (`attempt_scores_vector_idx`) and a pg_textsearch
+BM25 index (`skill_documents_bm25_idx` over `content`, english), raw-telemetry
+retention policies (90 days on `motion_samples`/`metric_samples`), and one daily
+`steady_refresh_search_stats` maintenance job. New query modules: `similarity.ts`
+(`findSimilarAttempts`, nearest prior same-skill attempts by cosine distance),
+`search.ts` (`searchCoachingDocuments`, BM25 `content <@> to_bm25query(...)`
+where matches score `< 0`), and `analytics.ts` (`getAttemptDeviationStats` p50/p95
+via `percentile_agg`/`approx_percentile` + `time_weight`; `getDownsampledDeviation`
+via `lttb`). `coaching-retrieval.ts` (B9 hook) now grounds the review through BM25
+by expanding weak-metric ids (camelCase → words) into the query, keeping the same
+signature and graceful `[]` fallback — deterministic scores are unchanged. New
+public GET routes `/api/similar-attempts`, `/api/search`, `/api/analytics` reuse
+the shared per-IP limiter (30/min), validate ids, and return 503 when Tiger is
+unavailable. `db/seeds/0002_coaching_knowledge.sql` seeds the coaching corpus and
+`0003_analytics_demo.sql` seeds synthetic attempts/telemetry under an isolable
+anonymous user so similarity/BM25/analytics have data. See `docs/TIGER_DATA.md`
+§§5–7, 9 and `IMPLEMENTATION_PLAN.md` §B12 Status.
+
+B12 acceptance: typecheck, ESLint, and the production build pass (the three new
+routes register as dynamic). Offline unit suite 434 passed / 11 skipped with one
+pre-existing unrelated failure (`replay-narration-preview.test.tsx`, `Blob.stream`
+in jsdom — confirmed failing on clean main). Live `npm run test:db` adds
+`b12-tiger-search.test.ts`: nearest prior attempt within skill, known-answer BM25
+retrieval, BM25-grounded review context, p95/time-weighted analytics, and LTTB
+peak-preserving downsampling — all 5 pass against the live Tiger service.
 
 Acceptance (offline, no live DB): typecheck, ESLint, and the production build
 pass; `/train/suturing` and `/train/knot-tying` prerender as static coming-soon
