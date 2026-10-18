@@ -39,6 +39,7 @@ import { Instrument } from "./instrument";
 import { OperatingRoom, PracticeNeedle, PracticePeg } from "./operating-room";
 import { ExerciseTargets } from "./exercise-targets";
 import { PegTransferTargets } from "./peg-transfer-targets";
+import { TrainingTarget } from "./targets/training-target";
 
 export interface ReplayDiagnostics {
   user: { left: Pose | null; right: Pose | null };
@@ -409,6 +410,7 @@ export function ReplaySceneContent({
         onStart={onManualControl}
       />
       <TrainingField>
+        <TrainingTarget skillId={skillId} performanceMode={performanceMode} />
         {skillId === "peg-transfer" ? (
           <PegTransferTargets />
         ) : (

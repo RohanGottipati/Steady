@@ -35,6 +35,7 @@ import {
 import type { TrainingRuntime } from "@/lib/exercise/training-runtime";
 import { RenderTiming } from "@/lib/simulation/render-timing";
 import { PickupHalo, TipCursor } from "./pickup-guides";
+import { TrainingTarget } from "./targets/training-target";
 
 export interface SceneDiagnostics {
   fps: number;
@@ -351,6 +352,10 @@ export function SceneContent({
       <OperatingRoom performanceMode={performanceMode} />
       <RoomCamera />
       <TrainingField>
+        <TrainingTarget
+          skillId={exercise?.skill.id}
+          performanceMode={performanceMode}
+        />
         {pegScene ? (
           <PegTransferTargets ref={targets} />
         ) : (

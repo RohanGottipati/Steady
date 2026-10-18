@@ -63,6 +63,8 @@ public/mediapipe/*.tmp
 *.task
 !public/mediapipe/.gitkeep
 *.glb
+# Licensed, documented runtime models (see docs/ASSET_LICENSES.md).
+!public/models/patient/*.glb
 *.gltf
 *.bin
 *.mp4

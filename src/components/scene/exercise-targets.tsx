@@ -3,6 +3,7 @@
 import { forwardRef, useMemo } from "react";
 import { CatmullRomCurve3, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3 } from "three";
 import type { ExerciseSnapshot } from "@/lib/exercise/exercise-controller";
+import { TISSUE_PAD_SURFACE_BASE_Z } from "@/data/training-targets";
 import { corridorArcPoint, NEEDLE_PASSING_RINGS, RELEASE_ZONE, TISSUE_WALL_ZONE } from "@/lib/exercise/needle-passing-config";
 
 function setMeshColor(root: Group, name: string, hex: string) {
@@ -11,6 +12,9 @@ function setMeshColor(root: Group, name: string, hex: string) {
     obj.material.color.set(hex);
   }
 }
+
+/** Resting colour of the tissue-wall fold; it turns red while a tool is inside the danger zone. */
+export const TISSUE_WALL_COLOR = "#c98676";
 
 export function updateExerciseTargets(root: Group | null, snapshot: ExerciseSnapshot | null) {
   if (!root || !snapshot) return;
@@ -29,7 +33,7 @@ export function updateExerciseTargets(root: Group | null, snapshot: ExerciseSnap
     RELEASE_ZONE.id,
     snapshot.phase === "complete" ? "#4ade80" : releaseActive ? "#38bdf8" : "#64748b",
   );
-  setMeshColor(root, TISSUE_WALL_ZONE.id, snapshot.inDangerZone ? "#ef4444" : "#9f1239");
+  setMeshColor(root, TISSUE_WALL_ZONE.id, snapshot.inDangerZone ? "#ef4444" : TISSUE_WALL_COLOR);
 }
 
 export const ExerciseTargets = forwardRef<Group>(function ExerciseTargets(_, ref) {
@@ -68,18 +72,16 @@ export const ExerciseTargets = forwardRef<Group>(function ExerciseTargets(_, ref
           <meshBasicMaterial color="#64748b" transparent opacity={0.75} depthTest={false} depthWrite={false} />
         </mesh>
       </group>
+      {/* Visual tissue fold along the canonical tissue-wall danger band; the collision box itself is unchanged. */}
       <mesh
         name={TISSUE_WALL_ZONE.id}
-        position={[TISSUE_WALL_ZONE.center.x, TISSUE_WALL_ZONE.center.y, TISSUE_WALL_ZONE.center.z - 0.04]}
+        position={[TISSUE_WALL_ZONE.center.x, TISSUE_WALL_ZONE.center.y, TISSUE_PAD_SURFACE_BASE_Z + 0.004]}
+        rotation={[0, 0, Math.PI / 2]}
+        scale={[1, 1, 0.7]}
+        castShadow
       >
-        <boxGeometry
-          args={[
-            TISSUE_WALL_ZONE.halfExtents.x * 2,
-            TISSUE_WALL_ZONE.halfExtents.y * 2,
-            TISSUE_WALL_ZONE.halfExtents.z,
-          ]}
-        />
-        <meshStandardMaterial color="#9f1239" transparent opacity={0.55} roughness={0.85} />
+        <capsuleGeometry args={[TISSUE_WALL_ZONE.halfExtents.y * 0.5, TISSUE_WALL_ZONE.halfExtents.x * 2 - TISSUE_WALL_ZONE.halfExtents.y, 8, 32]} />
+        <meshStandardMaterial color={TISSUE_WALL_COLOR} roughness={0.55} />
       </mesh>
     </group>
   );
