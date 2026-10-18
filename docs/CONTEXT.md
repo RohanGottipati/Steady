@@ -1,9 +1,9 @@
 # Project Context
 
 Last updated: 2026-10-18
-Updated by: B9 rebase — Tiger coaching retrieval on top of PR #15 review stack
-Current branch: b9 (rebased onto origin/main after #15)
-Current milestone: A7 and S0–S4 complete; B9 coaching retrieval grounded on existing review service
+Updated by: B10 rework — progress page/API + delete-history rebuilt on main's upload stack
+Current branch: b10 (reset onto origin/main; PR #17 reworked)
+Current milestone: A7, S0–S4, and B9 complete on main; B10 progress/history reworked on top
 Demo-critical status: YELLOW — physical rehearsal and isolated live-database checks pending
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -104,8 +104,31 @@ Source worktree file hashes were checked against the recovery snapshots.
 
 B9 Tiger coaching retrieval (`src/lib/ai/coaching-retrieval.ts`) now grounds
 `/api/review` via `review-handler` → `requestBackboardReview` (empty/unavailable
-corpus degrades to metrics-only). B10 progress/history/telemetry and B12 BM25/
-vector analytics remain separate.
+corpus degrades to metrics-only).
+
+B10 (PR #17, reworked) builds on main's existing upload stack instead of
+duplicating it. The earlier PR #17 was based on pre-#15 main and shipped a
+parallel sync queue, a second anonymous-id key, and start-vs-completion timestamp
+drift; that is dropped. The rework adds, on top of `cloud-sync.ts`/
+`persist-attempt.ts`: a `/progress` page and `GET /api/progress` reading per-skill
+aggregates from `attempt_scores` (`src/lib/db/progress-queries.ts`), and a
+`DELETE /api/attempts` delete-history path. New public GET/DELETE routes go
+through `history-handlers.ts`, which reuses the shared per-IP limiter (progress
+30/min, delete 10/min) and validates the anonymous user id as a UUID. The progress
+page uses the single `anonymousUserId()` (`steady.anonymousUserId`) and
+`retryUnsyncedAttempts()` (which honours `NEXT_PUBLIC_ENABLE_CLOUD_SYNC`), checks
+the DELETE response, and clears local IndexedDB copies on success so a retry
+cannot resurrect deleted history. Migration `0002_progress.sql` adds the daily
+progress CAGG and Hypercore columnstore policies (idempotent); `percentile_agg`
+is deferred to B12 to avoid a `timescaledb_toolkit` dependency. B10 telemetry
+history and B12 BM25/vector analytics remain separate.
+
+Acceptance (offline, no live DB): typecheck, ESLint, and the production build
+pass; `/api/progress` and `/progress` appear in the route table. The unit suite
+is 399 passed / 6 opt-in DB tests skipped, plus one pre-existing unrelated failure
+in `replay-narration-preview.test.tsx` (`Blob.stream` in the jsdom/Node
+environment, confirmed failing on clean main). Migration 0002 is not yet applied
+to the live Tiger service (no DB access on this host).
 
 ## 4. Acceptance evidence and remaining sign-off
 
