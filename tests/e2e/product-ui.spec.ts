@@ -265,3 +265,45 @@ for (const width of [1280, 390]) {
     expect([...new Set(sizes)]).toHaveLength(1);
   });
 }
+
+
+for (const failure of ["rejected", "unsupported", "disabled"] as const) {
+  test(`fullscreen opens focus view when native fullscreen is ${failure}`, async ({ page }) => {
+    await page.addInitScript((reason) => {
+      if (reason === "disabled") {
+        Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: false });
+      } else {
+        Object.defineProperty(Element.prototype, "requestFullscreen", {
+          configurable: true,
+          value: reason === "unsupported" ? undefined : () => Promise.reject(new DOMException("Not allowed in this preview", "NotAllowedError")),
+        });
+      }
+    }, failure);
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.goto("/train/needle-passing");
+    await expect(page.getByLabel("3D instrument workspace").locator("canvas")).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => Object.assign(window, { fullscreenVideo: document.querySelector("video") }));
+    const trainer = page.getByTestId("training-session");
+    await page.getByRole("button", { name: "Fullscreen", exact: true }).click();
+    await expect(trainer).toHaveAttribute("data-focus-view", "true");
+    await expect(page.locator(".training-header")).toBeHidden();
+    await expect(page.getByRole("button", { name: "Exit focus view", exact: true })).toBeVisible();
+    await expect(page.getByText("Focus view is open. Browser fullscreen is unavailable here.")).toBeVisible();
+    expect(await page.evaluate(() => Boolean(document.fullscreenElement))).toBe(false);
+    expect(await page.evaluate(() => document.querySelector("video") === (window as unknown as { fullscreenVideo: HTMLVideoElement }).fullscreenVideo)).toBe(true);
+    if (failure === "rejected") {
+      await page.getByRole("button", { name: "Settings & guide", exact: true }).click();
+      await page.keyboard.press("Escape");
+      await expect(trainer).toHaveAttribute("data-focus-view", "true");
+      await page.keyboard.press("Escape");
+    } else {
+      await page.getByRole("button", { name: "Exit focus view", exact: true }).click();
+    }
+    await expect(trainer).not.toHaveAttribute("data-focus-view", "true");
+    await expect(page.locator(".training-header")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Fullscreen", exact: true })).toBeVisible();
+    await expect(page.getByText("Focus view is open. Browser fullscreen is unavailable here.")).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+}

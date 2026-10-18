@@ -1,9 +1,9 @@
 # Project Context
 
 Last updated: 2026-10-18
-Updated by: V1 surgical training-field visuals (licensed anatomy + exercise targets)
-Current milestone: V1 medically credible training targets on top of S4/B5
-Working state: V1 target visuals verified locally (typecheck, lint, unit, build, e2e baseline-equal to main); branch devin/1792302562-surgical-field-visuals; no deployment performed
+Updated by: S4 fullscreen fallback integrated with V1 training-target visuals
+Current milestone: V1 surgical targets with reliable fullscreen and focus-view fallback
+Working state: latest remote main integrated with fullscreen fallback; delivery branch main; no deployment performed
 Physical acceptance: pending on target Mac/Chrome
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -45,13 +45,21 @@ Steady is a browser-based, webcam-controlled surgical motion simulator. The curr
 
 ## 2. UI architecture and invariants
 
-Public pages share one dark theme, semantic surfaces, product header/footer and canonical skill-card presentation. The decorative waveform and anonymous identity labels are removed. Long credits are available only on `/notices`, linked from the public footer. Available training routes use a viewport-filling workspace with a closer surgeon camera, live pickup/tracking guidance, persistent video, a browser fullscreen toggle and a dismissible settings/guide panel (Escape closes it and restores focus). Attempt controls, calibration and safety status remain directly available; secondary session details expand on demand. Results/replay share the dark theme. Runtime, hand calibration, scoring and persistence contracts remain unchanged.
+Public pages share one dark theme, semantic surfaces, product header/footer and canonical skill-card presentation. The decorative waveform and anonymous identity labels are removed. Long credits are available only on `/notices`, linked from the public footer. Available training routes use a viewport-filling workspace with a closer surgeon camera, live pickup/tracking guidance, persistent video, a browser fullscreen toggle with an in-page focus-view fallback and a dismissible settings/guide panel (Escape closes it and restores focus). Attempt controls, calibration and safety status remain directly available; secondary session details expand on demand. Results/replay share the dark theme. Runtime, hand calibration, scoring and persistence contracts remain unchanged.
 
 The existing TrainingRuntime, tracking/calibration controllers, recording, evaluator, accepted review ownership, and per-session AudioManager remain authoritative. UI stages derive from those systems; there is no prototype simulation or timer-driven calibration. Per-frame motion stays in refs; HUD sampling remains bounded. Training uses fixed control/guidance rows around a flexible scene row. Longer instructions and expanded details scroll within those rows; live coaching, errors and connection notices float outside layout flow, preserving canvas dimensions and camera framing during attempts.
 
 The room is a static presentation layer rendered through the installed React Three Fiber stack. Geometry is batched by shared material. Training-local coordinates are placed on the table once; evaluation, stored tools, collision tests, and replay records remain canonical. Replay cameras transform local focus points into world space. Orbiting hands control back to the user and cancels automatic narration/focus behavior.
 
 Shared attempt schemas, DATA_SCHEMA_VERSION, coordinate convention, and performance-vector order remain unchanged. No database migration or new runtime dependency is required. Existing Webpack/Tailwind integration remains in place.
+
+When native fullscreen is rejected, unavailable or explicitly disabled, the same
+button opens focus view within the available browser window. Focus view hides the
+trainer header and expands the existing trainer without remounting the video or
+canvas. The button becomes “Exit focus view”; Escape first closes open settings,
+then exits focus view. Cleanup restores the normal layout on exit/unmount. Native
+fullscreen stays preferred where permitted; the fallback does not remove browser
+chrome or bypass an embedding application's permissions.
 
 Segment Timing now compares normalized active-time shares across steps (total
 variation, tolerance 0.5), rather than absolute durations against the roughly
@@ -72,7 +80,7 @@ Exercise visuals are a presentational layer inside the existing `TrainingField`;
 - Danger-zone meshes keep their ids/colour feedback but are restyled: `tissue-wall` is a tissue fold (`#c98676`), `board-edge` is the pegboard front rail (`#4b5563`); both turn red in the zone. Collision boxes in exercise configs are unchanged.
 - Integrated in `training-scene.tsx`, `replay-scene.tsx`, `room-preview-canvas.tsx`. Development viewer: `/dev/training-targets?skill=<id>` (404 outside development) with organ-highlight toggles.
 - Anatomy asset: `public/models/patient/hepatobiliary-anatomy.glb` (~330 KiB, ~23.6k triangles, meshes `liver`, `gallbladder`, `cystic_duct`, `common_hepatic_duct`, `hepatic_artery`, `portal_vein`), built reproducibly by `node scripts/assets/build-hepatobiliary-glb.mjs` from BodyParts3D (CC BY 4.0; see ASSET_LICENSES). Source mm → metres, BodyParts3D Z-up → glTF Y-up (`x, z, -y`), centred on the liver/gallbladder; rendered at position `[0, 0.17, -0.06]`, scale `2.6` in training-local space. `.gitignore` exempts `public/models/patient/*.glb` only.
-- Unit tests: `tests/unit/training-targets.test.ts`, `tests/unit/organ-map.test.ts`. Known pre-existing failure on main: `replay-narration-preview.test.tsx` "cancels in-flight speech…" (`object.stream is not a function`, jsdom Response).
+- Unit tests: `tests/unit/training-targets.test.ts`, `tests/unit/organ-map.test.ts`. The integrated full offline suite passes, including `replay-narration-preview.test.tsx`; the earlier V1 handoff failure did not recur.
 
 ## 3. Progress and deletion
 
@@ -81,6 +89,23 @@ GET /api/progress preserves per-skill aggregates and adds global summary statist
 History deletion drains in-flight uploads, pauses retries, deletes only the current anonymous user's cloud history, then clears local copies. A persistent cleanup marker blocks uploads after incomplete cleanup; retry deletion finishes the operation. Stale retry snapshots cannot recreate deleted attempts in the current session. Device-scoped anonymous identity is not authentication; cross-tab concurrent training/deletion is not a new synchronization guarantee.
 
 ## 4. Acceptance and operations
+
+Main integration verification on 2026-10-18: fast-forwarded to `cb5fc72`
+(V1 training-target visuals) and retained the fullscreen fallback. Only the context
+header conflicted; the target-visual and fullscreen documentation were both kept.
+Production build, TypeScript, ESLint and whitespace checks passed. The full offline
+suite passed 489 tests with 13 opt-in database tests skipped. All seven focused
+production browser checks passed: Peg Transfer/results/replay, native fullscreen,
+stable desktop/mobile frames, and the three fullscreen fallback conditions. The
+fallback tests allow 15 seconds for the integrated scene to load; application timing
+is unchanged. No migration or deployment was performed.
+
+Fullscreen fallback follow-up on 2026-10-18: production build, TypeScript, ESLint
+and whitespace checks passed. All six focused production browser checks passed:
+native fullscreen, stable frames at desktop/mobile widths, and focus fallback for
+rejected, missing and disabled native APIs. Fallback checks verify the same video
+node survives, settings/Escape precedence works, and exiting restores the header.
+Fullscreen fallback is integrated with the latest V1 target visuals for delivery on main. No deployment was performed.
 
 S4 UI polish verification on 2026-10-18:
 

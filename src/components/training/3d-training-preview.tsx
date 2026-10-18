@@ -45,6 +45,7 @@ import { AttemptResultsPanel } from "./attempt-results-panel";
 import { preloadReplayScene, ThreeDReplayPreview } from "./3d-replay-preview";
 import type { CompletedReplay } from "@/lib/simulation/replay-types";
 import { ViewportLoading } from "./viewport-loading";
+import { useTrainingFullscreen } from "@/lib/ui/use-training-fullscreen";
 
 const TrainingScene = dynamic(
   () =>
@@ -180,42 +181,31 @@ export function ThreeDTrainingPreview({
   }, [voiceOn, audio]);
   const [showSetup, setShowSetup] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
-  const [fullscreenNotice, setFullscreenNotice] = useState("");
+  const workspaceRef = useRef<HTMLElement>(null);
+  const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const settingsPanelRef = useRef<HTMLElement>(null);
+  const { fullscreen, focusView, pending: fullscreenPending, notice: fullscreenNotice,
+    toggle: toggleFullscreen, exitFocusView } = useTrainingFullscreen(workspaceRef);
 
   useEffect(() => {
-    const update = () => setFullscreen(Boolean(document.fullscreenElement));
-    document.addEventListener("fullscreenchange", update);
-    return () => document.removeEventListener("fullscreenchange", update);
-  }, []);
-
-  useEffect(() => {
-    if (!showSettings) return;
-    settingsPanelRef.current?.focus();
+    if (!showSettings && !focusView) return;
+    if (showSettings) settingsPanelRef.current?.focus();
     const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      if (showSettings) {
         setShowSettings(false);
         settingsButtonRef.current?.focus();
+      } else {
+        exitFocusView();
+        fullscreenButtonRef.current?.focus();
       }
     };
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
-  }, [showSettings]);
+  }, [showSettings, focusView, exitFocusView]);
 
-  const toggleFullscreen = async () => {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
-      } else {
-        setFullscreenNotice("Fullscreen is unavailable in this browser. The scene already fills your workspace.");
-      }
-    } catch {
-      setFullscreenNotice("Fullscreen could not open. You can continue in this workspace.");
-    }
-  };
   const [replaying, setReplaying] = useState(false);
   const [replayMarker, setReplayMarker] = useState<ReplayMarker | null>(null);
   const [assisted, setAssisted] = useState(true);
@@ -417,6 +407,7 @@ export function ThreeDTrainingPreview({
     );
   return (
     <section
+      ref={workspaceRef}
       aria-label="Virtual instrument preview"
       className="workspace"
       data-sample={Boolean(fixtureId)}
@@ -443,8 +434,13 @@ export function ThreeDTrainingPreview({
             >
               Settings & guide
             </button>
-            <button type="button" onClick={() => void toggleFullscreen()}>
-              {fullscreen ? "Exit fullscreen" : "Fullscreen"}
+            <button
+              ref={fullscreenButtonRef}
+              type="button"
+              disabled={fullscreenPending}
+              onClick={() => void toggleFullscreen()}
+            >
+              {focusView ? "Exit focus view" : fullscreen ? "Exit fullscreen" : "Fullscreen"}
             </button>
             <button
               type="button"

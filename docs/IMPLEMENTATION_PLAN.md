@@ -18,7 +18,8 @@ Constraints: no mouse-training mode, no new exercise scene, no recording-schema/
 Use one dark palette across public pages, cards, progress and results. Remove the
 landing waveform and anonymous identity labels; move expanded attribution to
 `/notices` with a footer link. Give the trainer the full available scene width,
-a closer surgeon camera, contextual pickup/tracking guidance, browser fullscreen,
+a closer surgeon camera, contextual pickup/tracking guidance, browser fullscreen
+with an in-page focus-view fallback when unavailable or rejected,
 and a dismissible settings/guide panel. Reserve stable control/guidance rows and
 float transient coaching/error/connection messages so active training never resizes
 the canvas. Preserve calibration video, primary
