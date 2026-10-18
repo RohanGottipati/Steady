@@ -3,6 +3,7 @@ import type { SimulationSnapshot } from "@/lib/simulation/tool-simulation";
 import type { ExerciseSnapshot } from "./exercise-controller";
 import { EXERCISE_THRESHOLDS, NEEDLE_PASSING_RINGS, pointDistance, RELEASE_ZONE } from "./needle-passing-config";
 import { pegTargetPosition } from "./peg-transfer-config";
+import { getRouteTask, routeTargetPosition } from "./route-tasks";
 import type { Vec3 } from "@/types";
 
 /** Accepted authoritative samples only; display interpolation is never telemetry. */
@@ -25,10 +26,13 @@ export class CoachingSignalsAdapter {
     const side = simulation.object.heldBy === "right-tool" ? "right"
       : simulation.object.heldBy === "left-tool" ? "left"
       : pointDistance(left.tipPosition, simulation.object.position) <= pointDistance(right.tipPosition, simulation.object.position) ? "left" : "right";
+    const routeTask = getRouteTask(exercise.skillId);
     const target = exercise.skillId === "peg-transfer"
       ? pegTargetPosition(exercise.activeTargetId) ?? simulation.object.position
-      : NEEDLE_PASSING_RINGS.find(ring => ring.id === exercise.activeTargetId)?.position
-        ?? (exercise.activeTargetId === "release-zone" ? RELEASE_ZONE.position : simulation.object.position);
+      : routeTask
+        ? routeTargetPosition(exercise.skillId, exercise.activeTargetId) ?? simulation.object.position
+        : NEEDLE_PASSING_RINGS.find(ring => ring.id === exercise.activeTargetId)?.position
+          ?? (exercise.activeTargetId === "release-zone" ? RELEASE_ZONE.position : simulation.object.position);
     const tip = simulation[side]!.tipPosition;
     if (this.targetId !== exercise.activeTargetId || !fresh) {
       const length = pointDistance(tip, target);
@@ -53,9 +57,12 @@ export class CoachingSignalsAdapter {
       segmentId: exercise.segmentId,
       voiceCoachingLevel: exercise.modeHooks.voiceCoachingLevel,
       corridorDeviation: exercise.corridorDeviation,
-      inCorridor: simulation.object.heldBy !== null && (exercise.skillId === "peg-transfer"
-        ? ["lift", "transfer", "place"].includes(exercise.segmentId)
-        : ["align", "entry", "rotation", "exit"].includes(exercise.segmentId)),
+      inCorridor: (simulation.object.heldBy !== null || Boolean(routeTask?.phases.some(phase => phase.segmentId === exercise.segmentId && phase.kind === "trace")))
+        && (exercise.skillId === "peg-transfer"
+          ? ["lift", "transfer", "place"].includes(exercise.segmentId)
+          : routeTask
+            ? routeTask.corridorSegments.includes(exercise.segmentId)
+            : ["align", "entry", "rotation", "exit"].includes(exercise.segmentId)),
       inDangerZone: exercise.inDangerZone,
       toolSpeed,
       assistingHandSpeed,

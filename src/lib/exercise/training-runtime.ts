@@ -16,6 +16,7 @@ import { GhostPlaybackController } from "./ghost-playback";
 import { EXERCISE_THRESHOLDS } from "./needle-passing-config";
 import { PEG_HOME, PEG_ID, PEG_TRANSFER_THRESHOLDS } from "./peg-transfer-config";
 import { referenceForSkill } from "./peg-transfer-reference";
+import { getRouteTask, ROUTE_THRESHOLDS } from "./route-tasks";
 
 const STEP_MS = 1000 / 30;
 export class TrainingRuntime {
@@ -60,11 +61,18 @@ export class TrainingRuntime {
   private assisted = true;
 
   constructor(readonly skill: SkillDefinition = needlePassingSkill, mode: TrainingMode = "learn") {
+    const routeTask = getRouteTask(skill.id);
     const corridorTolerance = skill.id === "peg-transfer"
       ? PEG_TRANSFER_THRESHOLDS.corridorToleranceUnits
-      : EXERCISE_THRESHOLDS.corridorToleranceUnits;
+      : routeTask
+        ? ROUTE_THRESHOLDS.corridorToleranceUnits
+        : EXERCISE_THRESHOLDS.corridorToleranceUnits;
     this.simulation = new ToolSimulationController({
-      taskObject: skill.id === "peg-transfer" ? { id: PEG_ID, position: { ...PEG_HOME } } : undefined,
+      taskObject: skill.id === "peg-transfer"
+        ? { id: PEG_ID, position: { ...PEG_HOME } }
+        : routeTask
+          ? { id: routeTask.objectId, position: { ...routeTask.home } }
+          : undefined,
     });
     this.exercise = new ExerciseController({ skill, mode });
     this.reference = structuredClone(referenceForSkill(skill));
@@ -74,8 +82,8 @@ export class TrainingRuntime {
       thresholds: {
         ...DEFAULT_COACHING_CONFIG.thresholds,
         corridorToleranceUnits: corridorTolerance,
-        rotationBehindToleranceDeg: skill.id === "peg-transfer" ? 8 : 3,
-        rotationSeverityRangeDeg: skill.id === "peg-transfer" ? 20 : 12,
+        rotationBehindToleranceDeg: skill.id === "peg-transfer" || routeTask ? 8 : 3,
+        rotationSeverityRangeDeg: skill.id === "peg-transfer" || routeTask ? 20 : 12,
       },
     });
   }

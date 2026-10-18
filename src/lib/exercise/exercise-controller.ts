@@ -28,6 +28,7 @@ import {
   pegLiftHeight,
   validatePegTransferSceneConfig,
 } from "./peg-transfer-config";
+import { getRouteTask, ROUTE_THRESHOLDS, stepRouteTask, validateRouteSkill } from "./route-tasks";
 
 export type ExercisePhase = "idle" | "demonstration" | "active" | "complete";
 
@@ -159,9 +160,14 @@ export class ExerciseController {
   private replaySceneFrames: ReplaySceneFrame[] = [];
   private recordingTruncated = false;
   private segmentFrames = new Map<string, number>();
+  private routeSawRelease = false;
 
   constructor({ skill = needlePassingSkill, mode = "practice" }: { skill?: SkillDefinition; mode?: TrainingMode } = {}) {
-    this.skill = skill.id === "peg-transfer" ? validatePegTransferSceneConfig(skill) : validateSkillSceneConfig(skill);
+    this.skill = skill.id === "peg-transfer"
+      ? validatePegTransferSceneConfig(skill)
+      : getRouteTask(skill.id)
+        ? validateRouteSkill(skill)
+        : validateSkillSceneConfig(skill);
     this.mode = mode;
     this.snapshot = this.initialSnapshot("idle", "Calibrate both hands to begin the exercise.");
   }
@@ -194,7 +200,7 @@ export class ExerciseController {
       segmentInstructions: seg.instructions,
       segmentProgress: 0,
       overallProgress: 0,
-      activeTargetId: this.skill.id === "peg-transfer" ? PEG_ID : NEEDLE_ID,
+      activeTargetId: this.skill.id === "peg-transfer" ? PEG_ID : getRouteTask(this.skill.id)?.objectId ?? NEEDLE_ID,
       completedTargetIds: [],
       corridorDeviation: 0,
       orientationErrorDeg: 0,
@@ -277,6 +283,7 @@ export class ExerciseController {
     this.frames = [];
     this.replaySceneFrames = [];
     this.recordingTruncated = false;
+    this.routeSawRelease = false;
     this.segmentFrames.clear();
     this.snapshot = this.initialSnapshot("idle", "Calibrate both hands to begin the exercise.");
   }
@@ -320,15 +327,16 @@ export class ExerciseController {
   }
 
   private demonstrationDurationMs(): number {
-    return this.skill.id === "peg-transfer"
-      ? PEG_TRANSFER_THRESHOLDS.demonstrationDurationMs
-      : EXERCISE_THRESHOLDS.demonstrationDurationMs;
+    if (this.skill.id === "peg-transfer") return PEG_TRANSFER_THRESHOLDS.demonstrationDurationMs;
+    if (getRouteTask(this.skill.id)) return ROUTE_THRESHOLDS.demonstrationDurationMs;
+    return EXERCISE_THRESHOLDS.demonstrationDurationMs;
   }
 
   private demonstrationMessage(): string {
-    return this.skill.id === "peg-transfer"
-      ? "Learn demonstration: watch the peg move from the left post through the midline to the right post, or select Start attempt."
-      : "Learn demonstration: watch the target path through Rings 1–3, or select Start attempt.";
+    return getRouteTask(this.skill.id)?.demoMessage
+      ?? (this.skill.id === "peg-transfer"
+        ? "Learn demonstration: watch the peg move from the left post through the midline to the right post, or select Start attempt."
+        : "Learn demonstration: watch the target path through Rings 1–3, or select Start attempt.");
   }
 
   private recordFrame(
@@ -471,6 +479,9 @@ export class ExerciseController {
 
     if (this.skill.id === "peg-transfer") {
       return this.updatePegTransfer(controls, simulation, source, stepMs);
+    }
+    if (getRouteTask(this.skill.id)) {
+      return this.updateRouteTask(controls, simulation, source, stepMs);
     }
 
     const leftTip = simulation.left.tipPosition;
@@ -1000,6 +1011,150 @@ export class ExerciseController {
       dangerZoneCount: this.dangerZoneCount,
       dangerZoneDurationMs: Math.round(this.dangerZoneDurationMs),
       needleDropped: pegDropped,
+      elapsedActiveMs: Math.round(this.elapsedActiveMs),
+      demonstrationProgress: 1,
+      modeHooks,
+      readyForEvaluation: false,
+      readyForReplay: false,
+      frameCount: this.frames.length,
+      sourceTMs: source,
+      canProgress: true,
+      message: this.formatMessage(segmentMeta.title, liveInstruction),
+    };
+    return this.snapshot;
+  }
+
+  private updateRouteTask(
+    controls: ControlSnapshot,
+    simulation: SimulationSnapshot,
+    source: number,
+    stepMs: number,
+  ): ExerciseSnapshot {
+    const task = getRouteTask(this.skill.id);
+    if (!task) throw new Error(`Route task is unavailable for ${this.skill.id}.`);
+    const heldTool = simulation.object.heldBy === "left-tool"
+      ? simulation.left
+      : simulation.object.heldBy === "right-tool"
+        ? simulation.right
+        : null;
+    let segmentIndex = this.snapshot.segmentIndex;
+    let segmentMeta = this.segmentMeta(segmentIndex);
+    const step = stepRouteTask({
+      task,
+      segmentId: segmentMeta.id,
+      hadSegmentFrame: (this.segmentFrames.get(segmentMeta.id) ?? 0) > 0,
+      sawRelease: this.routeSawRelease,
+      singleHand: simulation.singleHand,
+      leftTip: simulation.left!.tipPosition,
+      rightTip: simulation.right!.tipPosition,
+      objectPosition: simulation.object.position,
+      heldBy: simulation.object.heldBy,
+    });
+    this.routeSawRelease = step.sawRelease;
+    if (step.inDangerZone) {
+      if (!this.wasInDangerZone) this.dangerZoneCount++;
+      this.dangerZoneDurationMs += stepMs;
+    }
+    this.wasInDangerZone = step.inDangerZone;
+    const inCorridorSegment = task.corridorSegments.includes(segmentMeta.id);
+    if (inCorridorSegment && (heldTool || task.phases.some(item => item.segmentId === segmentMeta.id && item.kind === "trace")) && step.corridorDeviation > ROUTE_THRESHOLDS.corridorToleranceUnits) {
+      this.sustainedDeviationMs += stepMs;
+      if (this.mode === "practice" && this.sustainedDeviationMs >= ROUTE_THRESHOLDS.sustainedDeviationMs && this.manualGhost === null) {
+        this.autoGhost = true;
+      }
+    } else {
+      this.sustainedDeviationMs = 0;
+    }
+    const modeHooks = buildModeHooks(this.mode, this.manualGhost, this.autoGhost);
+    let segmentProgress = step.segmentProgress;
+    let activeTargetId = step.activeTargetId;
+    let liveInstruction = step.liveInstruction;
+    if (step.shouldAdvance && step.completedTargetId && !this.completedTargets.includes(step.completedTargetId)) {
+      this.completedTargets = [...this.completedTargets, step.completedTargetId];
+    }
+
+    const hadSegmentFrame = (this.segmentFrames.get(segmentMeta.id) ?? 0) > 0;
+    if (step.shouldAdvance && !hadSegmentFrame) {
+      this.recordFrame(segmentMeta.id, this.computeOverallProgress(segmentIndex, 0.9), simulation, controls);
+      this.elapsedActiveMs += 1;
+    }
+
+    if (step.shouldAdvance) {
+      const nextIndex = Math.min(this.skill.segments.length - 1, segmentIndex + 1);
+      const nextMeta = this.segmentMeta(nextIndex);
+      this.transitions.push({
+        from: segmentMeta.id,
+        to: nextMeta.id,
+        attemptTMs: Math.round(this.elapsedActiveMs * 1000) / 1000,
+        sourceTMs: source,
+      });
+      segmentIndex = nextIndex;
+      segmentMeta = nextMeta;
+      this.routeSawRelease = false;
+      if (segmentMeta.id === "complete") {
+        this.recordFrame("complete", 1, simulation, controls);
+        this.snapshot = {
+          skillId: this.skill.id,
+          mode: this.mode,
+          phase: "complete",
+          segmentId: "complete",
+          segmentIndex,
+          segmentCount: this.skill.segments.length,
+          segmentTitle: segmentMeta.title,
+          segmentInstructions: segmentMeta.instructions,
+          segmentProgress: 1,
+          overallProgress: 1,
+          activeTargetId: null,
+          completedTargetIds: [...this.completedTargets],
+          corridorDeviation: step.corridorDeviation,
+          orientationErrorDeg: 0,
+          rotationDeltaDeg: 0,
+          inDangerZone: false,
+          activeDangerZoneIds: [],
+          dangerZoneCount: this.dangerZoneCount,
+          dangerZoneDurationMs: Math.round(this.dangerZoneDurationMs),
+          needleDropped: false,
+          elapsedActiveMs: Math.round(this.elapsedActiveMs),
+          demonstrationProgress: 1,
+          modeHooks,
+          readyForEvaluation: true,
+          readyForReplay: !this.recordingTruncated,
+          frameCount: this.frames.length,
+          sourceTMs: source,
+          canProgress: true,
+          message: this.formatMessage(segmentMeta.title, segmentMeta.instructions),
+        };
+        return this.snapshot;
+      }
+      segmentProgress = 0.1;
+      liveInstruction = segmentMeta.instructions;
+      const nextPhase = task.phases.find(item => item.segmentId === segmentMeta.id);
+      activeTargetId = nextPhase?.kind === "reach" || nextPhase?.kind === "trace" ? nextPhase.targetId : simulation.object.heldBy ? nextPhase?.targetId ?? task.objectId : task.objectId;
+    }
+
+    const overallProgress = this.computeOverallProgress(segmentIndex, segmentProgress);
+    this.recordFrame(segmentMeta.id, overallProgress, simulation, controls);
+    this.snapshot = {
+      skillId: this.skill.id,
+      mode: this.mode,
+      phase: "active",
+      segmentId: segmentMeta.id,
+      segmentIndex,
+      segmentCount: this.skill.segments.length,
+      segmentTitle: segmentMeta.title,
+      segmentInstructions: segmentMeta.instructions,
+      segmentProgress,
+      overallProgress,
+      activeTargetId,
+      completedTargetIds: [...this.completedTargets],
+      corridorDeviation: step.corridorDeviation,
+      orientationErrorDeg: 0,
+      rotationDeltaDeg: 0,
+      inDangerZone: step.inDangerZone,
+      activeDangerZoneIds: step.inDangerZone ? [task.danger.id] : [],
+      dangerZoneCount: this.dangerZoneCount,
+      dangerZoneDurationMs: Math.round(this.dangerZoneDurationMs),
+      needleDropped: step.dropped,
       elapsedActiveMs: Math.round(this.elapsedActiveMs),
       demonstrationProgress: 1,
       modeHooks,

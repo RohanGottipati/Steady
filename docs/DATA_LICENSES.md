@@ -2,7 +2,7 @@
 
 ## Product UI reference labels (2026-10-18)
 
-The new landing/library/workspace UI reads availability and reference labels from the canonical catalog. Both playable scenes use authored synthetic guides for deterministic scoring. Optional JIGSAWS Needle Passing playback is a display/reference-demonstration choice, not the evaluation source. The supplied UI archive's claims about LASK expert data are not used. Upcoming Suturing/Knot Tying previews retain the attributed JIGSAWS references below without claiming playable scenes.
+The new landing/library/workspace UI reads availability and reference labels from the canonical catalog. Playable scenes use authored synthetic guides for deterministic scoring. Optional JIGSAWS Needle Passing playback is a display/reference-demonstration choice, not the evaluation source. The supplied UI archive's claims about LASK expert data are not used. Suturing and Knot Tying now train on synthetic scene guides; their attributed JIGSAWS files stay data-only.
 
 
 Track external dataset licenses and redistribution constraints before including any source data in the repository.
@@ -35,16 +35,12 @@ one per task, at `public/references/<skill>/<skill>-jigsaws-expert-v1.json`
 
 **Optional display wiring for Needle Passing (A5/S1).** Its expert trial can be
 selected as a workspace-fitted, gesture-mapped ghost with attribution. It never
-selects the S1 scoring reference. Suturing and Knot Tying remain data-only for
-scoring and playback. They carry JIGSAWS's gesture vocabulary (`G1`–`G15`) and raw
+selects the S1 scoring reference. The Suturing and Knot Tying JIGSAWS files stay
+data-only for scoring and playback. They carry JIGSAWS's gesture vocabulary (`G1`–`G15`) and raw
 source scale (metres, ~0.04–0.13), which do not match the skill-definition phase
-labels or the scene workspace. B11 adds authored, attributed *skill blueprints*
-for these two skills (`src/data/skills/{suturing,knot-tying}.ts`): scene-aligned
-phase segments, metric weights, and coaching rules that preview "what you'll
-practice / how it's scored" on the coming-soon library page, with the JIGSAWS
-citation shown at the point of use. The blueprints do not fit, score, or launch
-the raw reference; they flip to a full trainable `SkillDefinition` only once a
-trainer scene lands. A5 maps/fits the optional Needle Passing ghost at runtime without changing these
+labels or the scene workspace. Both skills now launch on the shared route-task
+runtime with synthetic scene guides (`suturing-reference-v1`, `knot-tying-reference-v1`).
+A5 maps/fits the optional Needle Passing ghost at runtime without changing these
 committed data files. The **evaluation references stay synthetic**: needle-passing uses the
 scene-aligned synthetic guide with id `needle-passing-reference-v1`. Peg Transfer (A7)
 uses a fixed internally authored demonstration passed through the scene engine for

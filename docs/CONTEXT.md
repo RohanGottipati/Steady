@@ -1,9 +1,9 @@
 # Project Context
 
 Last updated: 2026-10-18
-Updated by: S4 frame stability and B5 segment timing repairs
+Updated by: trainable skill expansion on the S4/B5 runtime
 Current milestone: S4 stable training canvas and B5 normalized step timing
-Working state: verified S4 UI, frame stability and B5 timing changes; delivery branch main; no deployment performed
+Working state: S4/B5 on main; local skill expansion uncommitted; no deployment performed
 Physical acceptance: pending on target Mac/Chrome
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -37,8 +37,8 @@ truth for the current project state — it records what exists and where it is.
 
 Steady is a browser-based, webcam-controlled surgical motion simulator. The current journey is landing → library → calibration/training → deterministic results → comparison replay → synced progress.
 
-- Needle Passing and Peg Transfer train through the same runtime in Learn, Practice, and Assessment modes.
-- Suturing and Knot Tying provide authored blueprints, not playable trainer scenes.
+- Ten skills train through the same runtime in Learn, Practice, and Assessment modes: Needle Passing, Suturing, Knot Tying, Peg Transfer, Pattern Cutting, Ligating Loop, Clip Applying, Needle Loading, Tissue Retraction, and Camera Navigation.
+- Suturing and Knot Tying keep their committed JIGSAWS files as attributed data. Scoring for every skill uses a synthetic scene guide.
 - Canonical synthetic guides drive deterministic scoring. The optional JIGSAWS Needle Passing ghost is demonstration-only. LASK recordings are not included.
 - The UI archive supplies branding, page layouts, and procedural room scenery. Its mock calibration, mouse training, scoring, fake history, bundled design system, and Vite routing are not imported.
 - Raw video and landmarks stay local. Webcam attempts retain the newest 20 local results/tool recordings; cloud sync is optional. Fixture sessions do not call live review, speech, or upload services.

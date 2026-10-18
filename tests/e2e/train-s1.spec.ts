@@ -199,10 +199,7 @@ test("navigates from /library to /train/needle-passing, calibrates, shows ghost 
       : { json: { status: "duplicate", persistence: "duplicate" } });
   });
 
-  // Verify coming-soon skill route stays intact
-  await page.goto("/train/suturing");
-  await expect(page.getByText("This skill is coming soon.")).toBeVisible();
-  await page.getByRole("link", { name: "Back to library" }).click();
+  await page.goto("/library");
   await expect(page).toHaveURL(/\/library$/);
 
   // Navigate to Needle Passing from the library

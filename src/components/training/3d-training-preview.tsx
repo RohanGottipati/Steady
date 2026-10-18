@@ -16,6 +16,7 @@ import { needlePassingSkill } from "@/data/skills/needle-passing";
 import { buildDeterministicReview } from "@/lib/ai/deterministic-review";
 import { type CompletedAttemptBundle } from "@/lib/exercise/attempt-evaluator";
 import { TrainingRuntime } from "@/lib/exercise/training-runtime";
+import { getRouteTask } from "@/lib/exercise/route-tasks";
 import {
   FIXTURE_CATALOG,
   fixtureMatchesSkill,
@@ -133,6 +134,9 @@ export function ThreeDTrainingPreview({
   setupPanel?: ReactNode;
   sessionActions?: ReactNode;
 }) {
+  const routeTask = getRouteTask(skill.id);
+  const objectNoun = routeTask?.objectNoun ?? (skill.id === "peg-transfer" ? "peg" : "needle");
+  const objectLabel = routeTask?.objectLabel ?? (skill.id === "peg-transfer" ? "Peg" : "Needle");
   const [runtime] = useState(
     () => new TrainingRuntime(skill, controlledMode ?? "learn"),
   );
@@ -589,7 +593,26 @@ export function ThreeDTrainingPreview({
             aria-label="Scene checkpoint map"
             className="pointer-events-none absolute inset-x-3 top-2.5 z-10 flex flex-wrap items-center justify-between gap-1.5 rounded-md bg-slate-900/85 px-3 py-1.5 text-[11px] text-slate-200 backdrop-blur-sm"
           >
-            {skill.id === "peg-transfer" ? (
+            {routeTask ? (
+              routeTask.phases
+                .filter((phase, index, phases) => phase.targetId !== routeTask.objectId && phases.findIndex(item => item.targetId === phase.targetId) === index)
+                .map((phase, index) => (
+                  <span key={phase.targetId} className="inline-flex items-center gap-1.5">
+                    {index > 0 ? <span>→</span> : null}
+                    <span
+                      className={
+                        exerciseSnapshot.activeTargetId === phase.targetId
+                          ? "font-bold text-sky-400"
+                          : exerciseSnapshot.completedTargetIds.includes(phase.targetId) || exerciseSnapshot.phase === "complete"
+                            ? "text-emerald-400"
+                            : "text-slate-300"
+                      }
+                    >
+                      {index + 1}. {phase.title}
+                    </span>
+                  </span>
+                ))
+            ) : skill.id === "peg-transfer" ? (
               <>
                 <span
                   className={
@@ -738,7 +761,7 @@ export function ThreeDTrainingPreview({
               {feedback?.message ?? "Calibrate both hands to begin."}
             </p>
             <p data-testid="needle-ownership">
-              {skill.id === "peg-transfer" ? "Peg" : "Needle"}:{" "}
+              {objectLabel}:{" "}
               {snapshot?.object.heldBy ?? "free"}
             </p>
           </div>
@@ -824,7 +847,7 @@ export function ThreeDTrainingPreview({
                 </label>
               ) : (
                 <span data-testid="ghost-reference-select">
-                  Reference: Synthetic peg-transfer guide (not expert data)
+                  Reference: {routeTask?.referenceLabel ?? "Synthetic peg-transfer guide (not expert data)"}
                 </span>
               )}
               {ghostSnapshot.attribution && (
@@ -859,7 +882,17 @@ export function ThreeDTrainingPreview({
               className="grid gap-2 text-sm sm:grid-cols-3"
               aria-label="Pickup instructions"
             >
-              {skill.id === "peg-transfer" ? (
+              {routeTask ? (
+                <>
+                  {routeTask.steps.map((step, index) => (
+                    <li key={step} className="rounded-lg bg-slate-100 p-3 text-slate-900">
+                      <strong>{index + 1}. {routeTask.phases[index]?.title ?? "Step"}</strong>
+                      <br />
+                      {step}
+                    </li>
+                  ))}
+                </>
+              ) : skill.id === "peg-transfer" ? (
                 <>
                   <li className="rounded-lg bg-muted p-3 text-foreground">
                     <strong>1. Reach and grasp</strong>
@@ -943,16 +976,18 @@ export function ThreeDTrainingPreview({
               />
               <span>
                 <strong>Easy pickup</strong> — keeps the tips at the{" "}
-                {skill.id === "peg-transfer" ? "peg" : "needle"} depth and snaps
+                {objectNoun} depth and snaps
                 it into the jaws. Turning this off enables free 3D depth and
-                resets the {skill.id === "peg-transfer" ? "peg" : "needle"}.
+                resets the {objectNoun}.
               </span>
             </label>
           </div>
           <p className="text-sm text-zinc-500">
-            {skill.id === "peg-transfer"
-              ? "Use the left instrument to carry the peg and bring the right instrument to the midline. Keep both hands visible unless 1-Hand Mode is on."
-              : "Only one hand needs to hold and pass the needle (Left cyan or Right amber). Keep your unused hand comfortably visible in the camera frame so tracking stays active."}
+            {routeTask
+              ? routeTask.coachHint
+              : skill.id === "peg-transfer"
+                ? "Use the left instrument to carry the peg and bring the right instrument to the midline. Keep both hands visible unless 1-Hand Mode is on."
+                : "Only one hand needs to hold and pass the needle (Left cyan or Right amber). Keep your unused hand comfortably visible in the camera frame so tracking stays active."}
           </p>
         </aside>
       </div>

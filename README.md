@@ -6,13 +6,13 @@ The application is for simulation practice. Its scores describe motion in the si
 
 ## What you can do
 
-- **Train Needle Passing and Peg Transfer** in a procedural 3D operating room.
+- **Train ten laparoscopic skills** in a procedural 3D operating room, including Needle Passing, Peg Transfer, Suturing, and Knot Tying.
 - Choose **Learn**, **Practice**, or **Assessment**. Learn demonstrates the movement first; Practice offers optional guidance; Assessment hides guides and live coaching.
 - Use guided hand calibration or the one-hand quick start. Pinch to grasp and move/rotate your hand to control an instrument.
 - Review an overall score, five categories, all 20 deterministic metrics, and the largest recorded differences.
 - Scrub, slow down, and orbit a 3D replay comparing your motion with the canonical guide.
 - Track synced attempts through per-skill summaries and recent score charts.
-- Preview the authored **Suturing** and **Knot Tying** blueprints. Their trainer scenes are upcoming.
+- Pattern Cutting, Ligating Loop, Clip Applying, Needle Loading, Tissue Retraction, and Camera Navigation use the same trainer, scoring, and replay path.
 
 Scoring uses canonical synthetic guides. The optional JIGSAWS Needle Passing demonstration changes the displayed ghost, not the scoring reference. Peg Transfer uses an authored synthetic reference; LASK recordings are not included.
 

@@ -8,16 +8,26 @@ import {
 import { skillCatalogEntrySchema } from "@/lib/skills/types";
 
 describe("skill catalog", () => {
-  it("lists all four planned skills in a stable order", () => {
+  it("lists every trainable skill in a stable order", () => {
     const ids = getSkillCatalog().map((e) => e.id);
-    expect(ids).toEqual(["needle-passing", "suturing", "knot-tying", "peg-transfer"]);
+    expect(ids).toEqual([
+      "needle-passing",
+      "suturing",
+      "knot-tying",
+      "peg-transfer",
+      "pattern-cutting",
+      "ligating-loop",
+      "clip-applying",
+      "needle-loading",
+      "tissue-retraction",
+      "camera-navigation",
+    ]);
   });
 
-  it("marks needle-passing and peg-transfer available and leaves the other skills coming-soon", () => {
-    expect(getCatalogEntry("needle-passing")?.status).toBe("available");
-    expect(getCatalogEntry("peg-transfer")?.status).toBe("available");
-    expect(getCatalogEntry("suturing")?.status).toBe("coming-soon");
-    expect(getCatalogEntry("knot-tying")?.status).toBe("coming-soon");
+  it("marks every listed skill available", () => {
+    for (const entry of getSkillCatalog()) {
+      expect(entry.status).toBe("available");
+    }
   });
 
   it("validates every entry against the SkillCatalogEntry schema", () => {
@@ -32,8 +42,9 @@ describe("skill catalog", () => {
     expect(getSkillDefinition("peg-transfer")?.segments.map(segment => segment.id)).toEqual([
       "reach", "grasp", "lift", "transfer", "place", "release", "complete",
     ]);
-    expect(getSkillDefinition("suturing")).toBeUndefined();
-    expect(getSkillDefinition("knot-tying")).toBeUndefined();
+    expect(getSkillDefinition("suturing")?.segments[0]?.id).toBe("orient");
+    expect(getSkillDefinition("knot-tying")?.segments[0]?.id).toBe("loop");
+    expect(getSkillDefinition("pattern-cutting")?.id).toBe("pattern-cutting");
   });
 
   it("returns undefined for an unknown skill id", () => {

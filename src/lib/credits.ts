@@ -27,7 +27,7 @@ export const PRODUCT_CREDITS: readonly ProductCredit[] = [
   },
   {
     id: "jigsaws",
-    text: "Expert motion data is derived from JIGSAWS for academic, non-commercial use: the optional Needle Passing ghost, and the committed reference demonstrations behind the upcoming Suturing and Knot Tying skills. Yixin Gao, S. Swaroop Vedula, Carol E. Reiley, Narges Ahmidi, Balakrishnan Varadarajan, Henry C. Lin, Lingling Tao, Luca Zappella, Benjamín Béjar, David D. Yuh, Chi Chiung Grace Chen, René Vidal, Sanjeev Khudanpur and Gregory D. Hager. The JHU-ISI Gesture and Skill Assessment Working Set (JIGSAWS): A Surgical Activity Dataset for Human Motion Modeling. In Modeling and Monitoring of Computer Assisted Interventions (M2CAI) – MICCAI Workshop, 2014.",
+    text: "Expert motion data is derived from JIGSAWS for academic, non-commercial use: the optional Needle Passing ghost, and the committed Suturing and Knot Tying reference files. Those two trainers score a synthetic scene guide, not the raw JIGSAWS recording. Yixin Gao, S. Swaroop Vedula, Carol E. Reiley, Narges Ahmidi, Balakrishnan Varadarajan, Henry C. Lin, Lingling Tao, Luca Zappella, Benjamín Béjar, David D. Yuh, Chi Chiung Grace Chen, René Vidal, Sanjeev Khudanpur and Gregory D. Hager. The JHU-ISI Gesture and Skill Assessment Working Set (JIGSAWS): A Surgical Activity Dataset for Human Motion Modeling. In Modeling and Monitoring of Computer Assisted Interventions (M2CAI) – MICCAI Workshop, 2014.",
   },
   {
     id: "lask",

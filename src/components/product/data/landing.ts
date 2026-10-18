@@ -44,7 +44,7 @@ export const SCORE_CATEGORIES = [
 ];
 
 export const HERO_STATS = [
-  { value: "2", label: "skills ready to train" },
+  { value: "10", label: "skills ready to train" },
   { value: "5", label: "motion categories" },
   { value: "20", label: "deterministic metrics" },
 ];

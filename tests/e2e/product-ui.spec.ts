@@ -72,7 +72,7 @@ test("public pages use the new design and real catalog at desktop and narrow wid
     page.getByRole("link", { name: "Train Peg Transfer" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Suturing — coming soon" }),
+    page.getByRole("link", { name: "Train Suturing" }),
   ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(
