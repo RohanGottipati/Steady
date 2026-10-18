@@ -3641,6 +3641,18 @@ At least two skills use the same generic engine with different config/reference 
 
 Library cards launch functional or clearly marked unavailable exercises.
 
+### Status
+
+Done, to the extent possible without the (A-series) trainer scenes. Needle
+Passing and Peg Transfer launch functional trainers; Suturing and Knot Tying are
+clearly marked "Coming soon" and no longer dead-end — each carries an authored,
+attributed *skill blueprint* (`src/data/skills/{suturing,knot-tying}.ts`:
+phase segments, metric weights, coaching rules, JIGSAWS reference + attribution)
+previewed on `/train/[skillId]`. Additional references and attribution are
+committed (see `docs/DATA_LICENSES.md`). Making Suturing/Knot Tying actually
+trainable is gated on their scene + scene-aligned scoring reference; a blueprint
+becomes a full `SkillDefinition` when that lands.
+
 ---
 
 ## S3 - Reliability and performance pass

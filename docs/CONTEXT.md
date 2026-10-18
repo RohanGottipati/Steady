@@ -1,9 +1,9 @@
 # Project Context
 
 Last updated: 2026-10-18
-Updated by: B10 rework — progress page/API + delete-history rebuilt on main's upload stack
-Current branch: b10 (reset onto origin/main; PR #17 reworked)
-Current milestone: A7, S0–S4, and B9 complete on main; B10 progress/history reworked on top
+Updated by: B11 — authored skill blueprints + attribution for the coming-soon skills
+Current branch: b11 (branched from b10; PR to main open)
+Current milestone: A7, S0–S4, and B9 complete on main; B10 progress/history reworked on top; B11 blueprints added
 Demo-critical status: YELLOW — physical rehearsal and isolated live-database checks pending
 
 ## 0. Agent Operating Rules (READ FIRST)
@@ -122,6 +122,21 @@ cannot resurrect deleted history. Migration `0002_progress.sql` adds the daily
 progress CAGG and Hypercore columnstore policies (idempotent); `percentile_agg`
 is deferred to B12 to avoid a `timescaledb_toolkit` dependency. B10 telemetry
 history and B12 BM25/vector analytics remain separate.
+
+B11 delivers the achievable part of "Additional
+reference motions and skill configs" without fabricating a trainer scene. Suturing
+and Knot Tying stay `coming-soon`, but each now has an authored, schema-validated
+*skill blueprint* (`src/data/skills/{suturing,knot-tying}.ts`, `skillBlueprintSchema`
+in `src/types/skill.ts`): scene-aligned phase segments, metric weights keyed to the
+canonical performance-vector metrics, coaching rules, and the committed JIGSAWS
+reference with attribution. `getSkillBlueprint()` (`src/lib/skills/catalog.ts`)
+feeds a "what you'll practice / how it's scored" preview on the coming-soon
+`/train/[skillId]` page, so cards no longer dead-end. The site credits JIGSAWS
+line now covers these two skills, not just the Needle Passing ghost. The
+blueprints never fit/score/launch the raw reference (G1–G15, raw metre scale);
+each flips to a full `SkillDefinition` once an A-series trainer scene lands.
+B11's functional-training portion remains gated on that scene. See
+`docs/DATA_LICENSES.md` and `IMPLEMENTATION_PLAN.md` §B11 Status.
 
 Acceptance (offline, no live DB): typecheck, ESLint, and the production build
 pass; `/api/progress` and `/progress` appear in the route table. The unit suite
