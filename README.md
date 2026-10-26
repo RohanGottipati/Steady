@@ -30,9 +30,38 @@ Samples run through the real simulation and evaluation engine. They are labelled
 
 Results appear when the exercise finishes. **Try again** retains calibration; **Replay latest attempt** opens the completed comparison. Stopping the camera preserves a finished result. Restarting the camera requires calibration again.
 
+## Tech stack
+
+Next.js 16 (App Router, Webpack builds) · React 19 · TypeScript · Tailwind CSS 4 · MediaPipe Tasks Vision (hand landmarks, in a Web Worker) · React Three Fiber / Drei / Three.js · Zod · IndexedDB (`idb`) · Postgres on Tiger Data (`postgres`) · Backboard (Gemini) · ElevenLabs · Vitest (jsdom) · Playwright.
+
+## Project structure
+
+```text
+src/
+  app/            Routes: / (landing), /library, /train/[skillId], /progress, /notices,
+                  development-only /dev/*, and API routes under /api/*
+  components/     Camera, scene (R3F room, targets, replay), training session, product UI
+  lib/            vision (tracking/calibration), exercise runtime, evaluation metrics,
+                  simulation/replay, coaching, ai (review), voice, db, storage, reliability
+  workers/        Hand-tracking Web Worker
+  data/, types/   Skill definitions, scene layout, shared Zod schemas
+db/               SQL migrations and seeds for Tiger Data
+public/           Coach audio clips, reference motions, anatomy model, MediaPipe notices
+scripts/          Vision setup, DB migrate/seed, provider checks, demo recording,
+                  coach-clip and asset generation, offline dataset adapters (Python)
+tests/            Vitest unit suite (tests/unit) and Playwright browser suite (tests/e2e)
+docs/             Engineering context, architecture plan, subsystem notes, licences
+```
+
 ## Run locally
 
-Use a supported Node.js version for the installed Next.js release (Node 20.9 or newer) and npm. Current Chrome on a Mac is the primary webcam-training target. Camera access requires localhost or HTTPS; the 3D view requires WebGL.
+### Prerequisites
+
+- Node.js 20.9 or newer (required by the installed Next.js release) and npm.
+- A browser with WebGL; current Chrome on a Mac is the primary webcam-training target. Camera access requires localhost or HTTPS.
+- Optional: `git-crypt` and the repository key to unlock the tracked `.env.local`; Python 3 with `requirements.txt` only for the offline dataset adapters in `scripts/data/`.
+
+### Setup
 
 This repository intentionally tracks `.env.local` encrypted with git-crypt. Obtain the existing repository key securely from a maintainer and unlock your clone:
 
@@ -44,6 +73,8 @@ npm run dev
 ```
 
 Do not overwrite the tracked environment file, print its secrets, or initialize a new git-crypt repository. See [the encryption workflow](docs/GIT_CRYPT.md). `.env.example` documents configuration names.
+
+Without the key, `npm ci`, `npm test`, `npm run lint`, `npm run typecheck` and `npm run build` still work; provider-backed features (cloud sync, model review, server speech) are unavailable and fall back as described below.
 
 The development server runs at `http://localhost:3000`. Before development and builds, `prepare:vision` verifies the local hand model and copies matching MediaPipe WASM assets. Its first run downloads the versioned model; later runs reuse the verified cache. Deployment builds must include the generated `public/mediapipe/` assets.
 
@@ -67,15 +98,36 @@ Provider credentials stay server-side. Public feature flags control cloud sync, 
 
 Replay geometry and the exact adapted comparison package remain in memory for the active session. Saved tool telemetry does not provide a historical replay-navigation screen after reload.
 
+## Environment variables
+
+Names and purpose only; see `.env.example`. Server-only values must never be exposed client-side.
+
+| Variable | Purpose |
+| --- | --- |
+| `TIGER_DATABASE_URL`, `TIGER_DATABASE_SSL` | Postgres connection for attempt storage, progress, search and analytics (server only) |
+| `TIGER_PROJECT_ID`, `TIGER_SERVICE_ID` | Optional Tiger Cloud development metadata |
+| `BACKBOARD_API_KEY`, `BACKBOARD_MODEL_PROVIDER`, `BACKBOARD_MODEL_NAME` | Model review of measured results (server only) |
+| `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELEVENLABS_TTS_MODEL` | Coaching and narration speech (server only) |
+| `SPEECH_ENABLED` | Must be `true` to enable the `/api/speech` route |
+| `SPEECH_RATE_LIMIT`, `SPEECH_RATE_WINDOW_MS` | Optional speech-route rate limit (defaults 20 requests per 60 000 ms) |
+| `NEXT_PUBLIC_ENABLE_AI_REVIEW`, `NEXT_PUBLIC_ENABLE_VOICE`, `NEXT_PUBLIC_ENABLE_CLOUD_SYNC` | Public feature flags |
+| `NEXT_PUBLIC_DEMO_FIXTURE_MODE` | Default to camera-free sample passes |
+| `NEXT_PUBLIC_DEBUG_DEFAULT` | Enable diagnostics by default |
+| `NEXT_PUBLIC_SURGICAL_POSTURE_MAPPING` | Palms-down mapping; `false` selects the legacy fallback |
+
+Test-only switches: `STEADY_TIGER_INTEGRATION` (`test:db`), `STEADY_LIVE_TEST` / `STEADY_LIVE_BASE_URL` (`test:live`), `PLAYWRIGHT_PORT` / `PLAYWRIGHT_PRODUCTION` (browser suite).
+
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start the Next.js development server with Webpack |
+| `npm run dev:turbo` | Optional Turbopack development server |
 | `npm run prepare:vision` | Prepare the verified hand model and local runtime assets |
 | `npm run typecheck` | Check TypeScript |
 | `npm run lint` | Run ESLint |
 | `npm test` | Run the offline unit suite |
+| `npm run test:watch` | Run Vitest in watch mode |
 | `npm run test:e2e` | Run Chromium browser acceptance with live services disabled |
 | `npm run build` | Build the production application |
 | `npm start` | Serve the production build |
@@ -83,6 +135,7 @@ Replay geometry and the exact adapted comparison package remain in memory for th
 | `npm run test:db` | Isolated-database integration suite; applies migrations and seeds |
 | `npm run verify:ai` | Check provider model/voice configuration and request a speech sample |
 | `npm run demo:record` | Record the camera-free backup walkthrough |
+| `npm run audio:coach` | Regenerate the committed coach clips with ElevenLabs |
 | `npm run db:migrate` / `npm run db:seed` | Explicit database provisioning operations |
 
 Run typecheck after a build completes, rather than concurrently: builds regenerate the Next.js type directory. Browser tests use a separate `.next-e2e` build directory and can use `PLAYWRIGHT_PORT` to avoid an existing server.
@@ -106,11 +159,9 @@ This creates a fresh anonymous test user, uploads synthetic score records, check
 
 ## Verification status
 
-The UI integration passes the production build, TypeScript, ESLint, 464 offline tests, all 27 development browser scenarios across an initial run and focused reruns, and two production route/replay checks. The scoped live smoke verified Tiger persistence/progress/deletion, Backboard review generation, and ElevenLabs audio. A single complete browser-suite rerun after the last fixes and physical webcam/audio/performance sign-off remain outstanding; see the runbook for exact evidence.
+The current tree passes the production build, TypeScript, ESLint and the offline unit suite (488 tests; 14 opt-in database tests skipped without a test database). The UI integration also passed all 27 development browser scenarios across an initial run and focused reruns, and two production route/replay checks. The scoped live smoke verified Tiger persistence/progress/deletion, Backboard review generation, and ElevenLabs audio. A single complete browser-suite rerun after the last fixes and physical webcam/audio/performance sign-off remain outstanding; see the runbook for exact evidence.
 
-## Architecture and documentation
-
-Next.js App Router · React · TypeScript · Tailwind · MediaPipe · React Three Fiber / Three.js · Zod · IndexedDB · Tiger Data · Backboard · ElevenLabs.
+## Documentation
 
 - [Current engineering state](docs/CONTEXT.md)
 - [Architecture and implementation roadmap](docs/IMPLEMENTATION_PLAN.md)
@@ -120,5 +171,6 @@ Next.js App Router · React · TypeScript · Tailwind · MediaPipe · React Thre
 - [Demo and physical acceptance checklist](docs/DEMO_RUNBOOK.md)
 - [Asset attribution](docs/ASSET_LICENSES.md) and [reference-data licensing](docs/DATA_LICENSES.md)
 - [Design decisions](docs/DECISIONS.md)
+- [git-crypt environment workflow](docs/GIT_CRYPT.md)
 
 Automated camera fixtures do not certify physical hand tracking, audio output, or target-device performance. The demo runbook records those checks separately from automated acceptance.

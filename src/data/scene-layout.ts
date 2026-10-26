@@ -60,13 +60,3 @@ export const CAMERA_PRESETS: Record<
   wide: { position: [2.6, 2.75, 3.4], target: [0, 1.25, -0.9], fov: 50 },
   landing: { position: [3.3, 2.55, 3.6], target: [-0.1, 1.3, -1.1], fov: 46 },
 };
-
-/** Replay orbit limits (radians / world units) so the user cannot get lost. */
-export const REPLAY_ORBIT = {
-  minDistance: 1.3,
-  maxDistance: 3.6,
-  minPolarAngle: 0.45,
-  maxPolarAngle: 1.3,
-  minAzimuthAngle: -0.85,
-  maxAzimuthAngle: 0.85,
-};

@@ -38,10 +38,6 @@ export function getSkillBlueprint(id: string): SkillBlueprint | undefined {
   return SKILL_BLUEPRINTS[id];
 }
 
-export function isSkillAvailable(id: string): boolean {
-  return getCatalogEntry(id)?.status === "available";
-}
-
 export function getDefinedSkillIds(): string[] {
   return Object.keys(SKILL_DEFINITIONS);
 }

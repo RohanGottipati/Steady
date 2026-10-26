@@ -243,14 +243,3 @@ export function proceduralSequencing(ctx: Ctx): MetricResult {
     unit: "ratio",
   };
 }
-
-export const B3_METRICS = [
-  pathSimilarity,
-  targetAccuracy,
-  instrumentOrientationAccuracy,
-  pathEfficiency,
-  movementSmoothness,
-  speedProfileControl,
-  segmentTiming,
-  proceduralSequencing,
-] as const;
