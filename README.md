@@ -57,7 +57,7 @@ docs/             Engineering context, architecture plan, subsystem notes, licen
 
 ### Prerequisites
 
-- Node.js 20.9 or newer (required by the installed Next.js release) and npm.
+- Node.js 22.22+ or 24.15+ and npm. The Next.js build alone accepts Node 20.9+, but the unit-test toolchain (Vitest 5, jsdom 30) requires Node 22.22+/24.15+.
 - A browser with WebGL; current Chrome on a Mac is the primary webcam-training target. Camera access requires localhost or HTTPS.
 - Optional: `git-crypt` and the repository key to unlock the tracked `.env.local`; Python 3 with `requirements.txt` only for the offline dataset adapters in `scripts/data/`.
 
@@ -159,7 +159,7 @@ This creates a fresh anonymous test user, uploads synthetic score records, check
 
 ## Verification status
 
-The current tree passes the production build, TypeScript, ESLint and the offline unit suite (488 tests; 14 opt-in database tests skipped without a test database). The UI integration also passed all 27 development browser scenarios across an initial run and focused reruns, and two production route/replay checks. The scoped live smoke verified Tiger persistence/progress/deletion, Backboard review generation, and ElevenLabs audio. A single complete browser-suite rerun after the last fixes and physical webcam/audio/performance sign-off remain outstanding; see the runbook for exact evidence.
+The current tree passes the production build, TypeScript, ESLint and the offline unit suite (about 490 tests; the opt-in database tests are skipped without a test database). The UI integration also passed all 27 development browser scenarios across an initial run and focused reruns, and two production route/replay checks. The scoped live smoke verified Tiger persistence/progress/deletion, Backboard review generation, and ElevenLabs audio. A single complete browser-suite rerun after the last fixes and physical webcam/audio/performance sign-off remain outstanding; see the runbook for exact evidence.
 
 ## Documentation
 

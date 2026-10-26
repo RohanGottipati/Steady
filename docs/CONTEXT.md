@@ -95,9 +95,10 @@ default Next.js template SVGs in `public/`, redundant `.gitkeep` files in popula
 directories, unused exports (`REPLAY_ORBIT`, `B3_METRICS`, `B5_EXTRA_METRICS`,
 `isSkillAvailable`) and the unused `zustand`, `leva` and `@elevenlabs/elevenlabs-js`
 dependencies (speech uses the ElevenLabs REST API directly). No runtime behaviour
-changed. ESLint, TypeScript, production build and the offline suite (488 passed,
-14 opt-in database tests skipped) passed. README now documents structure,
-prerequisites, environment variables and all npm scripts.
+changed. ESLint, TypeScript, production build and the offline suite (489 passed,
+13 opt-in tests skipped on Node 24) passed. README now documents structure,
+prerequisites (Node 22.22+/24.15+ for the test toolchain), environment variables
+and all npm scripts.
 
 Main integration verification on 2026-10-18: fast-forwarded to `cb5fc72`
 (V1 training-target visuals) and retained the fullscreen fallback. Only the context
