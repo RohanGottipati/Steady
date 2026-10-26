@@ -1,7 +1,7 @@
 # Project Context
 
-Last updated: 2026-10-18
-Updated by: S4 fullscreen fallback integrated with V1 training-target visuals
+Last updated: 2026-10-26
+Updated by: Repository cleanup (unused files/dependencies removed) and README refresh
 Current milestone: V1 surgical targets with reliable fullscreen and focus-view fallback
 Working state: latest remote main integrated with fullscreen fallback; delivery branch main; no deployment performed
 Physical acceptance: pending on target Mac/Chrome
@@ -89,6 +89,16 @@ GET /api/progress preserves per-skill aggregates and adds global summary statist
 History deletion drains in-flight uploads, pauses retries, deletes only the current anonymous user's cloud history, then clears local copies. A persistent cleanup marker blocks uploads after incomplete cleanup; retry deletion finishes the operation. Stale retry snapshots cannot recreate deleted attempts in the current session. Device-scoped anonymous identity is not authentication; cross-tab concurrent training/deletion is not a new synchronization guarantee.
 
 ## 4. Acceptance and operations
+
+Repository cleanup on 2026-10-26: removed the unused `ListeningPill` component, the
+default Next.js template SVGs in `public/`, redundant `.gitkeep` files in populated
+directories, unused exports (`REPLAY_ORBIT`, `B3_METRICS`, `B5_EXTRA_METRICS`,
+`isSkillAvailable`) and the unused `zustand`, `leva` and `@elevenlabs/elevenlabs-js`
+dependencies (speech uses the ElevenLabs REST API directly). No runtime behaviour
+changed. ESLint, TypeScript, production build and the offline suite (489 passed,
+13 opt-in tests skipped on Node 24) passed. README now documents structure,
+prerequisites (Node 22.22+/24.15+ for the test toolchain), environment variables
+and all npm scripts.
 
 Main integration verification on 2026-10-18: fast-forwarded to `cb5fc72`
 (V1 training-target visuals) and retained the fullscreen fallback. Only the context

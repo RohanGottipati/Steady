@@ -4,7 +4,6 @@ const nextConfig: NextConfig = {
   // Browser tests can coexist with an already-running developer server.
   distDir: process.env.STEADY_E2E === "1" ? ".next-e2e" : ".next",
   typescript: { tsconfigPath: process.env.STEADY_E2E === "1" ? "tsconfig.e2e.json" : "tsconfig.json" },
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
   // The installed Tailwind loader implements the Webpack loader API too.

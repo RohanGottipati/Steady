@@ -377,18 +377,3 @@ export function dangerZoneAvoidance(ctx: Ctx): MetricResult {
     tolerance: EXTRA_TOLERANCES.dangerFraction,
   };
 }
-
-export const B5_EXTRA_METRICS = [
-  depthConsistency,
-  motionStability,
-  overshootControl,
-  correctionEfficiency,
-  rotationControlAccuracy,
-  pinchStability,
-  gripTiming,
-  handWorkspaceControl,
-  bimanualCoordination,
-  idleTimeControl,
-  toolCollisionAvoidance,
-  dangerZoneAvoidance,
-] as const;
